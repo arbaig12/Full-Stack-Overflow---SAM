@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
 export default function AppLayout() {
@@ -24,7 +24,7 @@ export default function AppLayout() {
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: open ? '240px 1fr' : '64px 1fr',
+        gridTemplateColumns: open ? '200px 1fr' : '0px 1fr',
         gridTemplateRows: '56px 1fr',
         height: '100vh',
         background: '#f6f7fb'
@@ -46,7 +46,10 @@ export default function AppLayout() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button
             onClick={() => setOpen(o => !o)}
-            style={iconBtn}
+            style={{
+              ...iconBtn,               
+              ...(open ? {} : offBtn),  
+            }}
             title={open ? 'Collapse sidebar' : 'Expand sidebar'}
             aria-expanded={open}
             aria-controls="sam-sidebar"
@@ -97,7 +100,8 @@ export default function AppLayout() {
           borderRight: '1px solid #eee',
           background: '#fafafa',
           padding: open ? 10 : 8,     // a bit tighter when closed
-          overflow: 'hidden'          // prevents any layout bleed when closed
+          overflow: 'hidden',          // prevents any layout bleed when closed
+          transition: 'all 0.3s ease'
         }}
       >
         {/* Only render menu when open */}
@@ -105,7 +109,7 @@ export default function AppLayout() {
           <nav style={{ display: 'grid', gap: 8 }}>
             {role === 'student' ? (
               <>
-                <NavItem to="/app">Dashboard</NavItem>
+                <NavItem to="/app" end>Dashboard</NavItem>
                 <NavItem to="/app/catalog">Course Catalog</NavItem>
                 <NavItem to="/app/schedule">Register / Schedule</NavItem>
                 <NavItem to="/app/degree">Degree Progress</NavItem>
@@ -113,18 +117,18 @@ export default function AppLayout() {
               </>
             ) : role === 'advisor' ? (
               <>
-                <NavItem to="/app">Dashboard</NavItem>
+                <NavItem to="/app" end>Dashboard</NavItem>
                 <NavItem to="/app/rosters">Rosters & Grading</NavItem>
                 <NavItem to="/app/userManage">User Management</NavItem>
               </>
             ) : role === 'instructor' ? (
               <>
-                <NavItem to="/app">Dashboard</NavItem>
+                <NavItem to="/app" end>Dashboard</NavItem>
                 <NavItem to="/app/rosters">Rosters & Grading</NavItem>
               </>
             ) : role === 'registrar' ? (
               <>
-                <NavItem to="/app">Dashboard</NavItem>
+                <NavItem to="/app" end>Dashboard</NavItem>
                 <NavItem to="/app/catalog">Course Catalog</NavItem>
                 <NavItem to="/app/schedule">Register / Schedule</NavItem>
                 <NavItem to="/app/degree">Degree Progress</NavItem>
@@ -146,23 +150,27 @@ export default function AppLayout() {
   );
 }
 
-function NavItem({ to, children }) {
+function NavItem({ to, children, end = false }) {
   return (
-    <Link
+    <NavLink
       to={to}
-      style={{
+      end={end}
+      style={({ isActive }) => ({
         padding: '9px 12px',
         borderRadius: 8,
         textDecoration: 'none',
-        color: '#333',
-        background: '#fff',
-        border: '1px solid #eee'
-      }}
+        color: isActive ? '#fff' : '#333',        
+        background: isActive ? '#555' : '#fff', 
+        border: '1px solid #eee',
+        transition: 'all 0.2s ease',
+        cursor: 'pointer',
+      })}
     >
       {children}
-    </Link>
+    </NavLink>
   );
 }
 
-const iconBtn = { border: '1px solid #ddd', background: '#fff', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' };
+const iconBtn = { border: '1px solid #aaa', background: '#bfbfbf', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' };
+const offBtn = { border: '1px solid #ddd', background: '#fff', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' };
 const pillBtn = { border: '1px solid #ddd', background: '#fff', borderRadius: 999, padding: '6px 12px', cursor: 'pointer' };
