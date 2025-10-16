@@ -4,6 +4,14 @@ import { useAuth } from '../auth/AuthContext';
 
 export default function AppLayout() {
   const [open, setOpen] = useState(true);
+  
+  //delete if functionality not needed
+  const [role, setRole] = useState(() => localStorage.getItem('role') || 'registrar');
+  const handleRoleChange = (newRole) => {
+    setRole(newRole);
+    localStorage.setItem('role', newRole);
+  };
+
   const { user, signout } = useAuth();
   const loc = useLocation();
   const brandText = {
@@ -49,6 +57,24 @@ export default function AppLayout() {
                 referrerPolicy="no-referrer"
                 style={{ width: 28, height: 28, borderRadius: '50%' }}
               />
+
+              {/* Role selector */}
+                <select
+                  value={role}
+                  onChange={e => handleRoleChange(e.target.value)}
+                  style={{
+                    fontSize: 16,
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                    border: '1px solid #ccc',
+                  }}
+                >
+                  <option value="student">Student</option>
+                  <option value="advisor">Advisor</option>
+                  <option value="instructor">instructor</option>
+                  <option value="registrar">registrar</option>
+                </select>
+
               <span style={{ fontSize: 20 }}>{user.profile?.name}</span>
               <button onClick={signout} style={pillBtn}>Sign out</button>
             </>
@@ -59,12 +85,37 @@ export default function AppLayout() {
       {/* Sidebar */}
       <aside style={{ borderRight: '1px solid #eee', background: '#fafafa', padding: 10 }}>
         <nav style={{ display: 'grid', gap: 8 }}>
-          <NavItem to="/app">Dashboard</NavItem>
-          <NavItem to="/app/catalog">Course Catalog</NavItem>
-          <NavItem to="/app/schedule">Register / Schedule</NavItem>
-          <NavItem to="/app/degree">Degree Progress</NavItem>
-          <NavItem to="/app/rosters">Rosters & Grading</NavItem>
-          <NavItem to="/app/admin">User Management</NavItem>
+          {role === 'student' ? (
+        <>
+        <NavItem to="/app">Dashboard</NavItem>
+        <NavItem to="/app/catalog">Course Catalog</NavItem>
+        <NavItem to="/app/schedule">Register / Schedule</NavItem>
+        <NavItem to="/app/degree">Degree Progress</NavItem>
+        <NavItem to="/app/studentProfile">Student Profile</NavItem>
+        </>
+            ) : role === 'advisor' ? (
+        <>
+        <NavItem to="/app">Dashboard</NavItem>
+        <NavItem to="/app/rosters">Rosters & Grading</NavItem>
+        <NavItem to="/app/userManage">User Management</NavItem>
+        </>
+            ) : role === 'instructor' ? (
+        <>
+        <NavItem to="/app">Dashboard</NavItem>
+        <NavItem to="/app/rosters">Rosters & Grading</NavItem>
+        </>
+            ) : role === 'registrar' ? (
+        <>
+        <NavItem to="/app">Dashboard</NavItem>
+        <NavItem to="/app/catalog">Course Catalog</NavItem>
+        <NavItem to="/app/schedule">Register / Schedule</NavItem>
+        <NavItem to="/app/degree">Degree Progress</NavItem>
+        <NavItem to="/app/rosters">Rosters & Grading</NavItem>
+        <NavItem to="/app/userManage">User Management</NavItem>
+        <NavItem to="/app/import">Import</NavItem>
+        <NavItem to="/app/currentDate">Current Date</NavItem>
+        </>
+            ) : null}
         </nav>
       </aside>
 

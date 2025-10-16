@@ -4,6 +4,9 @@ import ProtectedRoute from './auth/ProtectedRoute';
 import AppLayout from './layout/AppLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import ImportPage from './pages/ImportPage';
+import StudentProfile from './pages/StudentProfile';
+import CurrentDate from './pages/CurrentDate.jsx';
 
 export default function App() {
   return (
@@ -20,6 +23,10 @@ export default function App() {
               <Route path="rosters" element={<Rosters />} />
               <Route path="admin" element={<Admin />} />
           */}
+          <Route path="import" element={<ImportPage />} />
+          <Route path="studentProfile" element={<StudentProfile />} />
+          <Route path="currentDate" element={<CurrentDate />} />
+          
         </Route>
       </Route>
 
