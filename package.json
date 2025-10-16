@@ -2,6 +2,7 @@
   "name": "full-stack-overflow-sam",
   "version": "0.1.0",
   "type": "module",
+  "proxy": "http://localhost:4000",
   "private": true,
   "dependencies": {
     "@react-oauth/google": "^0.12.2",

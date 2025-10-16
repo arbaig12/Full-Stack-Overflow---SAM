@@ -4,7 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 
 export default function AppLayout() {
   const [open, setOpen] = useState(true);
-  
+
   //delete if functionality not needed
   const [role, setRole] = useState(() => localStorage.getItem('role') || 'registrar');
   const handleRoleChange = (newRole) => {
@@ -15,10 +15,10 @@ export default function AppLayout() {
   const { user, signout } = useAuth();
   const loc = useLocation();
   const brandText = {
-    fontSize: 28,               // bigger “SAM” text
-    fontWeight: 800,            // extra bold
+    fontSize: 28,
+    fontWeight: 800,
     letterSpacing: '0.5px'
-    };
+  };
 
   return (
     <div
@@ -33,7 +33,7 @@ export default function AppLayout() {
       {/* Top bar */}
       <header
         style={{
-          height: 60, 
+          height: 60,
           gridColumn: '1 / -1',
           display: 'flex',
           alignItems: 'center',
@@ -44,7 +44,15 @@ export default function AppLayout() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={() => setOpen(o => !o)} style={iconBtn} title="Toggle sidebar">☰</button>
+          <button
+            onClick={() => setOpen(o => !o)}
+            style={iconBtn}
+            title={open ? 'Collapse sidebar' : 'Expand sidebar'}
+            aria-expanded={open}
+            aria-controls="sam-sidebar"
+          >
+            ☰
+          </button>
           <img src="/logo192.png" alt="SAM" style={{ width: 28, height: 28 }} />
           <span style={brandText}>SAM</span>
         </div>
@@ -59,21 +67,21 @@ export default function AppLayout() {
               />
 
               {/* Role selector */}
-                <select
-                  value={role}
-                  onChange={e => handleRoleChange(e.target.value)}
-                  style={{
-                    fontSize: 16,
-                    padding: '2px 6px',
-                    borderRadius: 4,
-                    border: '1px solid #ccc',
-                  }}
-                >
-                  <option value="student">Student</option>
-                  <option value="advisor">Advisor</option>
-                  <option value="instructor">instructor</option>
-                  <option value="registrar">registrar</option>
-                </select>
+              <select
+                value={role}
+                onChange={e => handleRoleChange(e.target.value)}
+                style={{
+                  fontSize: 16,
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                  border: '1px solid #ccc',
+                }}
+              >
+                <option value="student">Student</option>
+                <option value="advisor">Advisor</option>
+                <option value="instructor">instructor</option>
+                <option value="registrar">registrar</option>
+              </select>
 
               <span style={{ fontSize: 20 }}>{user.profile?.name}</span>
               <button onClick={signout} style={pillBtn}>Sign out</button>
@@ -83,40 +91,51 @@ export default function AppLayout() {
       </header>
 
       {/* Sidebar */}
-      <aside style={{ borderRight: '1px solid #eee', background: '#fafafa', padding: 10 }}>
-        <nav style={{ display: 'grid', gap: 8 }}>
-          {role === 'student' ? (
-        <>
-        <NavItem to="/app">Dashboard</NavItem>
-        <NavItem to="/app/catalog">Course Catalog</NavItem>
-        <NavItem to="/app/schedule">Register / Schedule</NavItem>
-        <NavItem to="/app/degree">Degree Progress</NavItem>
-        <NavItem to="/app/studentProfile">Student Profile</NavItem>
-        </>
+      <aside
+        id="sam-sidebar"
+        style={{
+          borderRight: '1px solid #eee',
+          background: '#fafafa',
+          padding: open ? 10 : 8,     // a bit tighter when closed
+          overflow: 'hidden'          // prevents any layout bleed when closed
+        }}
+      >
+        {/* Only render menu when open */}
+        {open && (
+          <nav style={{ display: 'grid', gap: 8 }}>
+            {role === 'student' ? (
+              <>
+                <NavItem to="/app">Dashboard</NavItem>
+                <NavItem to="/app/catalog">Course Catalog</NavItem>
+                <NavItem to="/app/schedule">Register / Schedule</NavItem>
+                <NavItem to="/app/degree">Degree Progress</NavItem>
+                <NavItem to="/app/studentProfile">Student Profile</NavItem>
+              </>
             ) : role === 'advisor' ? (
-        <>
-        <NavItem to="/app">Dashboard</NavItem>
-        <NavItem to="/app/rosters">Rosters & Grading</NavItem>
-        <NavItem to="/app/userManage">User Management</NavItem>
-        </>
+              <>
+                <NavItem to="/app">Dashboard</NavItem>
+                <NavItem to="/app/rosters">Rosters & Grading</NavItem>
+                <NavItem to="/app/userManage">User Management</NavItem>
+              </>
             ) : role === 'instructor' ? (
-        <>
-        <NavItem to="/app">Dashboard</NavItem>
-        <NavItem to="/app/rosters">Rosters & Grading</NavItem>
-        </>
+              <>
+                <NavItem to="/app">Dashboard</NavItem>
+                <NavItem to="/app/rosters">Rosters & Grading</NavItem>
+              </>
             ) : role === 'registrar' ? (
-        <>
-        <NavItem to="/app">Dashboard</NavItem>
-        <NavItem to="/app/catalog">Course Catalog</NavItem>
-        <NavItem to="/app/schedule">Register / Schedule</NavItem>
-        <NavItem to="/app/degree">Degree Progress</NavItem>
-        <NavItem to="/app/rosters">Rosters & Grading</NavItem>
-        <NavItem to="/app/userManage">User Management</NavItem>
-        <NavItem to="/app/import">Import</NavItem>
-        <NavItem to="/app/currentDate">Current Date</NavItem>
-        </>
+              <>
+                <NavItem to="/app">Dashboard</NavItem>
+                <NavItem to="/app/catalog">Course Catalog</NavItem>
+                <NavItem to="/app/schedule">Register / Schedule</NavItem>
+                <NavItem to="/app/degree">Degree Progress</NavItem>
+                <NavItem to="/app/rosters">Rosters & Grading</NavItem>
+                <NavItem to="/app/userManage">User Management</NavItem>
+                <NavItem to="/app/import">Import</NavItem>
+                <NavItem to="/app/currentDate">Current Date</NavItem>
+              </>
             ) : null}
-        </nav>
+          </nav>
+        )}
       </aside>
 
       {/* Main content */}

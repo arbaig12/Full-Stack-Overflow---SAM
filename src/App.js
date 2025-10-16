@@ -1,17 +1,17 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import ProtectedRoute from './auth/ProtectedRoute';
-import AppLayout from './layout/AppLayout';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import ImportPage from './pages/ImportPage';
-import StudentProfile from './pages/StudentProfile';
+import ProtectedRoute from './auth/ProtectedRoute.jsx';
+import AppLayout from './layout/AppLayout.jsx';
+import Login from './pages/Login.jsx';
+import Dashboard from './pages/Dashboard.jsx';
+import ImportPage from './pages/ImportPage.jsx';
+import StudentProfile from './pages/StudentProfile.jsx';
 import CurrentDate from './pages/CurrentDate.jsx';
-import CourseCatalog from './pages/CourseCatalog';
-import RegistrationSchedule from './pages/RegistrationSchedule';
-import DegreeProgress from './pages/DegreeProgress';
-import RostersGrading from './pages/RostersGrading';
-import UserManage from './pages/UserManage';
+import CourseCatalog from './pages/CourseCatalog.jsx';
+import RegistrationSchedule from './pages/RegistrationSchedule.jsx';
+import DegreeProgress from './pages/DegreeProgress.jsx';
+import RostersGrading from './pages/RostersGrading.jsx';
+import UserManage from './pages/UserManage.jsx';
 
 export default function App() {
   return (
