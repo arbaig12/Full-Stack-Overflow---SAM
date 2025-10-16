@@ -2,7 +2,7 @@
  * @file catalogScraper.js
  * @description Scrapes SBU Bulletin (Fall 2025) course catalog to fully comply
  * with SAM project requirements.
- * @version 21.0 (Definitive Final Compliance)
+ * @version 2.0
  */
 
 import puppeteer from 'puppeteer-extra';
