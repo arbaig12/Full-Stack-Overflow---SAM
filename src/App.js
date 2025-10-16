@@ -7,6 +7,11 @@ import Dashboard from './pages/Dashboard';
 import ImportPage from './pages/ImportPage';
 import StudentProfile from './pages/StudentProfile';
 import CurrentDate from './pages/CurrentDate.jsx';
+import CourseCatalog from './pages/CourseCatalog';
+import RegistrationSchedule from './pages/RegistrationSchedule';
+import DegreeProgress from './pages/DegreeProgress';
+import RostersGrading from './pages/RostersGrading';
+import UserManage from './pages/UserManage';
 
 export default function App() {
   return (
@@ -16,17 +21,14 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/app" element={<AppLayout />}>
           <Route index element={<Dashboard />} />
-          {/* Add more child routes here later:
-              <Route path="catalog" element={<Catalog />} />
-              <Route path="schedule" element={<Schedule />} />
-              <Route path="degree" element={<Degree />} />
-              <Route path="rosters" element={<Rosters />} />
-              <Route path="admin" element={<Admin />} />
-          */}
+          <Route path="catalog" element={<CourseCatalog />} />
+          <Route path="schedule" element={<RegistrationSchedule />} />
+          <Route path="degree" element={<DegreeProgress />} />
+          <Route path="rosters" element={<RostersGrading />} />
+          <Route path="userManage" element={<UserManage />} />
           <Route path="import" element={<ImportPage />} />
           <Route path="studentProfile" element={<StudentProfile />} />
           <Route path="currentDate" element={<CurrentDate />} />
-          
         </Route>
       </Route>
 
