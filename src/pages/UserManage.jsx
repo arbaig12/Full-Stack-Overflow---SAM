@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect  } from 'react';
 
 // Sample user data
 const sampleUsers = [
@@ -63,6 +63,7 @@ const sampleUsers = [
   }
 ];
 
+
 export default function UserManagement() {
   const [users, setUsers] = useState(sampleUsers);
   const [searchTerm, setSearchTerm] = useState('');
@@ -71,6 +72,35 @@ export default function UserManagement() {
   const [editingUser, setEditingUser] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [message, setMessage] = useState('');
+
+
+  useEffect(() => {
+    let ignore = false;
+
+    (async () => {
+      try {
+        const resp = await fetch('/api/users/registrars'); 
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const json = await resp.json();
+        if (!json.ok) throw new Error(json.error || 'Failed to load registrars');
+
+        if (!ignore) {
+          setUsers(prev => {
+            const seen = new Set(prev.map(u => u.id));
+            const toAdd = json.users.filter(u => !seen.has(u.id));
+            return [...prev, ...toAdd];
+          });
+          setMessage('Loaded registrars from server');
+        }
+      } catch (e) {
+        if (!ignore) setMessage(`Could not load registrars: ${e.message}`);
+        console.error(e);
+      }
+    })();
+
+    return () => { ignore = true; };
+  }, []);
+
 
   // Filter users based on search and filters
   const filteredUsers = users.filter(user => {
