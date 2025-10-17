@@ -9,6 +9,7 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import pkg from 'pg';
 import importRoutes from './routes/importRoutes.js';
+import usersRoutes from './routes/userRoutes.js'; 
 
 dotenv.config();
 
@@ -54,6 +55,7 @@ app.get('/api/db-check', async (_req, res) => {
 
 // Routes
 app.use('/api/import', importRoutes);
+app.use('/api/users', usersRoutes);
 
 app.listen(PORT, () => {
   console.log(`[Server] SAM backend running on port ${PORT} (${ENV})`);
