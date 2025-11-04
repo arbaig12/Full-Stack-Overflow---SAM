@@ -1,20 +1,28 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "type": "module",                
+  "type": "module",
   "main": "index.js",
   "scripts": {
+    "dev": "nodemon index.js",
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage"
+  },
+  "vitest": {
+    "coverage": { "provider": "v8", "reporter": ["text", "html"] }
   },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "morgan": "^1.10.1",          
+    "morgan": "^1.10.1",
     "pg": "^8.16.3"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.1.0",
+    "supertest": "^7.1.4",
+    "vitest": "^3.2.4"
   }
 }
