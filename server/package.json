@@ -11,14 +11,24 @@
     "coverage": "vitest run --coverage"
   },
   "vitest": {
-    "coverage": { "provider": "v8", "reporter": ["text", "html"] }
+    "coverage": {
+      "provider": "v8",
+      "reporter": [
+        "text",
+        "html"
+      ]
+    }
   },
   "dependencies": {
+    "cheerio": "^1.1.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "morgan": "^1.10.1",
-    "pg": "^8.16.3"
+    "pg": "^8.16.3",
+    "puppeteer": "^24.29.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.0",

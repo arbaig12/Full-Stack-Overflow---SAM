@@ -7,6 +7,7 @@ export default function ImportPage() {
     catalog: null,
     schedule: null,
     calendar: null,
+    degreeReq: null,
   });
   const [messages, setMessages] = useState({});
   const [logs, setLogs] = useState({});
@@ -28,7 +29,7 @@ export default function ImportPage() {
     formData.append('file', file);
 
     try {
-      const res = await axios.post(`http://localhost:5000/${endpoint}`, formData, {
+      const res = await axios.post(`http://localhost:4000/${endpoint}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         withCredentials: true,
       });
@@ -88,6 +89,7 @@ export default function ImportPage() {
       {renderFileInput('Import Course Catalog', 'catalog', 'import/catalog', '.yaml,.yml')}
       {renderFileInput('Import Class Schedule', 'schedule', 'import/schedule', '.pdf')}
       {renderFileInput('Import Academic Calendar', 'calendar', 'import/calendar', '.yaml,.yml')}
+      {renderFileInput('Import Degree Requirements', 'degreeReq', 'api/import/degree-requirements', '.yaml,.yml')}
     </div>
   );
 }
