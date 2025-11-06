@@ -29,6 +29,7 @@ export default function DeclareMajorMinor({}) {
   const [type, setType] = useState('');
   const [message, setMessage] = useState('');
 
+  /*
   useEffect(() => {
     const fetchCurrentProgram = async () => {
       try {
@@ -38,7 +39,7 @@ export default function DeclareMajorMinor({}) {
         setSelectedMajor(res.data.major || '');
         setSelectedMinor(res.data.minor || '');
       } catch (err) {
-        console.error('Failed to fetch current program:', err);
+        console.error('Failed to fetch current program:', err);      
       }
     };
     fetchCurrentProgram();
@@ -59,11 +60,33 @@ export default function DeclareMajorMinor({}) {
       setCurrentMinor(selectedMinor);
       setMessage(res.data.message || 'Program updated successfully!');
     } catch (err) {
-      console.error(err);
-      setMessage('Failed to save program.');
+      console.error('POST failed, using fallback:', err);
     }
   };
+  */
+  // Load from localStorage
+  useEffect(() => {
+    const storedMajor = localStorage.getItem('major') || 'Computer Science';
+    const storedMinor = localStorage.getItem('minor') || 'Economics';
+    setCurrentMajor(storedMajor);
+    setCurrentMinor(storedMinor);
+    setSelectedMajor(storedMajor);
+    setSelectedMinor(storedMinor);
+  }, []);
 
+  const handleSave = () => {
+    if (!selectedMajor) {
+      alert('Please select a major.');
+      return;
+    }
+
+    localStorage.setItem('major', selectedMajor);
+    localStorage.setItem('minor', selectedMinor);
+    setCurrentMajor(selectedMajor);
+    setCurrentMinor(selectedMinor);
+    setMessage('Program updated successfully!');
+  };
+  
   return (
   <div style={{ padding: 20, maxWidth: 500, margin: '0 auto' }}>
     <h1>Declare Your Major / Minor</h1>
