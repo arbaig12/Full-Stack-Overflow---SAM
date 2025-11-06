@@ -13,6 +13,7 @@ import DegreeProgress from './pages/DegreeProgress.jsx';
 import RostersGrading from './pages/RostersGrading.jsx';
 import UserManage from './pages/UserManage.jsx';
 import DeclareMajorMinor from './pages/DeclareMajor.jsx';
+import Plan from './pages/Plan.jsx';
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="studentProfile" element={<StudentProfile />} />
           <Route path="currentDate" element={<CurrentDate />} />
           <Route path="declare" element={<DeclareMajorMinor />} />
+          <Route path="plan" element={<Plan />} />
         </Route>
       </Route>
 
