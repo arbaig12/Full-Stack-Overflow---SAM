@@ -2,7 +2,6 @@
 import { Router } from 'express';
 const router = Router();
 
-/** REGISTRARS */
 router.get('/registrars', async (req, res) => {
   try {
     const sql = `
@@ -26,7 +25,7 @@ router.get('/registrars', async (req, res) => {
       name: `${u.first_name} ${u.last_name}`,
       email: u.email,
       role: 'registrar',
-      status: u.status,                // now comes from DB column
+      status: u.status,                
       lastLogin: u.last_login_fmt,
       department: 'Administration',
     }));
@@ -38,7 +37,6 @@ router.get('/registrars', async (req, res) => {
   }
 });
 
-/** STUDENTS */
 router.get('/students', async (req, res) => {
   try {
     const sql = `
@@ -82,7 +80,7 @@ router.get('/students', async (req, res) => {
       status: u.status,
       lastLogin: u.last_login_fmt,
       department: u.department_name ?? null,
-      classStanding: u.standing ?? null,          // use correct column
+      classStanding: u.standing ?? null,          
     }));
 
     res.json({ ok: true, users: students });
@@ -200,8 +198,8 @@ router.get('/advisors', async (req, res) => {
       role: 'advisor',
       status: row.status,
       lastLogin: row.last_login_fmt,
-      department: row.scope_name ?? null,  // <- label shown in UI
-      advisees: Number(row.advisee_count)  // <- your UI already displays this
+      department: row.scope_name ?? null,  
+      advisees: Number(row.advisee_count) 
     }));
 
     res.json({ ok: true, users: advisors });
