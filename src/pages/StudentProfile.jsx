@@ -8,7 +8,7 @@ const studentData = {
     email: 'jane.doe@example.edu',
     classStanding: 'U3',
     declaredMajors: ['Computer Science'],
-    declaredMinors: ['Statistics'],
+    declaredMinors: ['Applied Mathematical Sciences'],
   },
   academic: {
     termGPAs: [

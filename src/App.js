@@ -12,6 +12,7 @@ import RegistrationSchedule from './pages/RegistrationSchedule.jsx';
 import DegreeProgress from './pages/DegreeProgress.jsx';
 import RostersGrading from './pages/RostersGrading.jsx';
 import UserManage from './pages/UserManage.jsx';
+import DeclareMajorMinor from './pages/DeclareMajor.jsx';
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="import" element={<ImportPage />} />
           <Route path="studentProfile" element={<StudentProfile />} />
           <Route path="currentDate" element={<CurrentDate />} />
+          <Route path="declare" element={<DeclareMajorMinor />} />
         </Route>
       </Route>
 
