@@ -56,7 +56,7 @@ app.get('/api/db-check', async (_req, res) => {
 
 // Routes
 app.use('/api/import', importRoutes);
-app.use('/api/users', usersRoutes);
+app.use('/api/user-management', usersRoutes);
 app.use("/api/import", importDegreeReq);
 
 app.listen(PORT, () => {

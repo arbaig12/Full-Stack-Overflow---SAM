@@ -22,16 +22,7 @@ const sampleUsers = [
     department: 'Computer Science',
     classStanding: 'U2'
   },
-  {
-    id: '345678',
-    name: 'Dr. Robert Johnson',
-    email: 'r.johnson@example.edu',
-    role: 'instructor',
-    status: 'active',
-    lastLogin: '2025-01-15',
-    department: 'Computer Science',
-    courses: ['CSE101', 'CSE214']
-  },
+
   {
     id: '456789',
     name: 'Prof. Sarah Wilson',
@@ -74,33 +65,122 @@ export default function UserManagement() {
   const [message, setMessage] = useState('');
 
 
-  useEffect(() => {
-    let ignore = false;
+//   useEffect(() => {
+//     let ignore = false;
 
-    (async () => {
-      try {
-        const resp = await fetch('/api/users/registrars'); 
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const json = await resp.json();
-        if (!json.ok) throw new Error(json.error || 'Failed to load registrars');
+//     (async () => {
+//       try {
+//         const resp = await fetch('/api/user-management/registrars'); 
+//         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+//         const json = await resp.json();
+//         if (!json.ok) throw new Error(json.error || 'Failed to load registrars');
 
-        if (!ignore) {
-          setUsers(prev => {
-            const seen = new Set(prev.map(u => u.id));
-            const toAdd = json.users.filter(u => !seen.has(u.id));
-            return [...prev, ...toAdd];
-          });
-          setMessage('Loaded registrars from server');
-        }
-      } catch (e) {
-        if (!ignore) setMessage(`Could not load registrars: ${e.message}`);
-        console.error(e);
+//         if (!ignore) {
+//           setUsers(prev => {
+//             const seen = new Set(prev.map(u => u.id));
+//             const toAdd = json.users.filter(u => !seen.has(u.id));
+//             return [...prev, ...toAdd];
+//           });
+//           setMessage('Loaded registrars from server');
+//         }
+//       } catch (e) {
+//         if (!ignore) setMessage(`Could not load registrars: ${e.message}`);
+//         console.error(e);
+//       }
+//     })();
+
+//     return () => { ignore = true; };
+//   }, []);
+
+// useEffect(() => {
+//   let ignore = false;
+
+//   (async () => {
+//     try {
+//       const resp = await fetch('/api/user-management/students');
+//       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+//       const json = await resp.json();
+//       if (!json.ok) throw new Error(json.error || 'Failed to load students');
+
+//       if (!ignore) {
+//         setUsers(prev => {
+//           const seen = new Set(prev.map(u => u.id)); // dedupe by id, same as registrars
+//           const toAdd = json.users.filter(u => !seen.has(u.id));
+//           return [...prev, ...toAdd];
+//         });
+//         setMessage('Loaded students from server');
+//       }
+//     } catch (e) {
+//       if (!ignore) setMessage(`Could not load students: ${e.message}`);
+//       console.error(e);
+//     }
+//   })();
+
+//   return () => { ignore = true; };
+// }, []);
+
+// useEffect(() => {
+//   let ignore = false;
+//   (async () => {
+//     try {
+//       const resp = await fetch('/api/user-management/instructors');
+//       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+//       const json = await resp.json();
+//       if (!json.ok) throw new Error(json.error || 'Failed to load instructors');
+
+//       if (!ignore) {
+//         setUsers(prev => {
+//           const seen = new Set(prev.map(u => u.id));
+//           const toAdd = json.users.filter(u => !seen.has(u.id));
+//           return [...prev, ...toAdd];
+//         });
+//         setMessage('Loaded instructors from server');
+//       }
+//     } catch (e) {
+//       if (!ignore) setMessage(`Could not load instructors: ${e.message}`);
+//       console.error(e);
+//     }
+//   })();
+//   return () => { ignore = true; };
+// }, []);
+
+useEffect(() => {
+  let ignore = false;
+
+  const load = async (url) => {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`${url} -> HTTP ${resp.status}`);
+    const json = await resp.json();
+    if (!json.ok) throw new Error(json.error || `Failed at ${url}`);
+    return json.users;
+  };
+
+  (async () => {
+    try {
+      const [registrars, students, instructors, advisors] = await Promise.all([
+        load('/api/user-management/registrars'),
+        load('/api/user-management/students'),
+        load('/api/user-management/instructors'),
+        load('/api/user-management/advisors'),
+      ]);
+
+      if (!ignore) {
+        const merged = [...registrars, ...students, ...instructors, ...advisors];
+        setUsers(prev => {
+          const seen = new Set(prev.map(u => u.id));
+          const toAdd = merged.filter(u => !seen.has(u.id));
+          return [...prev, ...toAdd];
+        });
+        setMessage('Loaded users (registrars, students, instructors, advisors)');
       }
-    })();
+    } catch (e) {
+      if (!ignore) setMessage(`Load failed: ${e.message}`);
+      console.error(e);
+    }
+  })();
 
-    return () => { ignore = true; };
-  }, []);
-
+  return () => { ignore = true; };
+}, []);
 
   // Filter users based on search and filters
   const filteredUsers = users.filter(user => {
