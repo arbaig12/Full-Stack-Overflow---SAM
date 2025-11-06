@@ -94,7 +94,6 @@ const studentProgress = {
   totalCreditsCompleted: 30,
   totalCreditsRequired: 120,
   gpa: 3.65,
-  expectedGraduation: 'Spring 2027'
 };
 
 export default function DegreeProgress() {
@@ -208,19 +207,6 @@ export default function DegreeProgress() {
               <div style={{ color: '#666' }}>Cumulative GPA</div>
             </div>
 
-            <div style={{
-              padding: 24,
-              borderRadius: 12,
-              background: '#fff',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-              border: '1px solid #e0e0e0'
-            }}>
-              <h3 style={{ margin: '0 0 16px 0', color: '#333' }}>Expected Graduation</h3>
-              <div style={{ fontSize: 24, fontWeight: 'bold', color: '#333' }}>
-                {studentProgress.expectedGraduation}
-              </div>
-              <div style={{ color: '#666' }}>Target Date</div>
-            </div>
           </div>
 
           {/* Quick Summary */}

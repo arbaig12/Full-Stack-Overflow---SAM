@@ -13,36 +13,18 @@ const sampleRosters = [
         name: 'John Doe',
         email: 'john.doe@example.edu',
         grade: 'A',
-        attendance: 95,
-        assignments: [
-          { name: 'Assignment 1', score: 95, maxScore: 100 },
-          { name: 'Assignment 2', score: 88, maxScore: 100 },
-          { name: 'Midterm Exam', score: 92, maxScore: 100 }
-        ]
       },
       {
         studentId: '234567',
         name: 'Jane Smith',
         email: 'jane.smith@example.edu',
         grade: 'B+',
-        attendance: 87,
-        assignments: [
-          { name: 'Assignment 1', score: 85, maxScore: 100 },
-          { name: 'Assignment 2', score: 90, maxScore: 100 },
-          { name: 'Midterm Exam', score: 88, maxScore: 100 }
-        ]
       },
       {
         studentId: '345678',
         name: 'Bob Johnson',
         email: 'bob.johnson@example.edu',
-        grade: null,
-        attendance: 92,
-        assignments: [
-          { name: 'Assignment 1', score: 78, maxScore: 100 },
-          { name: 'Assignment 2', score: 82, maxScore: 100 },
-          { name: 'Midterm Exam', score: 85, maxScore: 100 }
-        ]
+        grade: 'I',
       }
     ]
   },
@@ -57,24 +39,12 @@ const sampleRosters = [
         name: 'Alice Brown',
         email: 'alice.brown@example.edu',
         grade: 'A-',
-        attendance: 98,
-        assignments: [
-          { name: 'Project 1', score: 92, maxScore: 100 },
-          { name: 'Project 2', score: 95, maxScore: 100 },
-          { name: 'Final Exam', score: 89, maxScore: 100 }
-        ]
       },
       {
         studentId: '567890',
         name: 'Charlie Wilson',
         email: 'charlie.wilson@example.edu',
-        grade: 'B',
-        attendance: 85,
-        assignments: [
-          { name: 'Project 1', score: 80, maxScore: 100 },
-          { name: 'Project 2', score: 85, maxScore: 100 },
-          { name: 'Final Exam', score: 82, maxScore: 100 }
-        ]
+        grade: 'I',
       }
     ]
   }
@@ -87,6 +57,10 @@ export default function RostersGrading() {
   const [message, setMessage] = useState('');
 
   const handleGradeEdit = (studentId, currentGrade) => {
+    if (currentGrade && currentGrade.toUpperCase() !== 'I') {
+      setMessage('Grade changes are only allowed for Incompletes (I).');
+      return;
+    }
     setEditingGrade(studentId);
     setGradeInput(currentGrade || '');
   };
@@ -98,6 +72,9 @@ export default function RostersGrading() {
       setMessage('Invalid grade. Please enter a valid grade (A, A-, B+, B, B-, C+, C, C-, D+, D, F, P, NP).');
       return;
     }
+
+    const student = selectedCourse.students.find(s => s.studentId === studentId);
+    if (!student) return;
 
     // Update the grade in the selected course
     const updatedCourse = {
@@ -122,13 +99,6 @@ export default function RostersGrading() {
   const handleGradeCancel = () => {
     setEditingGrade(null);
     setGradeInput('');
-  };
-
-  const calculateAverage = (assignments) => {
-    if (assignments.length === 0) return 0;
-    const totalScore = assignments.reduce((sum, assignment) => sum + assignment.score, 0);
-    const totalMaxScore = assignments.reduce((sum, assignment) => sum + assignment.maxScore, 0);
-    return Math.round((totalScore / totalMaxScore) * 100);
   };
 
   const getGradeColor = (grade) => {
@@ -235,12 +205,6 @@ export default function RostersGrading() {
                   Email
                 </th>
                 <th style={{ padding: 12, textAlign: 'center', borderBottom: '1px solid #e0e0e0' }}>
-                  Attendance
-                </th>
-                <th style={{ padding: 12, textAlign: 'center', borderBottom: '1px solid #e0e0e0' }}>
-                  Average
-                </th>
-                <th style={{ padding: 12, textAlign: 'center', borderBottom: '1px solid #e0e0e0' }}>
                   Grade
                 </th>
                 <th style={{ padding: 12, textAlign: 'center', borderBottom: '1px solid #e0e0e0' }}>
@@ -262,12 +226,7 @@ export default function RostersGrading() {
                   <td style={{ padding: 12, borderBottom: '1px solid #e0e0e0' }}>
                     {student.email}
                   </td>
-                  <td style={{ padding: 12, textAlign: 'center', borderBottom: '1px solid #e0e0e0' }}>
-                    {student.attendance}%
-                  </td>
-                  <td style={{ padding: 12, textAlign: 'center', borderBottom: '1px solid #e0e0e0' }}>
-                    {calculateAverage(student.assignments)}%
-                  </td>
+                  
                   <td style={{ padding: 12, textAlign: 'center', borderBottom: '1px solid #e0e0e0' }}>
                     {editingGrade === student.studentId ? (
                       <input
@@ -331,17 +290,18 @@ export default function RostersGrading() {
                     ) : (
                       <button
                         onClick={() => handleGradeEdit(student.studentId, student.grade)}
+                        disabled={student.grade && student.grade.toUpperCase() !== 'I'}
                         style={{
                           padding: '4px 8px',
                           border: 'none',
                           borderRadius: 4,
-                          background: '#007bff',
+                          background: student.grade && student.grade.toUpperCase() !== 'I' ? '#ccc' : '#007bff',
                           color: 'white',
-                          cursor: 'pointer',
+                          cursor: student.grade && student.grade.toUpperCase() !== 'I' ? 'not-allowed' : 'pointer',
                           fontSize: 12
                         }}
                       >
-                        Edit Grade
+                        {student.grade && student.grade.toUpperCase() !== 'I' ? 'Locked' : 'Edit Grade'}
                       </button>
                     )}
                   </td>
@@ -349,60 +309,6 @@ export default function RostersGrading() {
               ))}
             </tbody>
           </table>
-        </div>
-      </div>
-
-      {/* Assignment Details */}
-      <div style={{ marginTop: 32 }}>
-        <h2>Assignment Details</h2>
-        <div style={{ display: 'grid', gap: 16 }}>
-          {selectedCourse.students.map(student => (
-            <div
-              key={student.studentId}
-              style={{
-                padding: 20,
-                borderRadius: 12,
-                background: '#fff',
-                border: '1px solid #e0e0e0',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-              }}
-            >
-              <h3 style={{ margin: '0 0 16px 0', color: '#333' }}>
-                {student.name} ({student.studentId})
-              </h3>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-                {student.assignments.map((assignment, index) => (
-                  <div
-                    key={index}
-                    style={{
-                      padding: 12,
-                      borderRadius: 8,
-                      background: '#f8f9fa',
-                      border: '1px solid #e0e0e0'
-                    }}
-                  >
-                    <div style={{ fontWeight: 'bold', marginBottom: 4 }}>
-                      {assignment.name}
-                    </div>
-                    <div style={{ color: '#666', fontSize: 14 }}>
-                      {assignment.score}/{assignment.maxScore} ({Math.round((assignment.score/assignment.maxScore)*100)}%)
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              <div style={{ 
-                marginTop: 12, 
-                padding: 8, 
-                background: '#e3f2fd', 
-                borderRadius: 6,
-                textAlign: 'center'
-              }}>
-                <strong>Overall Average: {calculateAverage(student.assignments)}%</strong>
-              </div>
-            </div>
-          ))}
         </div>
       </div>
     </div>
