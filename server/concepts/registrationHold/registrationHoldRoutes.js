@@ -44,7 +44,10 @@ router.get('/:studentId', async (req, res) => {
  */
 router.post('/', async (req, res) => {
   try {
-    const hold = await placeHold(req.db, req.body);
+    // Assuming placed_by_user_id is provided in the request body for now.
+    // In a real application, this would likely come from an authenticated user's session (e.g., req.user.id).
+    const { student_user_id, hold_type, note, placed_by_user_id } = req.body;
+    const hold = await placeHold(req.db, { student_user_id, hold_type, note, placed_by_user_id });
     return res.status(201).json({ ok: true, hold });
   } catch (e) {
     console.error(`[RegistrationHold] POST / failed:`, e);
@@ -68,6 +71,37 @@ router.delete('/:holdId', async (req, res) => {
     return res.json({ ok: true, message: 'Hold removed successfully' });
   } catch (e) {
     console.error(`[RegistrationHold] DELETE /:holdId failed:`, e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+/**
+ * @route PUT /api/registration-holds/:holdId/resolve
+ * @description Resolves an existing registration hold.
+ * @param {object} req - The Express request object.
+ * @param {object} req.params - The route parameters.
+ * @param {string} req.params.holdId - The ID of the hold to resolve.
+ * @param {object} req.body - The request body.
+ * @param {number} req.body.resolved_by_user_id - The ID of the user resolving the hold.
+ * @returns {object} 200 - A success response with the updated hold.
+ * @returns {object} 404 - If the hold is not found.
+ * @returns {object} 500 - An error response if the database update fails.
+ */
+router.put('/:holdId/resolve', async (req, res) => {
+  try {
+    const { holdId } = req.params;
+    // In a real application, resolved_by_user_id would likely come from req.user.id
+    const { resolved_by_user_id } = req.body;
+    if (!resolved_by_user_id) {
+      return res.status(400).json({ ok: false, error: 'resolved_by_user_id is required' });
+    }
+    const updatedHold = await resolveHold(req.db, holdId, resolved_by_user_id);
+    if (!updatedHold) {
+      return res.status(404).json({ ok: false, error: 'Hold not found' });
+    }
+    return res.json({ ok: true, hold: updatedHold });
+  } catch (e) {
+    console.error(`[RegistrationHold] PUT /:holdId/resolve failed:`, e);
     return res.status(500).json({ ok: false, error: e.message });
   }
 });

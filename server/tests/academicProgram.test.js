@@ -22,7 +22,7 @@ function buildApp(queryImpl) {
   const app = express();
   app.use(express.json()); // Enable JSON body parsing
   // Inject mock database connection into the request object
-  app.use((req, _res, next) => { req.db = { query: queryImpl }; next(); });
+  app.use((req, _res, next) => { req.db = { query: queryImpl }; return next(); });
   app.use('/api/academic-programs', academicProgramRoutes); // Mount the routes
   return app;
 }

@@ -26,6 +26,9 @@ import waiverRoutes from './concepts/waiver/waiverRoutes.js';
 import registrationHoldRoutes from './concepts/registrationHold/registrationHoldRoutes.js';
 import studentProfileRoutes from './concepts/studentProfile/studentProfileRoutes.js';
 import academicCalendarRoutes from './concepts/academicCalendar/academicCalendarRoutes.js';
+import waitlistRoutes from './concepts/waitlist/waitlistRoutes.js';
+import academicPlanRoutes from './concepts/academicPlan/academicPlanRoutes.js';
+import auditLogRoutes from './concepts/auditLog/auditLogRoutes.js';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -105,6 +108,9 @@ app.use('/api/student-profile', studentProfileRoutes);
 app.use('/api/registration-holds', registrationHoldRoutes);
 app.use('/api/waivers', waiverRoutes);
 app.use('/api/academic-programs', academicProgramRoutes);
+app.use('/api/waitlists', waitlistRoutes);
+app.use('/api/academic-plans', academicPlanRoutes);
+app.use('/api/audit-log', auditLogRoutes);
 
 // --- Server Initialization ---
 app.listen(PORT, () => {

@@ -44,7 +44,10 @@ router.get('/:studentId', async (req, res) => {
  */
 router.post('/', async (req, res) => {
   try {
-    const waiver = await createWaiver(req.db, req.body);
+    // Assuming granted_by_user_id is provided in the request body for now.
+    // In a real application, this would likely come from an authenticated user's session (e.g., req.user.id).
+    const { student_user_id, waiver_type, related_entity_id, related_entity_type, description, granted_by_user_id, expires_at } = req.body;
+    const waiver = await createWaiver(req.db, { student_user_id, waiver_type, related_entity_id, related_entity_type, description, granted_by_user_id, expires_at });
     return res.status(201).json({ ok: true, waiver });
   } catch (e) {
     console.error(`[Waiver] POST / failed:`, e);

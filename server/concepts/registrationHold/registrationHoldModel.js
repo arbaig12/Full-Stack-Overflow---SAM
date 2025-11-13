@@ -22,11 +22,15 @@ export async function getStudentHolds(db, studentId) {
   const sql = `
     SELECT
       hold_id,
-      student_id,
+      student_user_id,
       hold_type,
-      note
+      note,
+      placed_by_user_id,
+      placed_at,
+      resolved_at,
+      resolved_by_user_id
     FROM registration_holds
-    WHERE student_id = $1
+    WHERE student_user_id = $1
   `;
   const { rows } = await db.query(sql, [studentId]);
   return rows;
@@ -44,13 +48,13 @@ export async function getStudentHolds(db, studentId) {
  * including its generated `hold_id`.
  */
 export async function placeHold(db, hold) {
-  const { student_id, hold_type, note } = hold;
+  const { student_user_id, hold_type, note, placed_by_user_id } = hold;
   const sql = `
-    INSERT INTO registration_holds (student_id, hold_type, note)
-    VALUES ($1, $2, $3)
-    RETURNING hold_id, student_id, hold_type, note
+    INSERT INTO registration_holds (student_user_id, hold_type, note, placed_by_user_id)
+    VALUES ($1, $2, $3, $4)
+    RETURNING hold_id, student_user_id, hold_type, note, placed_by_user_id, placed_at
   `;
-  const { rows } = await db.query(sql, [student_id, hold_type, note]);
+  const { rows } = await db.query(sql, [student_user_id, hold_type, note, placed_by_user_id]);
   return rows[0];
 }
 
@@ -67,4 +71,25 @@ export async function removeHold(db, holdId) {
     WHERE hold_id = $1
   `;
   await db.query(sql, [holdId]);
+}
+
+/**
+ * Resolves an existing registration hold, marking it with a resolution timestamp and the user who resolved it.
+ *
+ * @param {import('pg').Pool} db - The database connection pool object.
+ * @param {number} holdId - The unique identifier of the hold to be resolved.
+ * @param {number} resolvedByUserId - The ID of the user who resolved the hold.
+ * @returns {Promise<object|null>} A promise that resolves to the updated hold object if found, otherwise `null`.
+ */
+export async function resolveHold(db, holdId, resolvedByUserId) {
+  const sql = `
+    UPDATE registration_holds
+    SET
+      resolved_at = CURRENT_TIMESTAMP,
+      resolved_by_user_id = $2
+    WHERE hold_id = $1
+    RETURNING hold_id, student_user_id, hold_type, note, placed_by_user_id, placed_at, resolved_at, resolved_by_user_id
+  `;
+  const { rows } = await db.query(sql, [holdId, resolvedByUserId]);
+  return rows[0] || null;
 }

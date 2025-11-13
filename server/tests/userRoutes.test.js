@@ -55,7 +55,7 @@ describe('GET /api/users/registrars', () => {
     const query = vi.fn().mockResolvedValue({ rows });
     const app = buildApp(query);
 
-    const res = await request(app).get('/api/users/registrars');
+    const res = request(app).get('/api/users/registrars');
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
@@ -88,7 +88,7 @@ describe('GET /api/users/registrars', () => {
     const query = vi.fn().mockRejectedValue(new Error('boom'));
     const app = buildApp(query);
 
-    const res = await request(app).get('/api/users/registrars');
+    const res = request(app).get('/api/users/registrars');
 
     expect(res.status).toBe(500);
     expect(res.body.ok).toBe(false);
