@@ -1,6 +1,9 @@
 /**
  * @file waiverRoutes.js
- * @description Express routes for managing waivers.
+ * @description This file defines the Express router for managing academic waivers.
+ * It provides endpoints for retrieving, creating, and revoking waivers for students.
+ * @requires express - Fast, unopinionated, minimalist web framework for Node.js.
+ * @requires ./waiverModel.js - The model functions for the Waiver concept.
  */
 
 import { Router } from 'express';
@@ -9,12 +12,13 @@ import { getStudentWaivers, createWaiver, revokeWaiver } from './waiverModel.js'
 const router = Router();
 
 /**
- * GET /:studentId
- * Returns all waivers for a student.
- *
- * @route GET /:studentId
- * @returns {Object} 200 - A list of waivers.
- * @returns {Object} 500 - Query failure.
+ * @route GET /api/waivers/:studentId
+ * @description Retrieves all academic waivers for a specific student.
+ * @param {object} req - The Express request object.
+ * @param {object} req.params - The route parameters.
+ * @param {string} req.params.studentId - The ID of the student whose waivers are to be retrieved.
+ * @returns {object} 200 - A success response with a list of the student's waivers.
+ * @returns {object} 500 - An error response if the database query fails.
  */
 router.get('/:studentId', async (req, res) => {
   try {
@@ -22,36 +26,40 @@ router.get('/:studentId', async (req, res) => {
     const waivers = await getStudentWaivers(req.db, studentId);
     return res.json({ ok: true, waivers });
   } catch (e) {
-    console.error(`[waiver] /:studentId failed:`, e);
+    console.error(`[Waiver] GET /:studentId failed:`, e);
     return res.status(500).json({ ok: false, error: e.message });
   }
 });
 
 /**
- * POST /
- * Creates a waiver for a student.
- *
- * @route POST /
- * @returns {Object} 201 - The newly created waiver.
- * @returns {Object} 500 - Query failure.
+ * @route POST /api/waivers
+ * @description Creates a new academic waiver for a student.
+ * @param {object} req - The Express request object.
+ * @param {object} req.body - The request body, containing the new waiver details.
+ * @param {number} req.body.student_id - The ID of the student for whom the waiver is granted.
+ * @param {string} req.body.waiver_type - The type of waiver (e.g., 'Prerequisite', 'Time Conflict').
+ * @param {string} [req.body.note] - An optional note for the waiver.
+ * @returns {object} 201 - A success response with the newly created waiver.
+ * @returns {object} 500 - An error response if the database insertion fails.
  */
 router.post('/', async (req, res) => {
   try {
     const waiver = await createWaiver(req.db, req.body);
     return res.status(201).json({ ok: true, waiver });
   } catch (e) {
-    console.error(`[waiver] / failed:`, e);
+    console.error(`[Waiver] POST / failed:`, e);
     return res.status(500).json({ ok: false, error: e.message });
   }
 });
 
 /**
- * DELETE /:waiverId
- * Revokes a waiver.
- *
- * @route DELETE /:waiverId
- * @returns {Object} 200 - A success message.
- * @returns {Object} 500 - Query failure.
+ * @route DELETE /api/waivers/:waiverId
+ * @description Revokes (deletes) an existing academic waiver.
+ * @param {object} req - The Express request object.
+ * @param {object} req.params - The route parameters.
+ * @param {string} req.params.waiverId - The ID of the waiver to revoke.
+ * @returns {object} 200 - A success response indicating the waiver was revoked.
+ * @returns {object} 500 - An error response if the database deletion fails.
  */
 router.delete('/:waiverId', async (req, res) => {
   try {
@@ -59,7 +67,7 @@ router.delete('/:waiverId', async (req, res) => {
     await revokeWaiver(req.db, waiverId);
     return res.json({ ok: true, message: 'Waiver revoked successfully' });
   } catch (e) {
-    console.error(`[waiver] /:waiverId failed:`, e);
+    console.error(`[Waiver] DELETE /:waiverId failed:`, e);
     return res.status(500).json({ ok: false, error: e.message });
   }
 });

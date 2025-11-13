@@ -1,13 +1,22 @@
 /**
  * @file waiverModel.js
- * @description Defines the data model for the Waiver concept.
+ * @description This file defines the data model and database interactions for the Waiver concept.
+ * It includes functions for retrieving, creating, and revoking academic waivers for students.
  */
 
 /**
- * Retrieves all waivers for a student.
- * @param {object} db - The database connection object.
- * @param {number} studentId - The ID of the student to retrieve the waivers for.
- * @returns {Promise<Array>} - A promise that resolves to an array of waiver objects.
+ * Retrieves all academic waivers associated with a specific student.
+ *
+ * @param {import('pg').Pool} db - The database connection pool object.
+ * @param {number} studentId - The unique identifier for the student.
+ * @returns {Promise<Array<object>>} A promise that resolves to an array of waiver objects.
+ * Each object contains details about a waiver granted to the student.
+ * @example
+ * // Returns:
+ * // [
+ * //   { waiver_id: 1, student_id: 101, waiver_type: 'Prerequisite', note: 'Waived CSE 101 for transfer credit' },
+ * //   { waiver_id: 2, student_id: 101, waiver_type: 'Time Conflict', note: 'Approved time conflict for MAT 125/PHY 131' }
+ * // ]
  */
 export async function getStudentWaivers(db, studentId) {
   const sql = `
@@ -24,10 +33,15 @@ export async function getStudentWaivers(db, studentId) {
 }
 
 /**
- * Creates a waiver for a student.
- * @param {object} db - The database connection object.
- * @param {object} waiver - The waiver object to create.
- * @returns {Promise<object>} - A promise that resolves to the newly created waiver object.
+ * Creates a new academic waiver for a student.
+ *
+ * @param {import('pg').Pool} db - The database connection pool object.
+ * @param {object} waiver - The details of the waiver to be created.
+ * @param {number} waiver.student_id - The ID of the student for whom the waiver is granted.
+ * @param {string} waiver.waiver_type - The type of waiver (e.g., 'Prerequisite', 'Time Conflict', 'Degree Requirement').
+ * @param {string} [waiver.note] - An optional note providing more details about the waiver.
+ * @returns {Promise<object>} A promise that resolves to the newly created waiver object,
+ * including its generated `waiver_id`.
  */
 export async function createWaiver(db, waiver) {
   const { student_id, waiver_type, note } = waiver;
@@ -41,10 +55,11 @@ export async function createWaiver(db, waiver) {
 }
 
 /**
- * Revokes a waiver.
- * @param {object} db - The database connection object.
- * @param {number} waiverId - The ID of the waiver to revoke.
- * @returns {Promise<void>}
+ * Revokes (deletes) an existing academic waiver.
+ *
+ * @param {import('pg').Pool} db - The database connection pool object.
+ * @param {number} waiverId - The unique identifier of the waiver to be revoked.
+ * @returns {Promise<void>} A promise that resolves when the waiver has been successfully revoked.
  */
 export async function revokeWaiver(db, waiverId) {
   const sql = `

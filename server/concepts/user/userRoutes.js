@@ -1,10 +1,11 @@
 /**
  * @file userRoutes.js
- * @description Express routes for searching and exporting users in SAM.
- * Implements assignment Section 2:
- *   2.1 (handled in importRoutes.js)
- *   2.2 Search users
- *   2.3 Export selected user data as YAML
+ * @description This file defines the Express router for the User concept, focusing on
+ * user search and data export functionalities. It implements parts of Section 2
+ * of the project requirements.
+ * @requires express - Fast, unopinionated, minimalist web framework for Node.js.
+ * @requires js-yaml - Library to dump JavaScript objects into YAML strings.
+ * @requires ./userModel.js - The model functions for the User concept.
  */
 
 import { Router } from 'express';
@@ -14,49 +15,55 @@ import { findRegistrars, searchUsers, findUserBySbuId } from './userModel.js';
 const router = Router();
 
 /**
- * GET /registrars
- * Returns all users with role registrar.
+ * @route GET /api/users/registrars
+ * @description Retrieves a list of all users with the 'Registrar' role.
+ * The data is mapped to a UI-friendly format.
  *
- * @route GET /registrars
- * @returns {Object} 200 - List of registrar user objects
- * @returns {Object} 500 - Query failure
+ * @returns {object} 200 - A success response with an array of registrar user objects.
+ * @returns {object} 500 - An error response if the database query fails.
  */
 router.get('/registrars', async (req, res) => {
   try {
     const registrarsData = await findRegistrars(req.db);
 
+    // Map database results to a more presentable format for the UI
     const registrars = registrarsData.map((u) => ({
-      id: u.sbu_id ?? String(u.user_id),
+      id: u.sbu_id ?? String(u.user_id), // Prefer SBU ID, fallback to internal user_id
       name: `${u.first_name} ${u.last_name}`,
       email: u.email,
-      role: 'registrar',
-      status: 'active',
-      lastLogin: null,
-      department: 'Administration',
+      role: 'registrar', // Explicitly set role for consistency
+      status: 'active', // Placeholder status
+      lastLogin: null,  // Placeholder
+      department: 'Administration', // Placeholder
     }));
 
     return res.json({ ok: true, users: registrars });
   } catch (e) {
-    console.error('[users] /registrars failed:', e);
+    console.error('[UserRoutes] GET /registrars failed:', e);
     return res.status(500).json({ ok: false, error: e.message });
   }
 });
 
 /**
- * GET /search
- * Search users by:
- *   - name prefix
- *   - role
- *   - (If student) optional major/minor
+ * @route GET /api/users/search
+ * @description Searches for users based on various criteria provided as query parameters.
+ * Supports searching by name prefix, role, and for students, by major or minor.
  *
- * @route GET /search
- * @returns {Object} 200 - Search results
- * @returns {Object} 500 - Query failure
+ * @param {object} req - The Express request object.
+ * @param {object} req.query - The query parameters for the search.
+ * @param {string} [req.query.name] - Name prefix to search (case-insensitive).
+ * @param {string} [req.query.role] - User role to filter by (e.g., 'Student', 'Advisor').
+ * @param {string} [req.query.major] - Major to filter students by.
+ * @param {string} [req.query.minor] - Minor to filter students by.
+ *
+ * @returns {object} 200 - A success response with an array of matching user objects and applied filters.
+ * @returns {object} 500 - An error response if the database query fails.
  */
 router.get('/search', async (req, res) => {
   try {
     const usersData = await searchUsers(req.db, req.query);
 
+    // Map database results to a more presentable format for the UI
     const users = usersData.map((u) => ({
       id: u.sbu_id ?? String(u.user_id),
       name: `${u.first_name} ${u.last_name}`,
@@ -68,7 +75,7 @@ router.get('/search', async (req, res) => {
       ok: true,
       count: users.length,
       users,
-      appliedFilters: {
+      appliedFilters: { // Echo back the filters that were applied
         name: req.query.name ?? null,
         role: req.query.role ?? null,
         major: req.query.major ?? null,
@@ -76,28 +83,23 @@ router.get('/search', async (req, res) => {
       },
     });
   } catch (e) {
-    console.error('[users] /search failed:', e);
+    console.error('[UserRoutes] GET /search failed:', e);
     return res.status(500).json({ ok: false, error: e.message });
   }
 });
 
 /**
- * GET /:sbu_id/export
- * Exports a YAML file describing the selected user.
+ * @route GET /api/users/:sbu_id/export
+ * @description Exports a single user's data as a YAML file, formatted similarly to `users1.yaml`.
+ * This endpoint is intended for registrars to download specific user information.
  *
- * Implements Section 2.3:
- *   "A registrar can download a yaml file, in the format defined by users1.yaml,
- *    containing data about a selected user."
+ * @param {object} req - The Express request object.
+ * @param {object} req.params - The route parameters.
+ * @param {string} req.params.sbu_id - The SBU ID of the user to export.
  *
- * Behavior:
- *   - Looks up the user by SBU ID
- *   - Outputs only user fields (no schedule imports, etc.)
- *   - If user does not exist → 404
- *
- * @route GET /:sbu_id/export
- * @returns {YAML} 200 - YAML describing user
- * @returns {Object} 404 - User not found
- * @returns {Object} 500 - Query failure
+ * @returns {string} 200 - A YAML formatted string representing the user's data, sent as a downloadable file.
+ * @returns {object} 404 - An error response if the user with the specified SBU ID is not found.
+ * @returns {object} 500 - An error response if the database query or YAML serialization fails.
  */
 router.get('/:sbu_id/export', async (req, res) => {
   try {
@@ -108,7 +110,7 @@ router.get('/:sbu_id/export', async (req, res) => {
       return res.status(404).json({ ok: false, error: 'User not found' });
     }
 
-    // Format matching users1.yaml structure
+    // Format the user object to match the structure of users1.yaml for consistency
     const yamlObj = {
       users: [
         {
@@ -117,12 +119,14 @@ router.get('/:sbu_id/export', async (req, res) => {
           last_name: u.last_name,
           email: u.email,
           role: u.role.toLowerCase(),
+          // Add other fields as necessary to match users1.yaml if they exist in 'u'
         }
       ]
     };
 
     const yamlText = yaml.dump(yamlObj);
 
+    // Set headers for file download
     res.setHeader('Content-Type', 'application/x-yaml');
     res.setHeader(
       'Content-Disposition',
@@ -131,7 +135,7 @@ router.get('/:sbu_id/export', async (req, res) => {
 
     return res.status(200).send(yamlText);
   } catch (e) {
-    console.error('[users] /export failed:', e);
+    console.error('[UserRoutes] GET /:sbu_id/export failed:', e);
     return res.status(500).json({ ok: false, error: e.message });
   }
 });

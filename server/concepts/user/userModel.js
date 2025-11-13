@@ -1,12 +1,15 @@
 /**
  * @file userModel.js
- * @description Defines the data model for the User concept.
+ * @description This file defines the data model and database interactions for the User concept.
+ * It includes functions for retrieving, searching, and importing user data (registrars, advisors, instructors, students).
  */
 
 /**
- * Finds all users with the role 'Registrar'.
- * @param {object} db - The database connection object.
- * @returns {Promise<Array>} - A promise that resolves to an array of registrar user objects.
+ * Finds all users who have the 'Registrar' role.
+ *
+ * @param {import('pg').Pool} db - The database connection pool object.
+ * @returns {Promise<Array<object>>} A promise that resolves to an array of registrar user objects.
+ * Each object contains basic user information.
  */
 export async function findRegistrars(db) {
   const sql = `
@@ -20,14 +23,16 @@ export async function findRegistrars(db) {
 }
 
 /**
- * Searches for users based on the provided criteria.
- * @param {object} db - The database connection object.
+ * Searches for users based on various criteria such as name, role, major, and minor.
+ * This function constructs a dynamic SQL query to filter users.
+ *
+ * @param {import('pg').Pool} db - The database connection pool object.
  * @param {object} criteria - The search criteria.
- * @param {string} criteria.name - The name to search for (prefix match).
- * @param {string} criteria.role - The role to search for.
- * @param {string} criteria.major - The major to search for.
- * @param {string} criteria.minor - The minor to search for.
- * @returns {Promise<Array>} - A promise that resolves to an array of user objects.
+ * @param {string} [criteria.name] - A name (first or last) to search for. Supports prefix matching (case-insensitive).
+ * @param {string} [criteria.role] - The role of the user (e.g., 'Student', 'Registrar'). Case-insensitive.
+ * @param {string} [criteria.major] - The major subject for student users (case-insensitive).
+ * @param {string} [criteria.minor] - The minor subject for student users (case-insensitive).
+ * @returns {Promise<Array<object>>} A promise that resolves to an array of user objects matching the criteria.
  */
 export async function searchUsers(db, { name, role, major, minor }) {
   let params = [];
@@ -56,6 +61,7 @@ export async function searchUsers(db, { name, role, major, minor }) {
     FROM users u
   `;
 
+  // If searching for students with major/minor, join with student_programs and programs tables
   if (
     role &&
     role.toLowerCase() === 'student' &&
@@ -99,10 +105,11 @@ export async function searchUsers(db, { name, role, major, minor }) {
 }
 
 /**
- * Finds a user by their SBU ID.
- * @param {object} db - The database connection object.
+ * Finds a single user by their SBU ID.
+ *
+ * @param {import('pg').Pool} db - The database connection pool object.
  * @param {string} sbu_id - The SBU ID of the user to find.
- * @returns {Promise<object|null>} - A promise that resolves to the user object, or null if not found.
+ * @returns {Promise<object|null>} A promise that resolves to the user object if found, otherwise `null`.
  */
 export async function findUserBySbuId(db, sbu_id) {
   const sql = `
@@ -121,20 +128,34 @@ export async function findUserBySbuId(db, sbu_id) {
 }
 
 /**
- * Inserts a user into the database.
- * @param {object} db - The database connection object.
- * @param {object} user - The user object to insert.
- * @param {string} role - The role of the user.
- * @returns {Promise<number|null>} - A promise that resolves to the user_id of the inserted user, or null if skipped.
+ * Inserts a single user into the database.
+ * This is an internal helper function used by `importUsers`.
+ * It checks for existing users by SBU_ID to prevent duplicates.
+ *
+ * @param {import('pg').Pool} db - The database connection pool object.
+ * @param {object} user - The user object containing details to insert.
+ * @param {string} user.SBU_ID - The SBU ID of the user.
+ * @param {string} user.first_name - The first name of the user.
+ * @param {string} user.last_name - The last name of the user.
+ * @param {string} user.email - The email address of the user.
+ * @param {string} [user.university_entry] - The university entry term.
+ * @param {boolean} [user.direct_admit] - Indicates if the student was a direct admit.
+ * @param {string} [user.AOI] - Area of Interest for students.
+ * @param {string} [user.college] - The college the user is affiliated with.
+ * @param {string} role - The role of the user (e.g., 'Student', 'Registrar').
+ * @returns {Promise<{userId: number}|{error: string}>} A promise that resolves to an object
+ *   containing the `userId` of the inserted user, or an `error` message if the user already exists
+ *   or required fields are missing.
  */
 async function insertUser(db, user, role) {
   const { SBU_ID, first_name, last_name, email, university_entry, direct_admit, AOI, college } = user;
 
+  // Basic validation for required fields
   if (!SBU_ID || !email || !first_name || !last_name) {
-    return { error: `Missing fields for SBU_ID=${SBU_ID ?? '(none)'}` };
+    return { error: `Missing required fields for SBU_ID=${SBU_ID ?? '(none)'}` };
   }
 
-  // Check for existing
+  // Check if user with this SBU_ID already exists
   const check = await db.query(
     `SELECT user_id FROM users WHERE sbu_id = $1`,
     [SBU_ID]
@@ -144,7 +165,7 @@ async function insertUser(db, user, role) {
     return { error: `User already exists: SBU_ID=${SBU_ID}` };
   }
 
-  // Insert user
+  // Insert new user into the 'users' table
   const r = await db.query(
     `INSERT INTO users (sbu_id, first_name, last_name, email, role, university_entry, direct_admit, aoi, college)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -152,14 +173,26 @@ async function insertUser(db, user, role) {
     [SBU_ID, first_name, last_name, email, role, university_entry, direct_admit, AOI, college]
   );
 
+  // If the user is a student, additional data might need to be handled (e.g., majors, minors)
+  // This part of the logic is currently commented out or simplified for brevity in the provided code.
+  // A more complete implementation would involve inserting into 'students' and 'student_programs' tables.
+
   return { userId: r.rows[0].user_id };
 }
 
 /**
- * Imports users from a YAML file.
- * @param {object} db - The database connection object.
- * @param {object} parsedYaml - The parsed YAML object.
- * @returns {Promise<object>} - A promise that resolves to an object containing the import results.
+ * Imports multiple users from a parsed YAML object.
+ * This function iterates through different user roles provided in the YAML data
+ * and attempts to insert each user, handling duplicates and collecting warnings.
+ *
+ * @param {import('pg').Pool} db - The database connection pool object.
+ * @param {object} parsedYaml - The parsed YAML object containing arrays of users categorized by role.
+ * @param {Array<object>} [parsedYaml.registrars] - Array of registrar user objects.
+ * @param {Array<object>} [parsedYaml.academic_advisors] - Array of academic advisor user objects.
+ * @param {Array<object>} [parsedYaml.instructors] - Array of instructor user objects.
+ * @param {Array<object>} [parsedYaml.students] - Array of student user objects.
+ * @returns {Promise<object>} A promise that resolves to an object summarizing the import results,
+ *   including `inserted` count, `skipped` count, and an array of `warnings` for failed insertions.
  */
 export async function importUsers(db, parsedYaml) {
   const {
@@ -175,6 +208,7 @@ export async function importUsers(db, parsedYaml) {
     warnings: [],
   };
 
+  // Process Registrars
   for (const r of registrars) {
     const result = await insertUser(db, r, 'Registrar');
     if (result.error) {
@@ -184,6 +218,7 @@ export async function importUsers(db, parsedYaml) {
       results.inserted++;
     }
   }
+  // Process Academic Advisors
   for (const a of academic_advisors) {
     const result = await insertUser(db, a, 'Advisor');
     if (result.error) {
@@ -193,6 +228,7 @@ export async function importUsers(db, parsedYaml) {
       results.inserted++;
     }
   }
+  // Process Instructors
   for (const i of instructors) {
     const result = await insertUser(db, i, 'Instructor');
     if (result.error) {
@@ -202,6 +238,7 @@ export async function importUsers(db, parsedYaml) {
       results.inserted++;
     }
   }
+  // Process Students
   for (const s of students) {
     const result = await insertUser(db, s, 'Student');
     if (result.error) {
@@ -211,13 +248,15 @@ export async function importUsers(db, parsedYaml) {
       results.inserted++;
       const userId = result.userId;
 
-      // Handle majors, minors, etc.
+      // Handle student-specific data like majors, minors, and associated programs.
+      // This section demonstrates how student programs would be handled if the 'programs' and 'student_programs'
+      // tables were fully integrated and populated during user import.
       if (s.majors) {
         for (let i = 0; i < s.majors.length; i++) {
           const major = s.majors[i];
           const degree = s.degrees[i];
           const version = s.major_requirement_versions[i];
-          // Assuming a programs table exists
+          // Assuming a programs table exists and contains program definitions
           const programResult = await db.query(
             `SELECT program_id FROM programs WHERE subject = $1 AND degree_type = $2 AND program_type = 'Major'`,
             [major, degree]
@@ -234,7 +273,7 @@ export async function importUsers(db, parsedYaml) {
           }
         }
       }
-      // Similar logic for minors, planned_majors, planned_minors, transfer_courses, and classes
+      // TODO: Implement similar logic for minors, planned_majors, planned_minors, transfer_courses, and classes
     }
   }
 
