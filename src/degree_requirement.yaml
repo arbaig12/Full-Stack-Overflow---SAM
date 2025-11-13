@@ -1,0 +1,97 @@
+subject: CSE
+degree_type: BS
+type: major
+effective_term:
+  semester: Fall
+  year: 2024
+
+admission_requirements:
+  min_gpa: 3.2
+  required_courses:
+    - CSE114
+    - CSE214
+    - CSE215
+
+degree_requirements:
+  required_courses:
+    - CSE114
+    - CSE214
+    - CSE215
+    - CSE216
+    - CSE220
+    - CSE303
+    - CSE300
+    - CSE310
+    - CSE312
+    - CSE316
+    - CSE320
+    - CSE373
+    - CSE416
+
+  electives:
+    min_courses: 3
+    from_subject: CSE
+    min_level: 300
+    exclude_courses:
+      - CSE475
+      - CSE495
+      - CSE496
+      - CSE310
+
+  calculus:
+      required: 2
+      options:
+        - [AMS151, AMS161]
+        - [MAT125, MAT126, MAT127]
+        - [MAT131, MAT132]
+
+  linear_algebra:
+      required: 1
+      options:
+        - [MAT211]
+        - [AMS210]
+
+  probability_and_structures:
+      required_sequence:
+        - AMS301
+        - [AMS310, AMS311]  # choose one
+        
+  natural_science:
+    min_credits: 9
+    natural_science_core:
+      required: 1
+      options:
+        - [BIO201, BIO204]
+        - [BIO202, BIO204]
+        - [BIO203, BIO204]
+        - [CHE131, CHE133]
+        - [CHE152, CHE154]
+        - [PHY126, PHY133]
+        - [PHY131, PHY133]
+        - [PHY141, PHY133]
+
+    natural_science_additional:
+      allowed_courses:
+        - AST203
+        - AST205
+        - CHE132
+        - CHE321
+        - CHE322
+        - CHE331
+        - CHE332
+        - GEO102
+        - GEO103
+        - GEO112
+        - GEO113
+        - GEO122
+        - PHY125
+        - PHY127
+        - PHY132
+        - PHY134
+        - PHY142
+        - PHY251
+        - PHY252
+  
+
+
+      

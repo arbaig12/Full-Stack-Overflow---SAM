@@ -8,8 +8,15 @@ import cors from 'cors';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import pkg from 'pg';
-import importRoutes from './routes/importRoutes.js';
-import usersRoutes from './routes/userRoutes.js'; 
+import userRoutes from './concepts/user/userRoutes.js';
+import importUserRoutes from './concepts/user/importUserRoutes.js';
+import courseCatalogRoutes from './concepts/courseCatalog/courseCatalogRoutes.js';
+import degreeRequirementRoutes from './concepts/degreeRequirement/degreeRequirementRoutes.js';
+import academicProgramRoutes from './concepts/academicProgram/academicProgramRoutes.js';
+import waiverRoutes from './concepts/waiver/waiverRoutes.js';
+import registrationHoldRoutes from './concepts/registrationHold/registrationHoldRoutes.js';
+import studentProfileRoutes from './concepts/studentProfile/studentProfileRoutes.js';
+import academicCalendarRoutes from './concepts/academicCalendar/academicCalendarRoutes.js';
 
 dotenv.config();
 
@@ -54,8 +61,15 @@ app.get('/api/db-check', async (_req, res) => {
 });
 
 // Routes
-app.use('/api/import', importRoutes);
-app.use('/api/users', usersRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/import/users', importUserRoutes);
+app.use('/api/import/catalog', courseCatalogRoutes);
+app.use('/api/import/degree-requirements', degreeRequirementRoutes);
+app.use('/api/import/academic-calendar', academicCalendarRoutes);
+app.use('/api/student-profile', studentProfileRoutes);
+app.use('/api/registration-holds', registrationHoldRoutes);
+app.use('/api/waivers', waiverRoutes);
+app.use('/api/academic-programs', academicProgramRoutes);
 
 app.listen(PORT, () => {
   console.log(`[Server] SAM backend running on port ${PORT} (${ENV})`);

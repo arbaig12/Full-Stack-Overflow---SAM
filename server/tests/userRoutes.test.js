@@ -1,7 +1,7 @@
 import express from 'express';
 import request from 'supertest';
 import { describe, it, expect, vi } from 'vitest';
-import usersRoutes from '../routes/userRoutes.js';
+import usersRoutes from '../concepts/user/userRoutes.js';
 
 
 function buildApp(queryImpl) {
