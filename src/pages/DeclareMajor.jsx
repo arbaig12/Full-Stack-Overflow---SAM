@@ -29,15 +29,15 @@ export default function DeclareMajorMinor({}) {
   const [type, setType] = useState('');
   const [message, setMessage] = useState('');
 
-  /*
+  
   useEffect(() => {
     const fetchCurrentProgram = async () => {
       try {
         const res = await axios.get('http://localhost:4000/api/users/current-program');
         setCurrentMajor(res.data.major || '');
         setCurrentMinor(res.data.minor || '');
-        setSelectedMajor(res.data.major || '');
-        setSelectedMinor(res.data.minor || '');
+        //setSelectedMajor(res.data.major || '');
+        //setSelectedMinor(res.data.minor || '');
       } catch (err) {
         console.error('Failed to fetch current program:', err);      
       }
@@ -56,36 +56,14 @@ export default function DeclareMajorMinor({}) {
         major: selectedMajor,
         minor: selectedMinor,
       });
-      setCurrentMajor(selectedMajor);
-      setCurrentMinor(selectedMinor);
-      setMessage(res.data.message || 'Program updated successfully!');
+      //setCurrentMajor(selectedMajor);
+      //setCurrentMinor(selectedMinor);
+      setMessage(res.data.message || 'updated successfully!');
     } catch (err) {
       console.error('POST failed, using fallback:', err);
     }
   };
-  */
-  // Load from localStorage
-  useEffect(() => {
-    const storedMajor = localStorage.getItem('major') || 'Computer Science';
-    const storedMinor = localStorage.getItem('minor') || 'Economics';
-    setCurrentMajor(storedMajor);
-    setCurrentMinor(storedMinor);
-    setSelectedMajor(storedMajor);
-    setSelectedMinor(storedMinor);
-  }, []);
-
-  const handleSave = () => {
-    if (!selectedMajor) {
-      alert('Please select a major.');
-      return;
-    }
-
-    localStorage.setItem('major', selectedMajor);
-    localStorage.setItem('minor', selectedMinor);
-    setCurrentMajor(selectedMajor);
-    setCurrentMinor(selectedMinor);
-    setMessage('Program updated successfully!');
-  };
+  
   
   return (
   <div style={{ padding: 20, maxWidth: 500, margin: '0 auto' }}>
