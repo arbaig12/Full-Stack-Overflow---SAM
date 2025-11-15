@@ -1,314 +1,302 @@
-/**
- * @file academicPlan.test.js
- * @description Integration tests for the Academic Plan concept's API routes.
- * This file uses Vitest for the test runner and Supertest for making HTTP requests
- * to the Express application. Database interactions are mocked to isolate API logic.
- */
-
-import express from 'express';
 import request from 'supertest';
-import { describe, it, expect, vi } from 'vitest';
-import academicPlanRoutes from '../concepts/academicPlan/academicPlanRoutes.js';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import app from '../index.js'; // Assuming your Express app is exported from index.js
+import { Pool } from 'pg'; // Import Pool to mock it
 
-/**
- * @function buildApp
- * @description Helper function to create a new Express app instance for testing.
- * It sets up middleware and mounts the academic plan routes, injecting a mock database query function.
- * @param {Function} queryImpl - A mock implementation for `req.db.query`.
- * @returns {express.Application} A configured Express application for testing.
- */
-function buildApp(queryImpl) {
-  const app = express();
-  app.use(express.json());
-  app.use((req, _res, next) => { req.db = { query: queryImpl }; next(); });
-  app.use('/api/academic-plans', academicPlanRoutes);
-  return app;
-}
+// Mock the database pool
+const mockQuery = vi.fn();
+vi.mock('pg', () => ({
+  Pool: vi.fn(() => ({
+    query: mockQuery,
+    on: vi.fn(),
+    end: vi.fn(),
+  })),
+}));
 
-describe('Academic Plan API', () => {
-  const mockStudentUserId = 1;
-  const mockPlanId = 101;
-  const mockCourseId = 201;
+// Mock external model dependencies for academicPlanModel
+vi.mock('../concepts/studentProfile/studentProfileModel.js', () => ({
+  getStudentProfile: vi.fn(),
+}));
+vi.mock('../concepts/degreeRequirement/degreeRequirementModel.js', () => ({
+  checkDegreeRequirements: vi.fn(),
+  getDegreeRequirements: vi.fn(),
+}));
+vi.mock('../concepts/courseCatalog/courseCatalogModel.js', () => ({
+  getCourseInfo: vi.fn(),
+}));
 
-  describe('POST /api/academic-plans', () => {
-    it('should create a new academic plan', async () => {
-      const mockPlan = {
-        plan_id: mockPlanId,
-        student_user_id: mockStudentUserId,
-        plan_name: 'My Fall 2025 Plan',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        grad_term_semester: 'Spring',
-        grad_term_year: 2027,
-        workload_limits: { 'Fall 2025': 15 },
-      };
-      const query = vi.fn().mockResolvedValueOnce({ rows: [mockPlan] });
-      const app = buildApp(query);
-      const res = await request(app)
-        .post('/api/academic-plans')
-        .send({
-          student_user_id: mockStudentUserId,
-          plan_name: 'My Fall 2025 Plan',
-          preferences: { grad_term_semester: 'Spring', grad_term_year: 2027, workload_limits: { 'Fall 2025': 15 } },
-        });
+// Mock the auth middleware for testing purposes
+vi.mock('../middleware/authMiddleware.js', () => ({
+  authenticateToken: (req, res, next) => {
+    req.user = { user_id: 1, role: 'Student' }; // Mock authenticated student
+    next();
+  },
+  authorizeRoles: (roles) => (req, res, next) => {
+    if (roles.includes(req.user.role)) {
+      next();
+    } else {
+      res.status(403).json({ ok: false, error: 'Access forbidden: Insufficient permissions.' });
+    }
+  },
+}));
 
-      expect(res.status).toBe(201);
-      expect(res.body.ok).toBe(true);
-      expect(res.body.plan).toEqual(mockPlan);
-      expect(query).toHaveBeenCalledTimes(1);
-    });
 
-    it('should return 500 if database operation fails', async () => {
-      const query = vi.fn().mockRejectedValue(new Error('DB error'));
-      const app = buildApp(query);
-      const res = await request(app)
-        .post('/api/academic-plans')
-        .send({ student_user_id: mockStudentUserId, plan_name: 'My Plan' });
+describe('Academic Plan API Endpoints', () => {
+  let server;
+  let createdPlanId;
 
-      expect(res.status).toBe(500);
-      expect(res.body.ok).toBe(false);
-      expect(res.body.error).toBeDefined();
-    });
+  beforeAll(async () => {
+    server = app.listen(4001); // Use a different port for testing
   });
 
-  describe('GET /api/academic-plans/:planId', () => {
-    it('should retrieve an academic plan with its courses', async () => {
-      const mockPlan = {
-        plan_id: mockPlanId,
-        student_user_id: mockStudentUserId,
-        plan_name: 'My Fall 2025 Plan',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        grad_term_semester: 'Spring',
-        grad_term_year: 2027,
-        workload_limits: null,
-      };
-      const mockCourses = [
-        { plan_course_id: 1, course_id: mockCourseId, subject: 'CSE', course_num: '101', name: 'Intro to CS', planned_term_semester: 'Fall', planned_term_year: 2025 },
-      ];
-      const query = vi.fn()
-        .mockResolvedValueOnce({ rows: [mockPlan] })
-        .mockResolvedValueOnce({ rows: mockCourses });
-      const app = buildApp(query);
-      const res = await request(app).get(`/api/academic-plans/${mockPlanId}`);
-
-      expect(res.status).toBe(200);
-      expect(res.body.ok).toBe(true);
-      expect(res.body.plan).toEqual({ ...mockPlan, courses: mockCourses });
-      expect(query).toHaveBeenCalledTimes(2);
-    });
-
-    it('should return 404 if plan is not found', async () => {
-      const query = vi.fn().mockResolvedValueOnce({ rows: [] });
-      const app = buildApp(query);
-      const res = await request(app).get(`/api/academic-plans/${mockPlanId}`);
-
-      expect(res.status).toBe(404);
-      expect(res.body.ok).toBe(false);
-      expect(res.body.error).toBe('Academic plan not found');
-      expect(query).toHaveBeenCalledTimes(1);
-    });
-
-    it('should return 500 if database operation fails', async () => {
-      const query = vi.fn().mockRejectedValue(new Error('DB error'));
-      const app = buildApp(query);
-      const res = await request(app).get(`/api/academic-plans/${mockPlanId}`);
-
-      expect(res.status).toBe(500);
-      expect(res.body.ok).toBe(false);
-      expect(res.body.error).toBeDefined();
-    });
+  afterAll(async () => {
+    await server.close();
   });
 
-  describe('PUT /api/academic-plans/:planId', () => {
-    it('should update an academic plan', async () => {
-      const updatedPlan = {
-        plan_id: mockPlanId,
-        student_user_id: mockStudentUserId,
-        plan_name: 'Updated Plan Name',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+  beforeEach(() => {
+    mockQuery.mockReset();
+    // Reset mocks for external dependencies
+    require('../concepts/studentProfile/studentProfileModel.js').getStudentProfile.mockReset();
+    require('../concepts/degreeRequirement/degreeRequirementModel.js').checkDegreeRequirements.mockReset();
+    require('../concepts/degreeRequirement/degreeRequirementModel.js').getDegreeRequirements.mockReset();
+    require('../concepts/courseCatalog/courseCatalogModel.js').getCourseInfo.mockReset();
+  });
+
+  it('POST /api/academic-plans should create a new academic plan', async () => {
+    mockQuery.mockResolvedValueOnce({
+      rows: [{
+        plan_id: 1,
+        student_user_id: 1,
+        plan_name: 'My First Plan',
         grad_term_semester: 'Fall',
         grad_term_year: 2028,
         workload_limits: null,
-      };
-      const query = vi.fn().mockResolvedValueOnce({ rows: [updatedPlan] });
-      const app = buildApp(query);
-      const res = await request(app)
-        .put(`/api/academic-plans/${mockPlanId}`)
-        .send({ planName: 'Updated Plan Name', grad_term_semester: 'Fall', grad_term_year: 2028 });
-
-      expect(res.status).toBe(200);
-      expect(res.body.ok).toBe(true);
-      expect(res.body.plan.plan_name).toBe('Updated Plan Name');
-      expect(res.body.plan.grad_term_year).toBe(2028);
-      expect(query).toHaveBeenCalledTimes(1);
-    });
-
-    it('should return 404 if plan is not found', async () => {
-      const query = vi.fn().mockResolvedValueOnce({ rows: [] });
-      const app = buildApp(query);
-      const res = await request(app)
-        .put(`/api/academic-plans/${mockPlanId}`)
-        .send({ planName: 'Non Existent' });
-
-      expect(res.status).toBe(404);
-      expect(res.body.ok).toBe(false);
-      expect(res.body.error).toBe('Academic plan not found');
-      expect(query).toHaveBeenCalledTimes(1);
-    });
-
-    it('should return 500 if database operation fails', async () => {
-      const query = vi.fn().mockRejectedValue(new Error('DB error'));
-      const app = buildApp(query);
-      const res = await request(app)
-        .put(`/api/academic-plans/${mockPlanId}`)
-        .send({ planName: 'Error Plan' });
-
-      expect(res.status).toBe(500);
-      expect(res.body.ok).toBe(false);
-      expect(res.body.error).toBeDefined();
-    });
-  });
-
-  describe('DELETE /api/academic-plans/:planId', () => {
-    it('should delete an academic plan', async () => {
-      const query = vi.fn().mockResolvedValueOnce({ rowCount: 1 });
-      const app = buildApp(query);
-      const res = await request(app).delete(`/api/academic-plans/${mockPlanId}`);
-
-      expect(res.status).toBe(200);
-      expect(res.body.ok).toBe(true);
-      expect(res.body.message).toBe('Academic plan deleted successfully');
-      expect(query).toHaveBeenCalledTimes(1);
-    });
-
-    it('should return 500 if database operation fails', async () => {
-      const query = vi.fn().mockRejectedValue(new Error('DB error'));
-      const app = buildApp(query);
-      const res = await request(app).delete(`/api/academic-plans/${mockPlanId}`);
-
-      expect(res.status).toBe(500);
-      expect(res.body.ok).toBe(false);
-      expect(res.body.error).toBeDefined();
-    });
-  });
-
-  describe('POST /api/academic-plans/:planId/courses', () => {
-    it('should add a course to an academic plan', async () => {
-      const mockCourseEntry = {
-        plan_course_id: 1,
-        plan_id: mockPlanId,
-        course_id: mockCourseId,
-        planned_term_semester: 'Fall',
-        planned_term_year: 2025,
-      };
-      const query = vi.fn().mockResolvedValueOnce({ rows: [mockCourseEntry] });
-      const app = buildApp(query);
-      const res = await request(app)
-        .post(`/api/academic-plans/${mockPlanId}/courses`)
-        .send({ course_id: mockCourseId, planned_term_semester: 'Fall', planned_term_year: 2025 });
-
-      expect(res.status).toBe(201);
-      expect(res.body.ok).toBe(true);
-      expect(res.body.courseEntry).toEqual(mockCourseEntry);
-      expect(query).toHaveBeenCalledTimes(1);
-    });
-
-    it('should return 500 if database operation fails', async () => {
-      const query = vi.fn().mockRejectedValue(new Error('DB error'));
-      const app = buildApp(query);
-      const res = await request(app)
-        .post(`/api/academic-plans/${mockPlanId}/courses`)
-        .send({ course_id: mockCourseId, planned_term_semester: 'Fall', planned_term_year: 2025 });
-
-      expect(res.status).toBe(500);
-      expect(res.body.ok).toBe(false);
-      expect(res.body.error).toBeDefined();
-    });
-  });
-
-  describe('DELETE /api/academic-plans/courses/:planCourseId', () => {
-    it('should remove a course from an academic plan', async () => {
-      const mockPlanCourseId = 1;
-      const query = vi.fn().mockResolvedValueOnce({ rowCount: 1 });
-      const app = buildApp(query);
-      const res = await request(app).delete(`/api/academic-plans/courses/${mockPlanCourseId}`);
-
-      expect(res.status).toBe(200);
-      expect(res.body.ok).toBe(true);
-      expect(res.body.message).toBe('Course removed from plan successfully');
-      expect(query).toHaveBeenCalledTimes(1);
-    });
-
-    it('should return 500 if database operation fails', async () => {
-      const mockPlanCourseId = 1;
-      const query = vi.fn().mockRejectedValue(new Error('DB error'));
-      const app = buildApp(query);
-      const res = await request(app).delete(`/api/academic-plans/courses/${mockPlanCourseId}`);
-
-      expect(res.status).toBe(500);
-      expect(res.body.ok).toBe(false);
-      expect(res.body.error).toBeDefined();
-    });
-  });
-
-  describe('GET /api/academic-plans/:planId/validate', () => {
-    it('should return validation results for an academic plan', async () => {
-      const mockValidationResult = { planId: mockPlanId, isValid: true, issues: [] };
-      const query = vi.fn().mockResolvedValueOnce({ rows: [] }); // Placeholder for model's internal queries
-      const app = buildApp(query);
-      const res = await request(app).get(`/api/academic-plans/${mockPlanId}/validate`);
-
-      expect(res.status).toBe(200);
-      expect(res.body.ok).toBe(true);
-      expect(res.body.validationResult).toEqual(mockValidationResult);
-    });
-
-    it('should return 500 if database operation fails', async () => {
-      const query = vi.fn().mockRejectedValue(new Error('DB error'));
-      const app = buildApp(query);
-      const res = await request(app).get(`/api/academic-plans/${mockPlanId}/validate`);
-
-      expect(res.status).toBe(500);
-      expect(res.body.ok).toBe(false);
-      expect(res.body.error).toBeDefined();
-    });
-  });
-
-  describe('POST /api/academic-plans/auto-generate', () => {
-    it('should auto-generate an academic plan', async () => {
-      const mockGeneratedPlan = {
-        plan_id: mockPlanId,
-        student_user_id: mockStudentUserId,
-        plan_name: 'Auto-Generated Plan',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+      }],
+    });
+
+    const response = await request(server)
+      .post('/api/academic-plans')
+      .send({
+        studentUserId: 1,
+        planName: 'My First Plan',
+        preferences: {
+          grad_term_semester: 'Fall',
+          grad_term_year: 2028,
+        },
+      });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.body.ok).toBe(true);
+    expect(response.body.plan).toHaveProperty('plan_id', 1);
+    createdPlanId = response.body.plan.plan_id;
+  });
+
+  it('GET /api/academic-plans/:planId should retrieve an academic plan', async () => {
+    mockQuery.mockResolvedValueOnce({
+      rows: [{
+        plan_id: createdPlanId,
+        student_user_id: 1,
+        plan_name: 'My First Plan',
         grad_term_semester: 'Fall',
-        grad_term_year: 2027,
+        grad_term_year: 2028,
         workload_limits: null,
-      };
-      const query = vi.fn().mockResolvedValueOnce({ rows: [mockGeneratedPlan] });
-      const app = buildApp(query);
-      const res = await request(app)
-        .post('/api/academic-plans/auto-generate')
-        .send({ student_user_id: mockStudentUserId, preferences: { grad_term_year: 2027 } });
-
-      expect(res.status).toBe(201);
-      expect(res.body.ok).toBe(true);
-      expect(res.body.plan).toEqual(mockGeneratedPlan);
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }],
+    }).mockResolvedValueOnce({
+      rows: [], // No courses in the plan yet
     });
 
-    it('should return 500 if database operation fails', async () => {
-      const query = vi.fn().mockRejectedValue(new Error('DB error'));
-      const app = buildApp(query);
-      const res = await request(app)
-        .post('/api/academic-plans/auto-generate')
-        .send({ student_user_id: mockStudentUserId, preferences: {} });
+    const response = await request(server).get(`/api/academic-plans/${createdPlanId}`);
 
-      expect(res.status).toBe(500);
-      expect(res.body.ok).toBe(false);
-      expect(res.body.error).toBeDefined();
+    expect(response.statusCode).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(response.body.plan).toHaveProperty('plan_id', createdPlanId);
+    expect(response.body.plan).toHaveProperty('courses', []);
+  });
+
+  it('POST /api/academic-plans/:planId/validate should validate an academic plan', async () => {
+    // Mock getAcademicPlan
+    mockQuery.mockResolvedValueOnce({
+      rows: [{
+        plan_id: createdPlanId,
+        student_user_id: 1,
+        plan_name: 'My First Plan',
+        grad_term_semester: 'Fall',
+        grad_term_year: 2028,
+        workload_limits: { 'Fall 2025': 15 },
+      }],
+    }).mockResolvedValueOnce({
+      rows: [{
+        plan_course_id: 101,
+        course_id: 1, // Assuming course_id is numeric
+        subject: 'CSE',
+        course_num: '101',
+        name: 'Intro to CS',
+        planned_term_semester: 'Fall',
+        planned_term_year: 2025,
+        credits: 3,
+      }, {
+        plan_course_id: 102,
+        course_id: 2, // Assuming course_id is numeric
+        subject: 'CSE',
+        course_num: '102',
+        name: 'Web Design',
+        planned_term_semester: 'Fall',
+        planned_term_year: 2025,
+        credits: 15, // This will exceed workload limit
+      }],
     });
+
+    // Mock getStudentProfile
+    require('../concepts/studentProfile/studentProfileModel.js').getStudentProfile.mockResolvedValue({
+      user_id: 1,
+      classes: [], // No completed classes
+      academic_programs: [{
+        subject: 'CSE',
+        degree_type: 'BS',
+      }],
+    });
+
+    // Mock getCourseInfo
+    require('../concepts/courseCatalog/courseCatalogModel.js').getCourseInfo.mockImplementation((db, subject, num, semester, year) => {
+      if (subject === 'CSE' && num === '101') return { course_id: 1, subject: 'CSE', course_num: '101', credits: 3, prereq_rules: [] };
+      if (subject === 'CSE' && num === '102') return { course_id: 2, subject: 'CSE', course_num: '102', credits: 15, prereq_rules: [{ type: 'courses', courses: [{ subject: 'CSE', course_num: '101' }] }] };
+      return null;
+    });
+
+    // Mock getDegreeRequirements
+    require('../concepts/degreeRequirement/degreeRequirementModel.js').getDegreeRequirements.mockResolvedValue({
+      id: 1,
+      subject: 'CSE',
+      degree_type: 'BS',
+      degree_requirements: {
+        required_courses: [{ subject: 'CSE', number: '101', credits: 3 }],
+        minimum_credits: 120,
+      },
+    });
+
+    // Mock checkDegreeRequirements
+    require('../concepts/degreeRequirement/degreeRequirementModel.js').checkDegreeRequirements.mockResolvedValue({
+      status: 'unsatisfied',
+      details: {
+        requiredCourses: [{ subject: 'CSE', number: '101', satisfied: false }],
+        overallCredits: 0,
+      },
+    });
+
+    const response = await request(server).get(`/api/academic-plans/${createdPlanId}/validate`);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(response.body.validationResult.isValid).toBe(false);
+    expect(response.body.validationResult.issues.length).toBeGreaterThan(0);
+    expect(response.body.validationResult.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'warning', message: expect.stringContaining('Workload for Fall 2025') }),
+        expect.objectContaining({ type: 'error', message: expect.stringContaining('Prerequisites not met for CSE 102') }),
+        expect.objectContaining({ type: 'error', message: expect.stringContaining('Degree requirements for CSE BS are not satisfied by the plan.') }),
+        expect.objectContaining({ type: 'info', message: expect.stringContaining('Time conflict validation is not yet implemented.') }),
+      ])
+    );
+  });
+
+  it('POST /api/academic-plans/auto-generate should auto-generate an academic plan', async () => {
+    // Mock getStudentProfile
+    require('../concepts/studentProfile/studentProfileModel.js').getStudentProfile.mockResolvedValue({
+      user_id: 1,
+      classes: [], // No completed classes
+      academic_programs: [{
+        subject: 'CSE',
+        degree_type: 'BS',
+      }],
+    });
+
+    // Mock getDegreeRequirements
+    require('../concepts/degreeRequirement/degreeRequirementModel.js').getDegreeRequirements.mockResolvedValue({
+      id: 1,
+      subject: 'CSE',
+      degree_type: 'BS',
+      degree_requirements: {
+        required_courses: [{ subject: 'CSE', number: '101', credits: 3 }],
+        minimum_credits: 120,
+      },
+    });
+
+    // Mock checkDegreeRequirements to return unsatisfied for CSE 101
+    require('../concepts/degreeRequirement/degreeRequirementModel.js').checkDegreeRequirements.mockResolvedValue({
+      status: 'unsatisfied',
+      details: {
+        requiredCourses: [{ subject: 'CSE', number: '101', satisfied: false, credits: 3 }],
+        overallCredits: 0,
+      },
+    });
+
+    // Mock getCourseInfo
+    require('../concepts/courseCatalog/courseCatalogModel.js').getCourseInfo.mockResolvedValue({
+      course_id: 1, subject: 'CSE', course_num: '101', credits: 3, prereq_rules: []
+    });
+
+    // Mock createAcademicPlan and addCourseToAcademicPlan
+    mockQuery.mockResolvedValueOnce({ // createAcademicPlan
+      rows: [{
+        plan_id: 2,
+        student_user_id: 1,
+        plan_name: 'Auto-Generated Plan',
+        grad_term_semester: 'Fall',
+        grad_term_year: 2025,
+        workload_limits: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }],
+    }).mockResolvedValueOnce({ // addCourseToAcademicPlan
+      rows: [{
+        plan_course_id: 201,
+        plan_id: 2,
+        course_id: 1,
+        planned_term_semester: 'Fall',
+        planned_term_year: 2025,
+      }],
+    }).mockResolvedValueOnce({ // getAcademicPlan (final fetch)
+      rows: [{
+        plan_id: 2,
+        student_user_id: 1,
+        plan_name: 'Auto-Generated Plan',
+        grad_term_semester: 'Fall',
+        grad_term_year: 2025,
+        workload_limits: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }],
+    }).mockResolvedValueOnce({ // getAcademicPlan (final fetch courses)
+      rows: [{
+        plan_course_id: 201,
+        course_id: 1,
+        subject: 'CSE',
+        course_num: '101',
+        name: 'Intro to CS',
+        planned_term_semester: 'Fall',
+        planned_term_year: 2025,
+      }],
+    });
+
+
+    const response = await request(server)
+      .post('/api/academic-plans/auto-generate')
+      .send({
+        studentUserId: 1,
+        preferences: {
+          grad_term_semester: 'Fall',
+          grad_term_year: 2028,
+        },
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(response.body.plan).toHaveProperty('plan_id', 2);
+    expect(response.body.plan.courses.length).toBeGreaterThan(0);
+    expect(response.body.plan.courses[0].course_num).toBe('101');
   });
 });

@@ -18,13 +18,12 @@ const router = Router();
  * @returns {object} 201 - A success response with the newly created audit log entry.
  * @returns {object} 500 - An error response if the database operation fails.
  */
-router.post('/', async (req, res) => {
+router.post('/', async (req, res, next) => {
   try {
     const logEntry = await logAction(req.db, req.body);
     return res.status(201).json({ ok: true, logEntry });
   } catch (e) {
-    console.error(`[AuditLog] POST / failed:`, e);
-    return res.status(500).json({ ok: false, error: e.message });
+    next(e);
   }
 });
 
@@ -36,14 +35,13 @@ router.post('/', async (req, res) => {
  * @returns {object} 200 - A success response with an array of audit log entries.
  * @returns {object} 500 - An error response if the database operation fails.
  */
-router.get('/', async (req, res) => {
+router.get('/', async (req, res, next) => {
   try {
     const filters = req.query; // Filters are passed as query parameters
     const logEntries = await getAuditLog(req.db, filters);
     return res.json({ ok: true, logEntries });
   } catch (e) {
-    console.error(`[AuditLog] GET / failed:`, e);
-    return res.status(500).json({ ok: false, error: e.message });
+    next(e);
   }
 });
 

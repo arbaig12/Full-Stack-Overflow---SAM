@@ -1,5 +1,16 @@
 # SBU Academics Management (SAM)
 
+## Team
+
+**Full-Stack-Overflow - SAM Project Assignment CSE 416**
+
+**Team Members:**
+
+*   arbaig12 : Arslan Baig
+*   Rishi-creator-11 : Rishi Arora
+*   FardinIqbal : Fardin Iqbal
+*   ywang1124 : Yuang Wang
+
 ## Overview
 
 The SBU Academics Management (SAM) system is designed to streamline the academic lifecycle for students and staff at Stony Brook University. It provides functionalities for course planning, registration, degree requirement tracking, and administrative tasks, ensuring adherence to university policies. The system is built with a "concept-first" approach, emphasizing clear, independent, and user-facing concepts as the foundation of its design, as inspired by "The Essence of Software."

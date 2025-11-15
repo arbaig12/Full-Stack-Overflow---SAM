@@ -29,6 +29,10 @@ import academicCalendarRoutes from './concepts/academicCalendar/academicCalendar
 import waitlistRoutes from './concepts/waitlist/waitlistRoutes.js';
 import academicPlanRoutes from './concepts/academicPlan/academicPlanRoutes.js';
 import auditLogRoutes from './concepts/auditLog/auditLogRoutes.js';
+import classScheduleRoutes from './concepts/classSchedule/classScheduleRoutes.js';
+import registrationRoutes from './concepts/registration/registrationRoutes.js';
+
+import authRoutes from './authRoutes.js';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -111,6 +115,35 @@ app.use('/api/academic-programs', academicProgramRoutes);
 app.use('/api/waitlists', waitlistRoutes);
 app.use('/api/academic-plans', academicPlanRoutes);
 app.use('/api/audit-log', auditLogRoutes);
+app.use('/api/class-schedule', classScheduleRoutes);
+app.use('/api/registration', registrationRoutes);
+app.use('/api/auth', authRoutes);
+
+// --- Error Handling Middleware ---
+// This middleware catches errors from all routes and sends a standardized error response.
+app.use((err, req, res, next) => {
+  console.error('[Error] Unhandled exception:', err);
+
+  // Default to 500 Internal Server Error
+  let statusCode = err.statusCode || 500;
+  let message = err.message || 'An unexpected server error occurred.';
+
+  // Customize error messages for common HTTP errors if needed
+  if (statusCode === 400) {
+    message = err.message || 'Bad Request.';
+  } else if (statusCode === 404) {
+    message = err.message || 'Resource not found.';
+  } else if (statusCode === 409) {
+    message = err.message || 'Conflict.';
+  }
+
+  res.status(statusCode).json({
+    ok: false,
+    error: message,
+    // In development, you might want to send the stack trace for debugging
+    ...(ENV === 'development' && { stack: err.stack })
+  });
+});
 
 // --- Server Initialization ---
 app.listen(PORT, () => {

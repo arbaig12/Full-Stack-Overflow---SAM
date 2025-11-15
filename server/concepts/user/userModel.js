@@ -148,7 +148,7 @@ export async function findUserBySbuId(db, sbu_id) {
  *   or required fields are missing.
  */
 async function insertUser(db, user, role) {
-  const { SBU_ID, first_name, last_name, email, university_entry, direct_admit, AOI, college } = user;
+  const { SBU_ID, first_name, last_name, email } = user;
 
   // Basic validation for required fields
   if (!SBU_ID || !email || !first_name || !last_name) {
@@ -167,15 +167,11 @@ async function insertUser(db, user, role) {
 
   // Insert new user into the 'users' table
   const r = await db.query(
-    `INSERT INTO users (sbu_id, first_name, last_name, email, role, university_entry, direct_admit, aoi, college)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO users (sbu_id, first_name, last_name, email, role)
+     VALUES ($1, $2, $3, $4, $5)
      RETURNING user_id`,
-    [SBU_ID, first_name, last_name, email, role, university_entry, direct_admit, AOI, college]
+    [SBU_ID, first_name, last_name, email, role]
   );
-
-  // If the user is a student, additional data might need to be handled (e.g., majors, minors)
-  // This part of the logic is currently commented out or simplified for brevity in the provided code.
-  // A more complete implementation would involve inserting into 'students' and 'student_programs' tables.
 
   return { userId: r.rows[0].user_id };
 }
@@ -248,9 +244,52 @@ export async function importUsers(db, parsedYaml) {
       results.inserted++;
       const userId = result.userId;
 
-      // Handle student-specific data like majors, minors, and associated programs.
-      // This section demonstrates how student programs would be handled if the 'programs' and 'student_programs'
-      // tables were fully integrated and populated during user import.
+      // Handle student-specific data
+      if (role === 'Student') {
+        let universityEntrySemester = null;
+        let universityEntryYear = null;
+        if (s.university_entry) {
+          const parts = s.university_entry.split(' ');
+          if (parts.length === 2) {
+            universityEntrySemester = parts[0];
+            universityEntryYear = parseInt(parts[1], 10);
+          }
+        }
+
+        let aoiProgramId = null;
+        if (s.AOI) {
+          const programResult = await db.query(
+            `SELECT program_id FROM programs WHERE subject = $1 AND program_type = 'AOI'`,
+            [s.AOI]
+          );
+          if (programResult.rows.length > 0) {
+            aoiProgramId = programResult.rows[0].program_id;
+          } else {
+            results.warnings.push(`AOI program not found for: ${s.AOI}`);
+          }
+        }
+
+        let collegeId = null;
+        if (s.college) {
+          const collegeResult = await db.query(
+            `SELECT college_id FROM colleges WHERE code = $1`,
+            [s.college]
+          );
+          if (collegeResult.rows.length > 0) {
+            collegeId = collegeResult.rows[0].college_id;
+          } else {
+            results.warnings.push(`College not found for code: ${s.college}`);
+          }
+        }
+
+        await db.query(
+          `INSERT INTO students (user_id, university_entry_semester, university_entry_year, direct_admit, aoi_program_id, college_id)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [userId, universityEntrySemester, universityEntryYear, s.direct_admit, aoiProgramId, collegeId]
+        );
+      }
+
+      // Handle student programs (majors, minors)
       if (s.majors) {
         for (let i = 0; i < s.majors.length; i++) {
           const major = s.majors[i];
@@ -264,18 +303,36 @@ export async function importUsers(db, parsedYaml) {
           if (programResult.rows.length > 0) {
             const programId = programResult.rows[0].program_id;
             await db.query(
-              `INSERT INTO student_programs (student_id, program_id, major_requirement_version)
-               VALUES ($1, $2, $3)`,
-              [userId, programId, JSON.stringify(version)]
+              `INSERT INTO student_programs (student_id, program_id, kind, major_requirement_version)
+               VALUES ($1, $2, $3, $4)`,
+              [userId, programId, 'Major', JSON.stringify(version)]
             );
           } else {
             results.warnings.push(`Program not found for major: ${major} ${degree}`);
           }
         }
       }
-      // TODO: Implement similar logic for minors, planned_majors, planned_minors, transfer_courses, and classes
+      if (s.minors) {
+        for (let i = 0; i < s.minors.length; i++) {
+          const minor = s.minors[i];
+          const version = s.minor_requirement_versions[i];
+          const programResult = await db.query(
+            `SELECT program_id FROM programs WHERE subject = $1 AND program_type = 'Minor'`,
+            [minor]
+          );
+          if (programResult.rows.length > 0) {
+            const programId = programResult.rows[0].program_id;
+            await db.query(
+              `INSERT INTO student_programs (student_id, program_id, kind, major_requirement_version)
+               VALUES ($1, $2, $3, $4)`,
+              [userId, programId, 'Minor', JSON.stringify(version)]
+            );
+          } else {
+            results.warnings.push(`Program not found for minor: ${minor}`);
+          }
+        }
+      }
     }
   }
-
   return results;
 }

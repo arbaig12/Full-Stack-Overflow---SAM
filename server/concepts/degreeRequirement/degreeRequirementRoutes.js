@@ -75,6 +75,46 @@ router.post("/", upload.single("file"), async (req, res) => {
   }
 });
 
+/**
+ * @route GET /api/degree-requirements/check/:studentId
+ * @description Checks a student's academic record against a specific set of degree requirements.
+ *
+ * This endpoint expects the student's ID in the URL parameter and the necessary data
+ * (degree requirements, transcript, enrollment, course catalog) in the request body.
+ *
+ * @param {string} path - The URL path for the route.
+ * @param {Function} handler - The Express request handler function.
+ *
+ * @returns {object} 200 - Success response with the status and details of the degree check.
+ * @returns {object} 400 - Error response if required parameters are missing.
+ * @returns {object} 500 - Server error response.
+ */
+router.post("/check/:studentId", async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { degreeRequirements, studentTranscript, studentCurrentEnrollment, courseCatalog } = req.body;
+
+    if (!studentId || !degreeRequirements || !studentTranscript || !studentCurrentEnrollment || !courseCatalog) {
+      return res.status(400).json({ error: "Missing required parameters for degree requirement check." });
+    }
+
+    if (!req.db) {
+      return res.status(500).json({ error: "Database connection not found" });
+    }
+
+    const result = await checkDegreeRequirements(req.db, studentId, degreeRequirements, studentTranscript, studentCurrentEnrollment, courseCatalog);
+
+    if (result.error) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error("Degree requirement check error:", err);
+    res.status(500).json({ error: "Server error checking degree requirements." });
+  }
+});
+
 export default router;
 
 

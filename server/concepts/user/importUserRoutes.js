@@ -19,6 +19,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { importUsers } from './userModel.js';
+import { authenticateToken, authorizeRoles } from '../../middleware/authMiddleware.js';
 
 // ES module equivalents for __filename and __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -55,7 +56,7 @@ const upload = multer({
  * @returns {object} 400 - Error response if no file is uploaded, the YAML is invalid, or the parsed data is empty.
  * @returns {object} 500 - Server error response for issues during file processing, database operations, or other unexpected errors.
  */
-router.post('/', upload.single('file'), async (req, res) => {
+router.post('/', authenticateToken, authorizeRoles(['Registrar']), upload.single('file'), async (req, res) => {
   console.log(`[API] /api/import/users: User import request received.`);
 
   // 1. Validate file upload

@@ -26,7 +26,9 @@
     "js-yaml": "^4.1.0",
     "morgan": "^1.10.1",
     "multer": "^2.0.2",
-    "pg": "^8.16.3"
+    "pg": "^8.16.3",
+    "pdf-parse": "^1.1.1",
+    "google-auth-library": "^9.4.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.0",
