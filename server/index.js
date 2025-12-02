@@ -11,6 +11,14 @@ import pkg from 'pg';
 import importRoutes from './routes/importRoutes.js';
 import usersRoutes from './routes/userRoutes.js'; 
 import importDegreeReq from "./routes/importDegreeReq.js";
+import importAcademicCalendar from "./routes/importAcademicCalendar.js";
+import courseCatalogRoutes from "./routes/courseCatalogRoutes.js";
+import classScheduleRoutes from "./routes/classScheduleRoutes.js";
+import studentProfileRoutes from "./routes/studentProfileRoutes.js";
+import degreeProgressRoutes from "./routes/degreeProgressRoutes.js";
+import programDeclarationRoutes from "./routes/programDeclarationRoutes.js";
+import academicCalendarRoutes from "./routes/academicCalendarRoutes.js";
+import rostersGradingRoutes from "./routes/rostersGradingRoutes.js";
 
 dotenv.config();
 
@@ -58,6 +66,14 @@ app.get('/api/db-check', async (_req, res) => {
 app.use('/api/import', importRoutes);
 app.use('/api/user-management', usersRoutes);
 app.use("/api/import", importDegreeReq);
+app.use("/api/import", importAcademicCalendar);
+app.use("/api/catalog", courseCatalogRoutes);
+app.use("/api/schedule", classScheduleRoutes);
+app.use("/api/students", studentProfileRoutes);
+app.use("/api/degree", degreeProgressRoutes);
+app.use("/api/programs", programDeclarationRoutes);
+app.use("/api/calendar", academicCalendarRoutes);
+app.use("/api/rosters", rostersGradingRoutes);
 
 app.listen(PORT, () => {
   console.log(`[Server] SAM backend running on port ${PORT} (${ENV})`);
