@@ -2,7 +2,6 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { BrowserRouter } from 'react-router-dom';
-import { AuthProvider } from '../../auth/AuthContext';
 import Login from '../Login';
 
 const mockSignin = jest.fn();
@@ -12,10 +11,13 @@ jest.mock('../../auth/AuthContext', () => ({
   useAuth: () => ({ signin: mockSignin })
 }));
 
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual('react-router-dom'),
-  useNavigate: () => mockNavigate
-}));
+jest.mock('react-router-dom', () => {
+  const actual = jest.requireActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate
+  };
+});
 
 describe('Login', () => {
   it('renders login page', () => {

@@ -6,7 +6,10 @@ import UserManage from '../UserManage';
 describe('UserManage', () => {
   it('renders user management page', () => {
     render(<UserManage />);
-    expect(screen.getByText(/User/i) || screen.getByText(/Manage/i)).toBeInTheDocument();
+    // Check for any text that indicates user management
+    const hasUserText = screen.queryAllByText(/User/i).length > 0;
+    const hasManageText = screen.queryAllByText(/Manage/i).length > 0;
+    expect(hasUserText || hasManageText).toBe(true);
   });
 });
 

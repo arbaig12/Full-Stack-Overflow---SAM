@@ -20,7 +20,7 @@ describe('Student Profile Routes', () => {
         first_name: 'John',
         last_name: 'Doe',
         email: 'john.doe@stonybrook.edu',
-        role: 'Student',
+        role: 'student',
         status: 'active',
         standing: 'U2',
         expected_grad_term_id: 1,
@@ -36,7 +36,7 @@ describe('Student Profile Routes', () => {
       const query = vi.fn().mockResolvedValue({ rows });
       const app = buildApp(query);
 
-      const res = await request(app).get('/api/students/1/profile');
+      const res = await request(app).get('/api/students/students/1/profile');
 
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);
@@ -52,7 +52,7 @@ describe('Student Profile Routes', () => {
       const query = vi.fn().mockResolvedValue({ rows: [] });
       const app = buildApp(query);
 
-      const res = await request(app).get('/api/students/999/profile');
+      const res = await request(app).get('/api/students/students/999/profile');
 
       expect(res.status).toBe(404);
     });
@@ -97,7 +97,7 @@ describe('Student Profile Routes', () => {
       const query = vi.fn().mockResolvedValue({ rows });
       const app = buildApp(query);
 
-      const res = await request(app).get('/api/students/1/transcript');
+      const res = await request(app).get('/api/students/students/1/transcript');
 
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);
@@ -122,7 +122,7 @@ describe('Student Profile Routes', () => {
       const query = vi.fn().mockResolvedValue({ rows });
       const app = buildApp(query);
 
-      const res = await request(app).get('/api/students/1/programs');
+      const res = await request(app).get('/api/students/students/1/programs');
 
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);

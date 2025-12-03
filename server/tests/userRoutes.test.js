@@ -21,7 +21,9 @@ describe('GET /api/users/registrars', () => {
         first_name: 'DataBase',
         last_name: 'TestUser',
         email: 'admin@stonybrook.edu',
-        role: 'Registrar'
+        role: 'Registrar',
+        status: 'active',
+        last_login_fmt: null
       }
     ];
     const query = vi.fn().mockResolvedValue({ rows });
