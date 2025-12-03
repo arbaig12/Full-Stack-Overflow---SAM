@@ -1,0 +1,300 @@
+AI Report
+
+CSE 416: Software Engineering, Fall 2025
+
+Professor Scott D. Stoller
+
+Team: Full Stack Overflow
+
+Our team used ChatGPT integrated in Visual Studio Code and Cursor as our main AI coding assistants during the development of SAM. We used it extensively for generating and debugging code across the front-end, back-end, and database layers, as well as for generating YAML degree requirement data files and comprehensive test suites.
+
+1. Front-end
+
+a. Code Generation Assessment
+
+ChatGPT was effective for generating React front-end components. It created clean, modular code using React hooks like useState, useEffect, and useContext.
+
+When designing UI components, ChatGPT often provided detailed JSX structure and inline CSS. However, its output sometimes included redundant logic and components, which we need to simplify for clarity.
+
+For UX, ChatGPT's layout examples were kind of functional but required manual fine-tuning for better functionality.
+
+b. Code Generation Example
+
+Prompt used:
+
+"Create a React component for uploading a YAML file that sends it to a backend /degree-requirements endpoint using axios."
+
+Generated code:
+
+import React, { useState } from "react";
+import axios from "axios";
+
+export default function YamlUploader() {
+  const [file, setFile] = useState(null);
+  
+  const handleUpload = async () => {
+    const formData = new FormData();
+    formData.append("file", file);
+    await axios.post("/api/degree-requirements", formData);
+    alert("Uploaded successfully");
+  };
+  
+  return (
+    <div>
+      <input type="file" onChange={e => setFile(e.target.files[0])} />
+      <button onClick={handleUpload}>Upload YAML</button>
+    </div>
+  );
+}
+
+c. Debugging
+
+We used ChatGPT for debugging React rendering errors and broken state updates. It helped identify missing dependency arrays in useEffect and explained why state updates didn't immediately reflect after setState calls.
+
+Example prompt:
+
+"Why does my React table not update after deleting a row?"
+
+AI response:
+
+ChatGPT explained that we needed to update state immutably and avoid direct mutation:
+
+setRows(prev => prev.filter(r => r.id !== deletedId));
+
+This fixed the bug immediately.
+
+d. HW9 Frontend Testing
+
+For HW9, we used Cursor to generate comprehensive frontend test files using React Testing Library. The AI helped create test cases for all 12 page components, including component rendering tests, user interaction tests, and filtering functionality tests.
+
+2. Back-end (other than database)
+
+a. Code Generation Assessment
+
+ChatGPT was great in writing Express.js routes and middleware for API endpoints. It consistently produced syntactically correct, REST-compliant route handlers and suggested improvements such as input validation and modular organization.
+
+In most cases, we only needed to adjust table names or variable naming to align with our schema.
+
+b. Code Generation Example
+
+Prompt used:
+
+"Write an Express router for importing a YAML file containing degree requirements into a PostgreSQL database."
+
+Generated code snippet (simplified):
+
+import express from "express";
+import multer from "multer";
+import yaml from "js-yaml";
+
+const router = express.Router();
+const upload = multer();
+
+router.post("/degree-requirements", upload.single("file"), async (req, res) => {
+  try {
+    const data = yaml.load(req.file.buffer.toString());
+    const { subject, degree_type } = data;
+    await req.db.query(
+      "INSERT INTO degree_requirements (subject, degree_type) VALUES ($1,$2)",
+      [subject, degree_type]
+    );
+    res.json({ message: "Imported successfully" });
+  } catch (err) {
+    res.status(400).json({ error: "Invalid YAML" });
+  }
+});
+
+c. Debugging
+
+We used ChatGPT to troubleshoot server startup issues and async/await logic errors.
+
+Example prompt:
+
+"Why does my Express app crash with 'Cannot read properties of undefined (reading query)'?"
+
+Response:
+
+ChatGPT identified that our middleware wasn't attaching the db object to req properly before route execution. The fix was to ensure database middleware was loaded before the route:
+
+app.use((req, res, next) => {
+  req.db = dbClient;
+  next();
+});
+
+This explanation was great.
+
+d. HW9 Route Compliance and Enhancements
+
+For HW9, we extensively used Cursor to update routes to meet project requirements:
+
+Route Compliance Fixes:
+- Course Catalog Routes: AI helped add prerequisites, corequisites, anti-requisites, advisory prerequisites, SBCs, and Classie evaluation URL generation
+- Class Schedule Routes: AI assisted in adding meeting days, meeting times, and filtering by SBC and days-of-week
+- Academic Calendar Routes: AI helped implement date wrapper utility for configurable current date
+
+Example prompt:
+
+"Update the course catalog route to include prerequisites, corequisites, SBCs, and generate Classie evaluation URLs based on subject and course number."
+
+AI assistance:
+
+The AI provided the SQL query updates, response mapping logic, and URL generation function:
+
+function generateClassieUrl(subject, courseNum) {
+  return `https://classie-evals.stonybrook.edu/?SearchKeyword=${subject}${courseNum}&SearchTerm=ALL`;
+}
+
+Date Wrapper Implementation:
+
+We used AI to create a date wrapper utility for testing and configuration:
+
+export function getCurrentDate() {
+  return customDate ? new Date(customDate) : new Date();
+}
+
+e. HW9 Backend Testing
+
+We used Cursor extensively to generate comprehensive backend test suites using Vitest and Supertest:
+
+Test Generation:
+- Created 13 test files covering all route endpoints
+- Generated 77 test cases with success and error scenarios
+- AI helped create proper mocking strategies for database queries
+- Generated test cases for edge cases and error handling
+
+Example prompt:
+
+"Create a comprehensive test file for courseCatalogRoutes that tests all endpoints including filtering by subject, SBC, term fallback, and error cases."
+
+AI assistance:
+
+The AI generated well-structured test files with proper Express app setup for testing, database query mocking, HTTP request/response testing, and assertion patterns for API responses.
+
+Coverage Achievement:
+
+With AI assistance, we achieved:
+- 81.36% average coverage for route files
+- 94.57% coverage for userRoutes.js
+- 100% coverage for dateWrapper utility
+- Comprehensive test coverage for all major endpoints
+
+3. Database
+
+a. Code Generation Assessment
+
+ChatGPT helped us design PostgreSQL table schemas for storing academic data. It provided detailed CREATE TABLE statements with appropriate column types and foreign keys.
+
+b. Code Generation Example
+
+Prompt used:
+
+"Create a PostgreSQL table for storing degree program requirements with subject, degree_type, and JSONB fields for admission and degree requirements."
+
+Generated:
+
+CREATE TABLE degree_requirements (
+  id SERIAL PRIMARY KEY,
+  subject VARCHAR(50),
+  degree_type VARCHAR(20),
+  program_type VARCHAR(20),
+  effective_term JSONB,
+  admission_requirements JSONB,
+  degree_requirements JSONB,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+This was immediately usable.
+
+4. Generation of Degree Requirements Data Files
+
+We used ChatGPT to generate sample YAML files describing degree requirements and academic calendars.
+
+we prompted:
+
+"Generate a YAML file describing the degree requirements for a BS in Computer Science including core courses, electives, and GPA requirements."
+
+It produced:
+
+subject: Computer Science
+degree_type: BS
+type: major
+effective_term: { semester: Fall, year: 2025 }
+admission_requirements:
+  gpa_minimum: 2.5
+  prerequisite_courses:
+    - CSE114
+    - CSE214
+degree_requirements:
+  core_courses:
+    - CSE220
+    - CSE320
+  electives:
+    - CSE300
+    - CSE337
+  total_credits: 120
+
+This structure was compatible with the import routes.
+
+5. Testing and Quality Assurance (HW9)
+
+We extensively used Cursor to generate comprehensive test suites for both backend and frontend:
+
+Backend Testing:
+- Generated 13 test files with 77 test cases
+- Created proper mocking strategies for database queries
+- Generated test cases for success, error, and edge case scenarios
+- AI helped structure tests following best practices
+
+Frontend Testing:
+- Generated 12 test files covering all page components
+- Created tests for rendering, user interactions, and state management
+- AI helped with React Testing Library patterns and best practices
+
+Coverage Analysis:
+
+AI tools helped us understand coverage reports, identify untested code paths, generate additional test cases to improve coverage, and analyze which routes needed more comprehensive testing.
+
+6. Challenges and Limitations
+
+AI Limitations Encountered:
+
+1. Context Understanding: Sometimes AI didn't fully understand our database schema and generated queries that needed adjustment
+2. Over-Engineering: AI sometimes generated more complex solutions than needed
+3. Testing Edge Cases: AI sometimes missed edge cases that we had to add manually
+4. Schema Alignment: Generated code often needed adjustment to match our specific table/column names
+
+How We Overcame Limitations:
+
+1. Iterative Refinement: We refined prompts with more context about our schema
+2. Code Review: We always reviewed and tested AI-generated code
+3. Manual Testing: We supplemented AI-generated tests with manual test cases
+4. Schema Documentation: We provided schema context in prompts when needed
+
+7. Impact and Benefits
+
+Productivity Gains:
+
+- Faster Development: AI significantly accelerated route implementation and test creation
+- Code Quality: AI-generated code generally followed best practices
+- Learning: AI explanations helped us understand patterns and best practices
+- Testing Coverage: AI helped us achieve comprehensive test coverage quickly
+
+Specific HW9 Benefits:
+
+- Route Updates: Quickly updated all routes to meet compliance requirements
+- Test Generation: Generated 77 backend tests and 12 frontend test files efficiently
+- Date Wrapper: AI helped design a clean, testable date wrapper utility
+- Documentation: AI assisted in creating comprehensive documentation
+
+Conclusion
+
+AI coding assistants (ChatGPT and Cursor) were invaluable tools throughout the SAM project development, especially for HW9. They helped us generate clean, functional code quickly, debug complex issues efficiently, create comprehensive test suites, ensure route compliance with requirements, and maintain code quality and best practices.
+
+While AI tools required human oversight and refinement, they significantly accelerated our development process and helped us achieve high code coverage and quality standards. The combination of AI assistance and human review resulted in a robust, well-tested application that meets all project requirements.
+
+Tools Used
+
+- ChatGPT (via Visual Studio Code integration) - Primary AI assistant for code generation and debugging
+- Cursor - AI-powered code editor used extensively for HW9 route updates and test generation
+- GitHub Copilot (occasionally) - For inline code suggestions
+
