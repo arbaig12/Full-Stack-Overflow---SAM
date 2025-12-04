@@ -239,5 +239,116 @@ router.post('/users', upload.single('file'), async (req, res) => {
   }
 });
 
+router.post('/rooms', upload.single('file'), async (req, res) => {
+  console.log('[API] Room import request received');
+
+  if (!req.file) {
+    return res.status(400).json({
+      status: 'error',
+      error: 'No file uploaded. Expected form field name: file',
+    });
+  }
+
+  try {
+    const filePath = req.file.path;
+
+    // Read YAML file
+    const yamlText = fs.readFileSync(filePath, 'utf8');
+    const parsed = yaml.load(yamlText);
+
+    if (!parsed || typeof parsed !== 'object') {
+      return res.status(400).json({
+        status: 'error',
+        error: 'YAML parsed but produced no valid data object.',
+      });
+    }
+
+    const rooms = parsed.rooms || [];
+    if (!Array.isArray(rooms) || rooms.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        error: 'YAML must contain a non-empty "rooms" array.',
+      });
+    }
+
+    const summary = {
+      inserted: 0,
+      updated: 0,
+      skipped: 0,
+      warnings: [],
+    };
+
+    for (const [idx, roomObj] of rooms.entries()) {
+      if (!roomObj || typeof roomObj !== 'object') {
+        summary.skipped++;
+        summary.warnings.push(`Entry ${idx}: not a valid room object`);
+        continue;
+      }
+
+      const buildingRaw = roomObj.building ?? '';
+      const roomRaw = roomObj.room ?? '';
+
+      // Coerce to string in case YAML gave us numbers, etc.
+      const building = String(buildingRaw).trim();
+      const room = String(roomRaw).trim();
+      const capacityRaw = roomObj.capacity;
+
+      if (!building || !room || capacityRaw === undefined || capacityRaw === null) {
+        summary.skipped++;
+        summary.warnings.push(
+          `Entry ${idx}: missing building/room/capacity (building='${buildingRaw}', room='${roomRaw}', capacity='${capacityRaw}')`
+        );
+        continue;
+      }
+
+      const capacity = Number(capacityRaw);
+      if (!Number.isFinite(capacity) || capacity <= 0) {
+        summary.skipped++;
+        summary.warnings.push(
+          `Entry ${idx}: invalid capacity '${capacityRaw}' for ${building} ${room}`
+        );
+        continue;
+      }
+
+      const result = await req.db.query(
+        `
+        INSERT INTO rooms (building, room, capacity)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (building, room)
+        DO UPDATE SET
+          capacity = EXCLUDED.capacity
+        RETURNING room_id, (xmax = 0) AS inserted
+        `,
+        [building, room, capacity]
+      );
+
+      const row = result.rows[0];
+      if (row.inserted) {
+        summary.inserted++;
+      } else {
+        summary.updated++;
+      }
+    }
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Rooms imported',
+      summary,
+      logs: [
+        `Inserted: ${summary.inserted}`,
+        `Updated: ${summary.updated}`,
+        `Skipped: ${summary.skipped}`,
+        ...summary.warnings,
+      ],
+    });
+  } catch (err) {
+    console.error('[ROOM IMPORT ERROR]', err);
+    return res.status(500).json({
+      status: 'error',
+      error: err.message || 'Unexpected server error during room import.',
+    });
+  }
+});
+
 
 export default router;

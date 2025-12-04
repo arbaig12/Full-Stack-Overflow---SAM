@@ -8,6 +8,7 @@ import cors from 'cors';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import pkg from 'pg';
+import dashboardRoutes from './routes/dashboardRoutes.js';
 import importRoutes from './routes/importRoutes.js';
 import usersRoutes from './routes/userRoutes.js'; 
 import importDegreeReq from "./routes/importDegreeReq.js";
@@ -19,6 +20,11 @@ import degreeProgressRoutes from "./routes/degreeProgressRoutes.js";
 import programDeclarationRoutes from "./routes/programDeclarationRoutes.js";
 import academicCalendarRoutes from "./routes/academicCalendarRoutes.js";
 import rostersGradingRoutes from "./routes/rostersGradingRoutes.js";
+import classManageRoutes from "./routes/classManageRoutes.js";
+import registrationScheduleRoutes from './routes/registrationScheduleRoutes.js';
+import studentProgramRoutes from './routes/studentProgramRoutes.js';
+
+
 
 dotenv.config();
 
@@ -45,6 +51,11 @@ app.use(morgan('dev'));
 
 // Attach db to every request
 app.use((req, _res, next) => { req.db = pool; next(); });
+
+app.use((req, _res, next) => {
+  req.user = { userId: 1, role: 'Student' };  
+  next();
+});
 
 // Health
 app.get('/api/health', (_req, res) => {
@@ -74,6 +85,12 @@ app.use("/api/degree", degreeProgressRoutes);
 app.use("/api/programs", programDeclarationRoutes);
 app.use("/api/calendar", academicCalendarRoutes);
 app.use("/api/rosters", rostersGradingRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use("/api/class-manage", classManageRoutes);
+app.use('/api/registration', registrationScheduleRoutes);
+app.use('/api/student-programs', studentProgramRoutes);
+
+
 
 app.listen(PORT, () => {
   console.log(`[Server] SAM backend running on port ${PORT} (${ENV})`);

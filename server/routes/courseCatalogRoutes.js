@@ -1,16 +1,208 @@
-/**
- * @file courseCatalogRoutes.js
- * @description Express routes for browsing and searching the course catalog.
- * Handles:
- *   - Browsing courses by term
- *   - Searching courses by subject, number, title
- *   - Filtering courses
- *   - Getting course details
- */
 
 import { Router } from 'express';
+import { scrapeCatalog } from '../services/catalogScraper.js';
 
 const router = Router();
+
+/**
+ * Parse a term label like "Fall 2025" or "Fall2025"
+ * → { semester: 'Fall', year: 2025 } or null if invalid.
+ */
+function parseTermLabel(termLabel) {
+  if (!termLabel) return null;
+  const clean = termLabel.replace(/\s+/g, '');
+  const m = clean.match(/^(Spring|Summer|Fall)(\d{4})$/i);
+  if (!m) return null;
+  const semester = m[1][0].toUpperCase() + m[1].slice(1).toLowerCase(); // "Fall"
+  const year = Number(m[2]);
+  if (!year) return null;
+  return { semester, year };
+}
+
+/**
+ * Get or create a term row and return term_id.
+ */
+async function getOrCreateTerm(db, { semester, year }) {
+  const existing = await db.query(
+    `SELECT term_id FROM terms WHERE semester = $1 AND year = $2`,
+    [semester, year]
+  );
+  if (existing.rows.length > 0) return existing.rows[0].term_id;
+
+  const inserted = await db.query(
+    `INSERT INTO terms (semester, year)
+     VALUES ($1, $2)
+     RETURNING term_id`,
+    [semester, year]
+  );
+  return inserted.rows[0].term_id;
+}
+
+/**
+ * Get or create a department for a subject code (CSE, AMS, etc).
+ * Attaches to college_id = 1 for now.
+ */
+async function getOrCreateDepartment(db, subjectCode) {
+  const existing = await db.query(
+    `SELECT department_id FROM departments WHERE code = $1`,
+    [subjectCode]
+  );
+  if (existing.rows.length > 0) return existing.rows[0].department_id;
+
+  const name = `${subjectCode} Department`;
+  const collegeId = 1; // assume CEAS = 1 from seed
+  const inserted = await db.query(
+    `INSERT INTO departments (college_id, name, code)
+     VALUES ($1, $2, $3)
+     RETURNING department_id`,
+    [collegeId, name, subjectCode]
+  );
+  return inserted.rows[0].department_id;
+}
+
+/**
+ * Parse numeric credits from text like "3 credits" or "0-4 credits".
+ */
+function parseCredits(creditsText) {
+  if (!creditsText) return 0;
+  const m = creditsText.match(/(\d+(\.\d+)?)/);
+  if (!m) return 0;
+  return Number(m[1]);
+}
+
+/**
+ * POST /scrape
+ * Run the SBU catalog scraper and upsert into "courses".
+ *
+ * Body (optional):
+ *   {
+ *     "term": "Fall2025",      // or "Fall 2025"
+ *     "subjects": ["CSE","AMS","MAT"]
+ *   }
+ *
+ * If omitted, defaults to Fall2025 and ['CSE','AMS'].
+ *
+ * Mounted at /api/catalog, so full path is:
+ *   POST /api/catalog/scrape
+ */
+router.post('/scrape', async (req, res) => {
+  try {
+    const db = req.db;
+
+    // In future: check req.user.role === 'Registrar'
+    const body = req.body || {};
+    const termLabel = body.term || 'Fall2025';
+    const parsed = parseTermLabel(termLabel);
+
+    if (!parsed) {
+      return res.status(400).json({
+        ok: false,
+        error: `Invalid term format '${termLabel}'. Use like 'Fall 2025' or 'Fall2025'.`
+      });
+    }
+
+    const subjects =
+      Array.isArray(body.subjects) && body.subjects.length > 0
+        ? body.subjects
+        : null;
+
+    const { semester, year } = parsed;
+    const catalogTermId = await getOrCreateTerm(db, { semester, year });
+
+    // Run puppeteer/axios/cheerio scraper
+    const scrapeResults = await scrapeCatalog(termLabel, subjects);
+
+    let upserted = 0;
+
+    for (const subjectBlock of scrapeResults) {
+      const subjectCode = subjectBlock.subject; // e.g. "CSE"
+      const departmentId = await getOrCreateDepartment(db, subjectCode);
+
+      for (const course of subjectBlock.courses) {
+        // course.title looks like "CSE 214: Data Structures"
+        let subject = subjectCode;
+        let courseNum = null;
+        const codeMatch = course.title.match(/^([A-Z]{2,4})\s*(\d{3})/);
+        if (codeMatch) {
+          subject = codeMatch[1];
+          courseNum = codeMatch[2];
+        } else {
+          // Fallback: guess a 3-digit number
+          courseNum = course.title.match(/(\d{3})/)?.[1] || '000';
+        }
+
+        const credits = parseCredits(course.credits);
+        const title = course.title;
+        const description = course.description || '';
+
+        const prerequisites = course.prereq || '';
+        const corequisites = course.coreq || '';
+        const antiRequisites = course.anti_req || '';
+        const advisoryPrerequisites = course.advisory_prereq || '';
+        const sbc = course.sbc || '';
+
+        // Upsert into courses by (subject, course_num, catalog_term_id)
+        await db.query(
+          `
+          INSERT INTO courses (
+            department_id,
+            subject,
+            course_num,
+            title,
+            description,
+            credits,
+            catalog_term_id,
+            prerequisites,
+            corequisites,
+            anti_requisites,
+            advisory_prerequisites,
+            sbc
+          )
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+          ON CONFLICT (subject, course_num, catalog_term_id)
+          DO UPDATE SET
+            department_id          = EXCLUDED.department_id,
+            title                  = EXCLUDED.title,
+            description            = EXCLUDED.description,
+            credits                = EXCLUDED.credits,
+            prerequisites          = EXCLUDED.prerequisites,
+            corequisites           = EXCLUDED.corequisites,
+            anti_requisites        = EXCLUDED.anti_requisites,
+            advisory_prerequisites = EXCLUDED.advisory_prerequisites,
+            sbc                    = EXCLUDED.sbc
+          `,
+          [
+            departmentId,
+            subject,
+            courseNum,
+            title,
+            description,
+            credits || 0,
+            catalogTermId,
+            prerequisites,
+            corequisites,
+            antiRequisites,
+            advisoryPrerequisites,
+            sbc
+          ]
+        );
+
+        upserted += 1;
+      }
+    }
+
+    return res.json({
+      ok: true,
+      term: `${semester} ${year}`,
+      catalogTermId,
+      subjects,
+      upserted
+    });
+  } catch (e) {
+    console.error('[catalog] POST /scrape failed:', e);
+    return res.status(500).json({ ok: false, error: 'Scrape failed' });
+  }
+});
 
 /**
  * GET /courses
@@ -62,7 +254,7 @@ router.get('/courses', async (req, res) => {
       FROM courses c
       JOIN departments d ON d.department_id = c.department_id
       JOIN terms t ON t.term_id = c.catalog_term_id
-    `;
+   `;
 
     const params = [];
     const where = [];
@@ -427,4 +619,3 @@ router.get('/subjects', async (req, res) => {
 });
 
 export default router;
-

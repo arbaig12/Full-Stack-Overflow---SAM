@@ -156,25 +156,171 @@ function parseCourseDetails(html) {
  * @returns {Promise<Object[]>} Array of course data grouped by subject.
  * @throws {Error} If subjects is not a non-empty array.
  */
-export async function scrapeCatalog(term, subjects) {
-  if (!Array.isArray(subjects) || subjects.length === 0) {
-    throw new Error("scrapeCatalog: 'subjects' must be a non-empty array.");
-  }
+// export async function scrapeCatalog(term, subjects) {
+//   if (!Array.isArray(subjects) || subjects.length === 0) {
+//     throw new Error("scrapeCatalog: 'subjects' must be a non-empty array.");
+//   }
 
-  console.log(
-    `[Scraper] Starting catalog scrape for ${term} → ${subjects.join(', ')}`
-  );
+//   console.log(
+//     `[Scraper] Starting catalog scrape for ${term} → ${subjects.join(', ')}`
+//   );
+
+//   const browser = await puppeteer.launch({
+//     headless: 'new',
+//     args: ['--no-sandbox', '--disable-setuid-sandbox'],
+//   });
+
+//   const baseCatalog = 'https://catalog.stonybrook.edu';
+//   const results = [];
+
+//   try {
+//     for (const subject of subjects) {
+//       const indexUrl = `${baseCatalog}/content.php?filter%5B27%5D=${subject}&filter%5B29%5D=&filter%5Bkeyword%5D=&filter%5B32%5D=1&filter%5Bcpage%5D=1&cur_cat_oid=7&expand=&navoid=225&search_database=Filter&filter%5Bexact_match%5D=1#acalog_template_course_filter`;
+
+//       console.log(`[Scraper] Navigating to index for ${subject}`);
+//       const searchPage = await browser.newPage();
+//       await searchPage.goto(indexUrl, {
+//         waitUntil: 'domcontentloaded',
+//         timeout: 60000,
+//       });
+
+//       const coursesOnPage = await searchPage.evaluate(() =>
+//         Array.from(document.querySelectorAll('a[href*="preview_course"]'))
+//           .map((a) => ({
+//             href: a.getAttribute('href'),
+//             text: a.textContent.trim(),
+//           }))
+//           .filter((c) => /[A-Z]{2,4}\s*\d+/.test(c.text))
+//       );
+
+//       console.log(
+//         `[Scraper] Extracted ${coursesOnPage.length} course links for ${subject}`
+//       );
+//       await searchPage.close();
+
+//       const courseDetails = [];
+//       const batchSize = 10;
+//       console.log(
+//         `[Scraper] Fetching ${coursesOnPage.length} pages in ${Math.ceil(
+//           coursesOnPage.length / batchSize
+//         )} batches...`
+//       );
+
+//       for (let i = 0; i < coursesOnPage.length; i += batchSize) {
+//         const batch = coursesOnPage.slice(i, i + batchSize);
+//         console.log(
+//           `[Scraper] Processing batch ${Math.floor(i / batchSize) + 1}...`
+//         );
+
+//         const requestPromises = batch.map((course) => {
+//           const cleanedHref = course.href.replace(/&amp;/g, '&');
+//           const fullUrl = cleanedHref.startsWith('http')
+//             ? cleanedHref
+//             : `${baseCatalog}/${cleanedHref}`;
+//           const coid = fullUrl.match(/coid=(\d+)/)?.[1] || 'unknown';
+
+//           const options = {
+//             headers: {
+//               Referer: indexUrl,
+//               'User-Agent':
+//                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+//             },
+//             timeout: 10000,
+//           };
+
+//           return axios.get(fullUrl, options).then((response) => ({
+//             status: 'fulfilled',
+//             coid,
+//             url: fullUrl,
+//             html: response.data,
+//           }));
+//         });
+
+//         const responses = await Promise.allSettled(requestPromises);
+
+//         for (const response of responses) {
+//           if (response.status === 'fulfilled') {
+//             try {
+//               const { coid, url, html } = response.value;
+//               const details = parseCourseDetails(html);
+//               courseDetails.push({ coid, url, ...details });
+//             } catch (e) {
+//               console.error(
+//                 `[Scraper] ✗ Failed to parse coid=${response.value.coid}: ${e.message}`
+//               );
+//             }
+//           } else {
+//             const failedUrl = response.reason.config?.url || 'Unknown URL';
+//             console.error(
+//               `[Scraper] ✗ Failed to fetch ${failedUrl}: ${response.reason.message}`
+//             );
+//           }
+//         }
+//       }
+
+//       results.push({
+//         subject,
+//         count: courseDetails.length,
+//         courses: courseDetails,
+//       });
+//     }
+//   } catch (err) {
+//     console.error(`[Scraper] Fatal error: ${err.message}`);
+//   } finally {
+//     await browser.close();
+//   }
+
+//   console.log(`[Scraper] Completed scrape for ${subjects.join(', ')}`);
+//   return results;
+// }
+
+export async function scrapeCatalog(term, subjects) {
+  const baseCatalog = 'https://catalog.stonybrook.edu';
 
   const browser = await puppeteer.launch({
     headless: 'new',
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
 
-  const baseCatalog = 'https://catalog.stonybrook.edu';
   const results = [];
 
   try {
-    for (const subject of subjects) {
+    let subjectList = subjects;
+
+    // 🔍 If subjects were not provided, auto-discover ALL subject codes
+    if (!Array.isArray(subjectList) || subjectList.length === 0) {
+      const subjectPage = await browser.newPage();
+
+      // This page has the course filter form with the subject dropdown
+      const filterUrl = `${baseCatalog}/content.php?catoid=7&navoid=225`;
+      await subjectPage.goto(filterUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: 60000,
+      });
+
+      subjectList = await subjectPage.evaluate(() =>
+        Array.from(
+          document.querySelectorAll('select[name="filter[27]"] option')
+        )
+          .map((opt) => opt.value.trim())
+          // drop empty / placeholder values
+          .filter((v) => v && v !== '0')
+      );
+
+      await subjectPage.close();
+
+      console.log(
+        `[Scraper] Auto-discovered ${subjectList.length} subjects: ${subjectList.join(
+          ', '
+        )}`
+      );
+    }
+
+    console.log(
+      `[Scraper] Starting catalog scrape for ${term} → ${subjectList.join(', ')}`
+    );
+
+    for (const subject of subjectList) {
       const indexUrl = `${baseCatalog}/content.php?filter%5B27%5D=${subject}&filter%5B29%5D=&filter%5Bkeyword%5D=&filter%5B32%5D=1&filter%5Bcpage%5D=1&cur_cat_oid=7&expand=&navoid=225&search_database=Filter&filter%5Bexact_match%5D=1#acalog_template_course_filter`;
 
       console.log(`[Scraper] Navigating to index for ${subject}`);
@@ -200,6 +346,7 @@ export async function scrapeCatalog(term, subjects) {
 
       const courseDetails = [];
       const batchSize = 10;
+
       console.log(
         `[Scraper] Fetching ${coursesOnPage.length} pages in ${Math.ceil(
           coursesOnPage.length / batchSize
@@ -264,12 +411,16 @@ export async function scrapeCatalog(term, subjects) {
         courses: courseDetails,
       });
     }
+
+    console.log(
+      `[Scraper] Completed scrape for ${subjectList.join(', ')}`
+    );
   } catch (err) {
     console.error(`[Scraper] Fatal error: ${err.message}`);
   } finally {
     await browser.close();
   }
 
-  console.log(`[Scraper] Completed scrape for ${subjects.join(', ')}`);
   return results;
 }
+

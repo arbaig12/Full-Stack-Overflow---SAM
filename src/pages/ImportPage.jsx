@@ -8,6 +8,7 @@ export default function ImportPage() {
     schedule: null,
     calendar: null,
     degreeReq: null,
+    rooms: null, 
   });
   const [messages, setMessages] = useState({});
   const [logs, setLogs] = useState({});
@@ -90,6 +91,7 @@ export default function ImportPage() {
       {renderFileInput('Import Class Schedule', 'schedule', 'import/schedule', '.pdf')}
       {renderFileInput('Import Academic Calendar', 'calendar', 'import/calendar', '.yaml,.yml')}
       {renderFileInput('Import Degree Requirements', 'degreeReq', 'api/import/degree-requirements', '.yaml,.yml')}
+      {renderFileInput('Import Rooms', 'rooms', 'api/import/rooms', '.yaml,.yml')}
     </div>
   );
 }
