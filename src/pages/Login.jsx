@@ -59,8 +59,20 @@ export default function Login() {
 
         <GoogleLogin 
             size="large"
-          onSuccess={(res) => {
+          onSuccess={async (res) => {
             try {
+              // Send Google credential to backend
+              const r = await fetch("http://localhost:4000/api/auth/google", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",       // 🔥 required so cookie is saved
+                body: JSON.stringify({ credential: res.credential })
+              });
+
+              const data = await r.json();
+              if (!data.ok) throw new Error("Login failed");
+
+              // store in frontend context (optional, but you already do)
               const decoded = jwtDecode(res.credential);
               signin(
                 {
@@ -71,12 +83,15 @@ export default function Login() {
                 },
                 res.credential
               );
-              navigate('/app', { replace: true });
-            } catch (e) {
-              console.error(e);
-              alert('Failed to decode Google token');
+
+              navigate("/app", { replace: true });
+
+            } catch (err) {
+              console.error(err);
+              alert("Google login failed");
             }
           }}
+
           onError={() => {
             alert('Google Sign-In failed. Please try again.');
           }}

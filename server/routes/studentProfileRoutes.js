@@ -1,260 +1,204 @@
-/**
- * @file studentProfileRoutes.js
- * @description Express routes for student profile and transcript functionality.
- * Handles:
- *   - Get student profile information
- *   - Get student transcript
- *   - Get student's declared programs (majors/minors)
- *   - Get student's course plan
- */
+// server/routes/studentProfileRoutes.js
+import express from "express";
+const router = express.Router();
 
-import { Router } from 'express';
+/* -------------------------------------
+   GPA POINT MAPPING
+-------------------------------------- */
+const gradePoints = {
+  "A+": 4.0, A: 4.0, "A-": 3.7,
+  "B+": 3.3, B: 3.0, "B-": 2.7,
+  "C+": 2.3, C: 2.0, "C-": 1.7,
+  "D+": 1.3, D: 1.0, "D-": 0.7,
+  F: 0.0,
+};
 
-const router = Router();
+function computeGpa(rows) {
+  let totalPts = 0;
+  let totalCr = 0;
 
-/**
- * GET /students/:student_id/profile
- * Get complete student profile information.
- * 
- * @route GET /students/:student_id/profile
- * @returns {Object} 200 - Student profile
- * @returns {Object} 404 - Student not found
- * @returns {Object} 500 - Query failure
- */
-router.get('/students/:student_id/profile', async (req, res) => {
-  try {
-    const { student_id } = req.params;
+  for (const r of rows) {
+    if (!r.grade) continue;
 
-    const sql = `
-      SELECT
-        u.user_id,
-        u.sbu_id,
-        u.first_name,
-        u.last_name,
-        u.email,
-        u.role::text AS role,
-        u.status,
-        s.standing::text AS standing,
-        s.expected_grad_term_id,
-        t_expected.semester::text AS expected_grad_semester,
-        t_expected.year AS expected_grad_year,
-        s.direct_admit_program_id,
-        s.aoi_program_id,
-        p_direct.code AS direct_admit_code,
-        p_direct.name AS direct_admit_name,
-        p_aoi.code AS aoi_code,
-        p_aoi.name AS aoi_name
-      FROM users u
-      JOIN students s ON s.user_id = u.user_id
-      LEFT JOIN terms t_expected ON t_expected.term_id = s.expected_grad_term_id
-      LEFT JOIN programs p_direct ON p_direct.program_id = s.direct_admit_program_id
-      LEFT JOIN programs p_aoi ON p_aoi.program_id = s.aoi_program_id
-      WHERE u.user_id = $1 AND lower(u.role::text) = 'student'
-    `;
+    const gp = gradePoints[r.grade.toUpperCase()];
+    if (gp === undefined) continue;
 
-    const result = await req.db.query(sql, [student_id]);
+    const credits = Number(r.credits || 0); // uses courses.credits ONLY
+    if (!credits) continue;
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ 
-        ok: false, 
-        error: 'Student not found' 
-      });
-    }
-
-    const row = result.rows[0];
-    const profile = {
-      userId: row.user_id,
-      sbuId: row.sbu_id,
-      firstName: row.first_name,
-      lastName: row.last_name,
-      email: row.email,
-      role: row.role.toLowerCase(),
-      status: row.status,
-      standing: row.standing,
-      expectedGraduation: row.expected_grad_term_id ? {
-        termId: row.expected_grad_term_id,
-        semester: row.expected_grad_semester,
-        year: row.expected_grad_year
-      } : null,
-      directAdmit: row.direct_admit_program_id ? {
-        programId: row.direct_admit_program_id,
-        code: row.direct_admit_code,
-        name: row.direct_admit_name
-      } : null,
-      areaOfInterest: row.aoi_program_id ? {
-        programId: row.aoi_program_id,
-        code: row.aoi_code,
-        name: row.aoi_name
-      } : null
-    };
-
-    return res.json({ ok: true, profile });
-  } catch (e) {
-    console.error('[student] /profile failed:', e);
-    return res.status(500).json({ ok: false, error: e.message });
+    totalPts += gp * credits;
+    totalCr += credits;
   }
-});
 
-/**
- * GET /students/:student_id/transcript
- * Get student's complete transcript (all enrollments with grades).
- * 
- * Query params:
- *   - include_current: Include current/future enrollments (default: true)
- * 
- * @route GET /students/:student_id/transcript
- * @returns {Object} 200 - Transcript data
- * @returns {Object} 500 - Query failure
- */
-router.get('/students/:student_id/transcript', async (req, res) => {
+  return totalCr > 0 ? totalPts / totalCr : null;
+}
+
+/* -------------------------------------
+   Helper: compute class standing
+-------------------------------------- */
+function computeClassStanding(credits) {
+  if (credits >= 84) return "U4";
+  if (credits >= 57) return "U3";
+  if (credits >= 24) return "U2";
+  return "U1";
+}
+
+/* -------------------------------------
+   MAIN ROUTE
+-------------------------------------- */
+router.get("/", async (req, res) => {
   try {
-    const { student_id } = req.params;
-    const includeCurrent = req.query.include_current !== 'false';
+    const db = req.db;
+    const { userId, role } = req.user || {};
 
-    let sql = `
-      SELECT
-        e.class_id,
-        e.status::text AS enrollment_status,
-        e.grade::text AS grade,
-        e.gpnc,
-        e.credits,
-        cs.section_num,
-        cs.term_id,
-        c.course_id,
-        c.subject,
-        c.course_num,
-        c.title,
-        c.credits AS course_credits,
-        t.semester::text AS semester,
-        t.year
-      FROM enrollments e
-      JOIN class_sections cs ON cs.class_id = e.class_id
-      JOIN courses c ON c.course_id = cs.course_id
-      JOIN terms t ON t.term_id = cs.term_id
-      WHERE e.student_id = $1
-    `;
-
-    const params = [student_id];
-
-    if (!includeCurrent) {
-      sql += ` AND e.grade IS NOT NULL`;
+    if (!userId || role !== "Student") {
+      return res.status(403).json({ error: "Not authorized" });
     }
 
-    sql += ` ORDER BY t.year DESC, t.semester DESC, c.subject, c.course_num`;
+    /* -------------------------------------
+         1. PERSONAL INFO
+    -------------------------------------- */
+    const { rows: personalRows } = await db.query(
+      `
+        SELECT user_id, first_name, last_name, email
+        FROM users
+        WHERE user_id = $1
+      `,
+      [userId]
+    );
 
-    const result = await req.db.query(sql, params);
+    const personal = personalRows[0];
 
-    const transcript = result.rows.map(row => ({
-      classId: row.class_id,
-      sectionNumber: row.section_num,
-      courseId: row.course_id,
-      subject: row.subject,
-      courseNum: row.course_num,
-      courseCode: `${row.subject}${row.course_num}`,
-      title: row.title,
-      credits: parseFloat(row.credits || row.course_credits),
-      term: {
-        id: row.term_id,
-        semester: row.semester,
-        year: row.year
+    /* -------------------------------------
+         1b. MAJORS & MINORS
+    -------------------------------------- */
+    const { rows: programRows } = await db.query(
+      `
+        SELECT dr.subject, dr.degree_type, dr.program_type
+        FROM student_programs sp
+        JOIN degree_requirements dr ON dr.id = sp.program_id
+        WHERE sp.student_id = $1
+      `,
+      [userId]
+    );
+
+    const declaredMajors = programRows
+      .filter((p) => p.program_type === "major")
+      .map((p) => `${p.subject} ${p.degree_type}`);
+
+    const declaredMinors = programRows
+      .filter((p) => p.program_type === "minor")
+      .map((p) => `${p.subject} ${p.degree_type}`);
+
+    /* -------------------------------------
+         2. CUMULATIVE GPA + CREDITS
+    -------------------------------------- */
+    const { rows: allEnrollments } = await db.query(
+      `
+        SELECT 
+          e.grade,
+          c.credits,
+          t.term_id,
+          t.semester,
+          t.year
+        FROM enrollments e
+        JOIN class_sections cs ON cs.class_id = e.class_id
+        JOIN courses c ON c.course_id = cs.course_id
+        JOIN terms t ON t.term_id = cs.term_id
+        WHERE e.student_id = $1
+        ORDER BY t.year, t.semester
+      `,
+      [userId]
+    );
+
+    const graded = allEnrollments.filter(
+      (e) => e.grade && e.grade.toUpperCase() !== "I"
+    );
+
+    const cumulativeCredits = graded.reduce(
+      (sum, e) => sum + Number(e.credits || 0),
+      0
+    );
+
+    const cumulativeGPA = computeGpa(graded);
+    const classStanding = computeClassStanding(cumulativeCredits);
+
+    /* -------------------------------------
+         3. CURRENT TERM GPA + SCHEDULE
+    -------------------------------------- */
+    const { rows: stateRows } = await db.query(
+      `SELECT current_term_id FROM system_state ORDER BY system_state_id DESC LIMIT 1`
+    );
+
+    const currentTermId = stateRows[0]?.current_term_id;
+
+    let termGpa = null;
+    let termCredits = 0;
+    let schedule = [];
+
+    if (currentTermId) {
+      const { rows: termRows } = await db.query(
+        `
+          SELECT 
+            e.grade,
+            c.credits,
+            cs.section_num,
+            c.subject,
+            c.course_num,
+            c.title,
+            cs.meeting_days,
+            cs.meeting_times
+          FROM enrollments e
+          JOIN class_sections cs ON cs.class_id = e.class_id
+          JOIN courses c ON c.course_id = cs.course_id
+          WHERE e.student_id = $1
+            AND cs.term_id = $2
+        `,
+        [userId, currentTermId]
+      );
+
+      schedule = termRows.map((r) => ({
+        code: `${r.subject}${r.course_num}`,
+        name: r.title,
+        time: `${r.meeting_days} ${r.meeting_times}`,
+      }));
+
+      const gradedThisTerm = termRows.filter(
+        (r) => r.grade && r.grade.toUpperCase() !== "I"
+      );
+
+      termGpa = computeGpa(gradedThisTerm);
+      termCredits = gradedThisTerm.reduce(
+        (sum, r) => sum + Number(r.credits || 0),
+        0
+      );
+    }
+
+    /* -------------------------------------
+         FINAL RESPONSE
+    -------------------------------------- */
+    return res.json({
+      personal: {
+        name: `${personal.first_name} ${personal.last_name}`,
+        studentId: personal.user_id,
+        email: personal.email,
+        classStanding,
+        declaredMajors,
+        declaredMinors,
       },
-      status: row.enrollment_status,
-      grade: row.grade,
-      gpnc: row.gpnc
-    }));
-
-    // Calculate GPA
-    const gradePoints = {
-      'A+': 4.0, 'A': 4.0, 'A-': 3.7,
-      'B+': 3.3, 'B': 3.0, 'B-': 2.7,
-      'C+': 2.3, 'C': 2.0, 'C-': 1.7,
-      'D+': 1.3, 'D': 1.0, 'D-': 0.7,
-      'F': 0.0
-    };
-
-    let totalPoints = 0;
-    let totalCredits = 0;
-
-    transcript.forEach(course => {
-      if (course.grade && gradePoints[course.grade] !== undefined) {
-        totalPoints += gradePoints[course.grade] * course.credits;
-        totalCredits += course.credits;
-      }
+      academic: {
+        cumulativeGPA,
+        cumulativeCredits,
+        termGPA: termGpa,
+        termCredits,
+        registrationHolds: ["None"],
+      },
+      schedule,
     });
-
-    const gpa = totalCredits > 0 ? (totalPoints / totalCredits).toFixed(2) : null;
-
-    return res.json({ 
-      ok: true, 
-      transcript,
-      gpa: gpa ? parseFloat(gpa) : null,
-      totalCredits: totalCredits
-    });
-  } catch (e) {
-    console.error('[student] /transcript failed:', e);
-    return res.status(500).json({ ok: false, error: e.message });
-  }
-});
-
-/**
- * GET /students/:student_id/programs
- * Get student's declared majors and minors.
- * 
- * @route GET /students/:student_id/programs
- * @returns {Object} 200 - List of declared programs
- */
-router.get('/students/:student_id/programs', async (req, res) => {
-  try {
-    const { student_id } = req.params;
-
-    const sql = `
-      SELECT
-        sp.program_id,
-        sp.kind::text AS program_kind,
-        sp.declared_at,
-        p.code,
-        p.name,
-        p.type::text AS program_type,
-        d.department_id,
-        d.name AS department_name,
-        d.code AS department_code
-      FROM student_programs sp
-      JOIN programs p ON p.program_id = sp.program_id
-      LEFT JOIN departments d ON d.department_id = p.department_id
-      WHERE sp.student_id = $1
-      ORDER BY sp.declared_at DESC
-    `;
-
-    const result = await req.db.query(sql, [student_id]);
-
-    const programs = result.rows.map(row => ({
-      programId: row.program_id,
-      code: row.code,
-      name: row.name,
-      type: row.program_type.toLowerCase(),
-      kind: row.program_kind,
-      declaredAt: row.declared_at,
-      department: row.department_id ? {
-        id: row.department_id,
-        name: row.department_name,
-        code: row.department_code
-      } : null
-    }));
-
-    const majors = programs.filter(p => p.kind === 'MAJOR');
-    const minors = programs.filter(p => p.kind === 'MINOR');
-
-    return res.json({ 
-      ok: true, 
-      programs,
-      majors,
-      minors
-    });
-  } catch (e) {
-    console.error('[student] /programs failed:', e);
-    return res.status(500).json({ ok: false, error: e.message });
+  } catch (err) {
+    console.error("studentProfile error:", err);
+    return res.status(500).json({ error: err.message });
   }
 });
 
 export default router;
-

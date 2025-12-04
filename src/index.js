@@ -6,7 +6,11 @@ import App from './App.js';
 import AuthProvider from './auth/AuthContext.jsx';
 
 const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
-
+const originalFetch = window.fetch;
+window.fetch = function(url, options = {}) {
+  options.credentials = "include"; 
+  return originalFetch(url, options);
+};
 createRoot(document.getElementById('root')).render(
   <GoogleOAuthProvider clientId={clientId}>
     <AuthProvider>

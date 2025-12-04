@@ -1,316 +1,272 @@
+// server/routes/rostersGradingRoutes.js
+import express from "express";
+const router = express.Router();
+
+/* -----------------------
+   VALID GRADE SET
+------------------------ */
+const ALLOWED_GRADES = [
+  "A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-",
+  "D+", "D", "D-", "F", "P", "NP", "CR", "NC", "S", "U", "I"
+];
+
+/* -----------------------
+   HELPERS
+------------------------ */
+const getUserId = (req) =>
+  req.user?.user_id ??
+  req.user?.userId ??
+  req.session?.user?.user_id ??
+  null;
+
+/** Check if user is in instructors table */
+async function isInstructor(db, userId) {
+  const { rows } = await db.query(
+    `SELECT user_id FROM instructors WHERE user_id = $1`,
+    [userId]
+  );
+  return rows.length > 0;
+}
+
 /**
- * @file rostersGradingRoutes.js
- * @description Express routes for instructor rosters and grading functionality.
- * Handles:
- *   - Get class roster for a section
- *   - Submit grades
- *   - Get all sections taught by an instructor
+ * Get current term — matches your DB EXACTLY
+ * terms table: term_id, semester, year
+ * system_state: current_term_id only
  */
-
-import { Router } from 'express';
-
-const router = Router();
-
-/**
- * GET /instructors/:instructor_id/sections
- * Get all sections taught by an instructor.
- * 
- * Query params:
- *   - term_id: Optional term filter
- * 
- * @route GET /instructors/:instructor_id/sections
- * @returns {Object} 200 - List of sections
- */
-router.get('/instructors/:instructor_id/sections', async (req, res) => {
-  try {
-    const { instructor_id } = req.params;
-    const { term_id } = req.query;
-
-    let sql = `
+async function getCurrentTerm(db) {
+  const { rows } = await db.query(
+    `
       SELECT
-        cs.class_id,
-        cs.section_num,
-        cs.capacity,
-        cs.location_text,
-        cs.term_id,
-        c.course_id,
-        c.subject,
-        c.course_num,
-        c.title,
-        c.credits,
-        t.semester::text AS semester,
-        t.year,
-        COUNT(e.student_id) FILTER (WHERE e.status = 'registered') AS enrolled_count
-      FROM class_sections cs
-      JOIN courses c ON c.course_id = cs.course_id
-      JOIN terms t ON t.term_id = cs.term_id
-      LEFT JOIN enrollments e ON e.class_id = cs.class_id
-      WHERE cs.instructor_id = $1
-    `;
+        s.current_term_id AS term_id,
+        t.semester,
+        t.year
+      FROM system_state s
+      JOIN terms t ON t.term_id = s.current_term_id
+      ORDER BY s.system_state_id DESC
+      LIMIT 1
+    `
+  );
 
-    const params = [instructor_id];
+  if (!rows.length) return null;
 
-    if (term_id) {
-      params.push(term_id);
-      sql += ` AND cs.term_id = $${params.length}`;
+  const t = rows[0];
+  return {
+    termId: Number(t.term_id),
+    semester: t.semester,
+    year: t.year,
+    termCode: `${t.semester} ${t.year}`
+  };
+}
+
+/* =========================================================
+   GET /api/instructor/rosters
+========================================================= */
+router.get("/rosters", async (req, res) => {
+  const db = req.db;
+  const userId = getUserId(req);
+
+  if (!userId)
+    return res.status(401).json({ ok: false, error: "Not authenticated" });
+
+  try {
+    // Instructor must exist in instructors table
+    const isInst = await isInstructor(db, userId);
+    if (!isInst) {
+      return res
+        .status(403)
+        .json({ ok: false, error: "You are not registered as an instructor." });
     }
 
-    sql += `
-      GROUP BY cs.class_id, cs.section_num, cs.capacity, cs.location_text,
-               cs.term_id, c.course_id, c.subject, c.course_num, c.title,
-               c.credits, t.semester, t.year
-      ORDER BY t.year DESC, t.semester DESC, c.subject, c.course_num, cs.section_num
-    `;
+    const currentTerm = await getCurrentTerm(db);
 
-    const result = await req.db.query(sql, params);
+    /* Pull all class sections taught by this instructor */
+    const { rows: classes } = await db.query(
+      `
+        SELECT 
+          cs.class_id,
+          cs.section_num,
+          cs.term_id,
+          cs.meeting_days,
+          cs.meeting_times,
+          c.course_id,
+          c.subject,
+          c.course_num,
+          c.title,
+          t.semester,
+          t.year
+        FROM class_sections cs
+        JOIN courses c ON c.course_id = cs.course_id
+        JOIN terms t ON t.term_id = cs.term_id
+        WHERE cs.instructor_id = $1
+        ORDER BY t.year DESC, t.semester DESC, c.subject, c.course_num
+      `,
+      [userId]
+    );
 
-    const sections = result.rows.map(row => ({
-      classId: row.class_id,
-      sectionNumber: row.section_num,
-      courseId: row.course_id,
-      subject: row.subject,
-      courseNum: row.course_num,
-      courseCode: `${row.subject}${row.course_num}`,
-      title: row.title,
-      credits: parseFloat(row.credits),
-      location: row.location_text,
-      capacity: row.capacity,
-      enrolled: parseInt(row.enrolled_count) || 0,
-      term: {
-        id: row.term_id,
-        semester: row.semester,
-        year: row.year
-      }
-    }));
+    if (!classes.length) {
+      return res.json({ ok: true, currentTerm, courses: [] });
+    }
 
-    return res.json({ 
-      ok: true, 
-      count: sections.length,
-      sections 
+    // Convert all IDs to numbers
+    const classIds = classes.map((c) => Number(c.class_id));
+
+    /* Pull roster for all these classes */
+    const { rows: roster } = await db.query(
+      `
+        SELECT
+          e.enrollment_id,
+          e.class_id,
+          e.student_id,
+          e.grade,
+          e.status,
+          u.first_name,
+          u.last_name,
+          u.email
+        FROM enrollments e
+        JOIN users u ON u.user_id = e.student_id
+        WHERE e.class_id = ANY($1::bigint[])
+        ORDER BY u.last_name, u.first_name
+      `,
+      [classIds]
+    );
+
+    /* Group students by class_id */
+    const studentsByClass = new Map();
+    for (const r of roster) {
+      const cid = Number(r.class_id);
+      if (!studentsByClass.has(cid)) studentsByClass.set(cid, []);
+      studentsByClass.get(cid).push({
+        enrollmentId: Number(r.enrollment_id),
+        studentId: Number(r.student_id),
+        name: `${r.first_name} ${r.last_name}`,
+        email: r.email,
+        grade: r.grade,
+        status: r.status
+      });
+    }
+
+    /* Build final course objects */
+    const courses = classes.map((c) => {
+      const cid = Number(c.class_id);
+      return {
+        classId: cid,
+        sectionNum: c.section_num,
+        termId: Number(c.term_id),
+        meetingDays: c.meeting_days,
+        meetingTimes: c.meeting_times,
+        courseId: Number(c.course_id),
+        subject: c.subject,
+        courseNum: c.course_num,
+        title: c.title,
+        semester: c.semester,
+        year: c.year,
+        termCode: `${c.semester} ${c.year}`,
+        isCurrent:
+          currentTerm ? Number(c.term_id) === Number(currentTerm.termId) : false,
+        students: studentsByClass.get(cid) || []
+      };
     });
-  } catch (e) {
-    console.error('[rosters] /instructors/:instructor_id/sections failed:', e);
-    return res.status(500).json({ ok: false, error: e.message });
+
+    return res.json({ ok: true, currentTerm, courses });
+  } catch (err) {
+    console.error("[instructor/rosters] error:", err);
+    return res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-/**
- * GET /sections/:class_id/roster
- * Get the roster (enrolled students) for a specific section.
- * 
- * @route GET /sections/:class_id/roster
- * @returns {Object} 200 - Roster list
- * @returns {Object} 404 - Section not found
- */
-router.get('/sections/:class_id/roster', async (req, res) => {
-  try {
-    const { class_id } = req.params;
+/* =========================================================
+   POST /api/instructor/rosters/:classId/grade
+========================================================= */
+router.post("/rosters/:classId/grade", async (req, res) => {
+  const db = req.db;
+  const userId = getUserId(req);
 
-    // Verify section exists
-    const sectionCheck = await req.db.query(
-      `SELECT class_id, instructor_id FROM class_sections WHERE class_id = $1`,
-      [class_id]
-    );
+  if (!userId)
+    return res.status(401).json({ ok: false, error: "Not authenticated" });
 
-    if (sectionCheck.rows.length === 0) {
-      return res.status(404).json({ 
-        ok: false, 
-        error: 'Section not found' 
-      });
-    }
+  const classId = Number(req.params.classId);
+  const { enrollmentId, newGrade } = req.body;
 
-    // Get roster
-    const sql = `
-      SELECT
-        e.student_id,
-        e.status::text AS enrollment_status,
-        e.grade::text AS grade,
-        e.gpnc,
-        e.credits,
-        e.added_at,
-        u.sbu_id,
-        u.first_name,
-        u.last_name,
-        u.email
-      FROM enrollments e
-      JOIN users u ON u.user_id = e.student_id
-      WHERE e.class_id = $1
-        AND e.status = 'registered'
-      ORDER BY u.last_name, u.first_name
-    `;
-
-    const result = await req.db.query(sql, [class_id]);
-
-    const roster = result.rows.map(row => ({
-      studentId: row.student_id,
-      sbuId: row.sbu_id,
-      firstName: row.first_name,
-      lastName: row.last_name,
-      email: row.email,
-      status: row.enrollment_status,
-      grade: row.grade,
-      gpnc: row.gpnc,
-      credits: parseFloat(row.credits),
-      addedAt: row.added_at
-    }));
-
-    return res.json({ 
-      ok: true, 
-      count: roster.length,
-      roster 
-    });
-  } catch (e) {
-    console.error('[rosters] /sections/:class_id/roster failed:', e);
-    return res.status(500).json({ ok: false, error: e.message });
+  if (!classId || !enrollmentId || !newGrade) {
+    return res
+      .status(400)
+      .json({ ok: false, error: "Missing required fields." });
   }
-});
 
-/**
- * PUT /enrollments/:student_id/:class_id/grade
- * Submit or update a grade for a student's enrollment.
- * 
- * Body:
- *   - grade: Grade to assign (A+, A, A-, B+, B, B-, C+, C, C-, D+, D, D-, F, P, NP, etc.)
- * 
- * @route PUT /enrollments/:student_id/:class_id/grade
- * @returns {Object} 200 - Grade updated
- * @returns {Object} 400 - Invalid grade
- * @returns {Object} 404 - Enrollment not found
- */
-router.put('/enrollments/:student_id/:class_id/grade', async (req, res) => {
-  try {
-    const { student_id, class_id } = req.params;
-    const { grade } = req.body;
-
-    if (!grade) {
-      return res.status(400).json({ 
-        ok: false, 
-        error: 'grade is required' 
-      });
-    }
-
-    // Validate grade format
-    const validGrades = [
-      'A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-',
-      'D+', 'D', 'D-', 'F', 'P', 'NP', 'CR', 'NC', 'S', 'U',
-      'I', 'IP', 'W', 'WP', 'WF', 'WU', 'AU', 'NR', 'MG', 'DFR'
-    ];
-
-    if (!validGrades.includes(grade.toUpperCase())) {
-      return res.status(400).json({ 
-        ok: false, 
-        error: `Invalid grade. Must be one of: ${validGrades.join(', ')}` 
-      });
-    }
-
-    // Check if enrollment exists
-    const enrollmentCheck = await req.db.query(
-      `SELECT class_id FROM enrollments 
-       WHERE student_id = $1 AND class_id = $2`,
-      [student_id, class_id]
-    );
-
-    if (enrollmentCheck.rows.length === 0) {
-      return res.status(404).json({ 
-        ok: false, 
-        error: 'Enrollment not found' 
-      });
-    }
-
-    // Update grade
-    await req.db.query(
-      `UPDATE enrollments 
-       SET grade = $1::grade_mark, updated_at = NOW()
-       WHERE student_id = $2 AND class_id = $3`,
-      [grade.toUpperCase(), student_id, class_id]
-    );
-
-    return res.json({ 
-      ok: true, 
-      message: 'Grade updated successfully' 
+  const gradeUpper = newGrade.trim().toUpperCase();
+  if (!ALLOWED_GRADES.includes(gradeUpper)) {
+    return res.status(400).json({
+      ok: false,
+      error: "Invalid grade: must be one of " + ALLOWED_GRADES.join(", ")
     });
-  } catch (e) {
-    console.error('[rosters] PUT /grade failed:', e);
-    return res.status(500).json({ ok: false, error: e.message });
   }
-});
 
-/**
- * POST /sections/:class_id/grades
- * Bulk update grades for multiple students in a section.
- * 
- * Body:
- *   - grades: Array of { student_id, grade }
- * 
- * @route POST /sections/:class_id/grades
- * @returns {Object} 200 - Grades updated
- */
-router.post('/sections/:class_id/grades', async (req, res) => {
   try {
-    const { class_id } = req.params;
-    const { grades } = req.body;
+    /* Ensure instructor teaches this class */
+    const { rows: classCheck } = await db.query(
+      `
+        SELECT term_id
+        FROM class_sections
+        WHERE class_id = $1 AND instructor_id = $2
+      `,
+      [classId, userId]
+    );
 
-    if (!Array.isArray(grades) || grades.length === 0) {
-      return res.status(400).json({ 
-        ok: false, 
-        error: 'grades must be a non-empty array of { student_id, grade }' 
+    if (!classCheck.length) {
+      return res
+        .status(403)
+        .json({ ok: false, error: "Not allowed to change grades for this class." });
+    }
+
+    const classTerm = Number(classCheck[0].term_id);
+    const currentTerm = await getCurrentTerm(db);
+
+    if (!currentTerm || Number(currentTerm.termId) !== classTerm) {
+      return res.status(403).json({
+        ok: false,
+        error: "Grades may only be changed for the current term."
       });
     }
 
-    const validGrades = [
-      'A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-',
-      'D+', 'D', 'D-', 'F', 'P', 'NP', 'CR', 'NC', 'S', 'U',
-      'I', 'IP', 'W', 'WP', 'WF', 'WU', 'AU', 'NR', 'MG', 'DFR'
-    ];
+    /* Get existing grade */
+    const { rows: enrRows } = await db.query(
+      `
+        SELECT grade FROM enrollments 
+        WHERE enrollment_id = $1 AND class_id = $2
+      `,
+      [enrollmentId, classId]
+    );
 
-    // Validate all grades
-    for (const item of grades) {
-      if (!item.student_id || !item.grade) {
-        return res.status(400).json({ 
-          ok: false, 
-          error: 'Each grade entry must have student_id and grade' 
-        });
-      }
-
-      if (!validGrades.includes(item.grade.toUpperCase())) {
-        return res.status(400).json({ 
-          ok: false, 
-          error: `Invalid grade: ${item.grade}` 
-        });
-      }
+    if (!enrRows.length) {
+      return res
+        .status(404)
+        .json({ ok: false, error: "Enrollment not found." });
     }
 
-    // Update grades in transaction
-    const client = await req.db.connect();
-    try {
-      await client.query('BEGIN');
-
-      for (const item of grades) {
-        await client.query(
-          `UPDATE enrollments 
-           SET grade = $1::grade_mark, updated_at = NOW()
-           WHERE student_id = $2 AND class_id = $3`,
-          [item.grade.toUpperCase(), item.student_id, class_id]
-        );
-      }
-
-      await client.query('COMMIT');
-
-      return res.json({ 
-        ok: true, 
-        message: `Successfully updated ${grades.length} grades` 
+    const currGrade = enrRows[0].grade;
+    if (currGrade && currGrade.toUpperCase() !== "I") {
+      return res.status(400).json({
+        ok: false,
+        error: "Only incomplete (I) or missing grades may be edited."
       });
-    } catch (e) {
-      await client.query('ROLLBACK');
-      throw e;
-    } finally {
-      client.release();
     }
-  } catch (e) {
-    console.error('[rosters] POST /grades failed:', e);
-    return res.status(500).json({ ok: false, error: e.message });
+
+    /* Update grade */
+    const { rows: updated } = await db.query(
+      `
+        UPDATE enrollments
+        SET grade = $1
+        WHERE enrollment_id = $2
+        RETURNING grade
+      `,
+      [gradeUpper, enrollmentId]
+    );
+
+    return res.json({ ok: true, grade: updated[0].grade });
+  } catch (err) {
+    console.error("[update grade error]", err);
+    return res.status(500).json({ ok: false, error: err.message });
   }
 });
 
 export default router;
-

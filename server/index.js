@@ -4,12 +4,14 @@
  */
 
 import express from 'express';
+import session from "express-session";
 import cors from 'cors';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import pkg from 'pg';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import importRoutes from './routes/importRoutes.js';
+import authRoutes from "./routes/authRoutes.js";
 import usersRoutes from './routes/userRoutes.js'; 
 import importDegreeReq from "./routes/importDegreeReq.js";
 import importAcademicCalendar from "./routes/importAcademicCalendar.js";
@@ -23,6 +25,7 @@ import rostersGradingRoutes from "./routes/rostersGradingRoutes.js";
 import classManageRoutes from "./routes/classManageRoutes.js";
 import registrationScheduleRoutes from './routes/registrationScheduleRoutes.js';
 import studentProgramRoutes from './routes/studentProgramRoutes.js';
+import authUser from "./middleware/authUser.js";
 
 
 
@@ -48,14 +51,28 @@ pool.on('error', (err) => {
 app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
 app.use(express.json());
 app.use(morgan('dev'));
-
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "sam_dev_secret_key",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: false,  // set true only in production with HTTPS
+      maxAge: 1000 * 60 * 60 * 24, // 1 day
+    },
+  })
+);
 // Attach db to every request
 app.use((req, _res, next) => { req.db = pool; next(); });
 
-app.use((req, _res, next) => {
-  req.user = { userId: 1, role: 'Student' };  
-  next();
-});
+// app.use((req, _res, next) => {
+//   req.user = { userId: 1, role: 'Student' };  
+//   next();
+// });
+
+app.use(authUser(pool));
+
 
 // Health
 app.get('/api/health', (_req, res) => {
@@ -80,15 +97,18 @@ app.use("/api/import", importDegreeReq);
 app.use("/api/import", importAcademicCalendar);
 app.use("/api/catalog", courseCatalogRoutes);
 app.use("/api/schedule", classScheduleRoutes);
-app.use("/api/students", studentProfileRoutes);
+app.use("/api/student/profile", studentProfileRoutes);
 app.use("/api/degree", degreeProgressRoutes);
 app.use("/api/programs", programDeclarationRoutes);
 app.use("/api/calendar", academicCalendarRoutes);
 app.use("/api/rosters", rostersGradingRoutes);
+app.use("/api/instructor", rostersGradingRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use("/api/class-manage", classManageRoutes);
 app.use('/api/registration', registrationScheduleRoutes);
 app.use('/api/student-programs', studentProgramRoutes);
+app.use("/api/auth", authRoutes);
+
 
 
 
