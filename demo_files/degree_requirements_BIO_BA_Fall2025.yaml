@@ -1,0 +1,52 @@
+subject: BIO
+degree_type: BA
+type: major
+effective_term:
+  semester: Fall
+  year: 2025
+
+admission_requirements:
+  min_gpa: 2.5
+  required_courses:
+    - BIO201
+    - BIO202
+
+degree_requirements:
+  required_courses:
+    - BIO201
+    - BIO202
+    - BIO203
+    - BIO204
+    - BIO310
+    - BIO315
+    - BIO320
+
+  electives:
+    min_courses: 4
+    from_subject: BIO
+    min_level: 300
+    exclude_courses:
+      - BIO310
+      - BIO315
+      - BIO320
+
+  mathematics:
+    required: 1
+    options:
+      - [MAT125, MAT126]
+      - [MAT131, MAT132]
+      - [AMS151, AMS161]
+
+  chemistry:
+    required_sequence:
+      - CHE131
+      - CHE132
+      - CHE133
+
+  statistics:
+    required: 1
+    options:
+      - [AMS102]
+      - [AMS110]
+      - [AMS310]
+

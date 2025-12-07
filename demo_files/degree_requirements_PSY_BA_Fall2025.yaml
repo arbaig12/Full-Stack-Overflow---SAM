@@ -1,0 +1,45 @@
+subject: PSY
+degree_type: BA
+type: major
+effective_term:
+  semester: Fall
+  year: 2025
+
+admission_requirements:
+  min_gpa: 2.5
+  required_courses:
+    - PSY103
+
+degree_requirements:
+  required_courses:
+    - PSY103
+    - PSY200
+    - PSY201
+    - PSY202
+    - PSY310
+    - PSY320
+    - PSY330
+
+  electives:
+    min_courses: 5
+    from_subject: PSY
+    min_level: 300
+    exclude_courses:
+      - PSY310
+      - PSY320
+      - PSY330
+
+  statistics:
+    required: 1
+    options:
+      - [AMS102]
+      - [AMS110]
+      - [AMS310]
+      - [PSY201]
+
+  research_methods:
+    required: 1
+    options:
+      - [PSY202]
+      - [PSY301]
+

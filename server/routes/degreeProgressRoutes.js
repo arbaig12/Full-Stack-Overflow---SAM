@@ -233,4 +233,108 @@ router.get("/progress", async (req, res) => {
   }
 });
 
+/* ----------------- GET ALL DEGREE REQUIREMENTS (for admin/registrar) ----------------- */
+router.get("/degree-requirements", async (req, res) => {
+  try {
+    const db = req.db;
+
+    const { rows } = await db.query(
+      `
+      SELECT 
+        id,
+        subject,
+        degree_type,
+        program_type,
+        effective_term,
+        admission_requirements,
+        degree_requirements,
+        created_at
+      FROM degree_requirements
+      ORDER BY subject, degree_type, created_at DESC
+      `
+    );
+
+    return res.json({
+      ok: true,
+      degreeRequirements: rows.map((row) => ({
+        id: row.id,
+        subject: row.subject,
+        degreeType: row.degree_type,
+        programType: row.program_type,
+        effectiveTerm: typeof row.effective_term === 'string' 
+          ? JSON.parse(row.effective_term) 
+          : row.effective_term,
+        admissionRequirements: typeof row.admission_requirements === 'string'
+          ? JSON.parse(row.admission_requirements)
+          : row.admission_requirements,
+        degreeRequirements: typeof row.degree_requirements === 'string'
+          ? JSON.parse(row.degree_requirements)
+          : row.degree_requirements,
+        createdAt: row.created_at,
+      })),
+    });
+  } catch (err) {
+    console.error("[degree] /degree-requirements failed:", err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+/* ----------------- GET SINGLE DEGREE REQUIREMENT ----------------- */
+router.get("/degree-requirements/:program_id", async (req, res) => {
+  try {
+    const db = req.db;
+    const programId = parseInt(req.params.program_id);
+
+    if (!Number.isFinite(programId)) {
+      return res.status(400).json({ ok: false, error: "Invalid program_id" });
+    }
+
+    const { rows } = await db.query(
+      `
+      SELECT 
+        id,
+        subject,
+        degree_type,
+        program_type,
+        effective_term,
+        admission_requirements,
+        degree_requirements
+      FROM degree_requirements
+      WHERE id = $1
+      `,
+      [programId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ 
+        ok: false, 
+        error: 'Degree requirements not found for this program' 
+      });
+    }
+
+    const row = rows[0];
+    const requirements = typeof row.degree_requirements === 'string'
+      ? JSON.parse(row.degree_requirements)
+      : row.degree_requirements;
+
+    return res.json({
+      ok: true,
+      id: row.id,
+      subject: row.subject,
+      degreeType: row.degree_type,
+      programType: row.program_type,
+      effectiveTerm: typeof row.effective_term === 'string'
+        ? JSON.parse(row.effective_term)
+        : row.effective_term,
+      admissionRequirements: typeof row.admission_requirements === 'string'
+        ? JSON.parse(row.admission_requirements)
+        : row.admission_requirements,
+      degreeRequirements: requirements,
+    });
+  } catch (err) {
+    console.error("[degree] /degree-requirements/:program_id failed:", err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 export default router;

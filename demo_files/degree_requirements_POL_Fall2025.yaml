@@ -1,0 +1,47 @@
+subject: POL
+degree_type: BA
+type: major
+effective_term:
+  semester: Fall
+  year: 2025
+
+admission_requirements:
+  min_gpa: 2.5
+  required_courses:
+    - POL101
+
+degree_requirements:
+  required_courses:
+    - POL101
+    - POL102
+    - POL200
+    - POL201
+    - POL202
+
+  concentration:
+    required: 1
+    options:
+      - [POL300, POL301, POL302]
+      - [POL310, POL311, POL312]
+      - [POL320, POL321, POL322]
+      - [POL330, POL331, POL332]
+
+  electives:
+    min_courses: 5
+    from_subject: POL
+    min_level: 300
+    exclude_courses: []
+
+  statistics:
+    required: 1
+    options:
+      - [AMS102]
+      - [AMS110]
+      - [POL200]
+
+  research_methods:
+    required: 1
+    options:
+      - [POL201]
+      - [POL202]
+

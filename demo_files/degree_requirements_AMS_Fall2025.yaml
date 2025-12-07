@@ -1,0 +1,50 @@
+subject: AMS
+degree_type: BA
+type: major
+effective_term:
+  semester: Fall
+  year: 2025
+
+admission_requirements:
+  min_gpa: 3.0
+  required_courses:
+    - AMS151
+    - AMS161
+    - AMS210
+
+degree_requirements:
+  required_courses:
+    - AMS151
+    - AMS161
+    - AMS210
+    - AMS301
+    - AMS310
+    - AMS311
+    - AMS315
+    - AMS361
+
+  electives:
+    min_courses: 3
+    from_subject: AMS
+    min_level: 300
+    exclude_courses:
+      - AMS301
+      - AMS310
+      - AMS311
+      - AMS315
+      - AMS361
+
+  computer_science:
+    required: 1
+    options:
+      - [CSE114]
+      - [CSE101]
+
+  natural_science:
+    required: 1
+    options:
+      - [PHY125, PHY126]
+      - [PHY131, PHY132]
+      - [PHY141, PHY142]
+      - [CHE131, CHE132]
+

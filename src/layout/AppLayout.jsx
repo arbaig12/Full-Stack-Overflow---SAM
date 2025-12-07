@@ -142,6 +142,7 @@ export default function AppLayout() {
                 <NavItem to="/app/catalog">Course Catalog</NavItem>
                 <NavItem to="/app/classManage">Manage Class Sections</NavItem>
                 <NavItem to="/app/degree">Degree Progress</NavItem>
+                <NavItem to="/app/degreeRequirements">Degree Requirements</NavItem>
                 <NavItem to="/app/rosters">Rosters & Grading</NavItem>
                 <NavItem to="/app/userManage">User Management</NavItem>
                 <NavItem to="/app/import">Import</NavItem>

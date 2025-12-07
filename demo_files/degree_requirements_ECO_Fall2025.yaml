@@ -1,0 +1,47 @@
+subject: ECO
+degree_type: BA
+type: major
+effective_term:
+  semester: Fall
+  year: 2025
+
+admission_requirements:
+  min_gpa: 2.5
+  required_courses:
+    - ECO108
+    - ECO109
+
+degree_requirements:
+  required_courses:
+    - ECO108
+    - ECO109
+    - ECO303
+    - ECO305
+    - ECO320
+    - ECO321
+
+  electives:
+    min_courses: 4
+    from_subject: ECO
+    min_level: 300
+    exclude_courses:
+      - ECO303
+      - ECO305
+      - ECO320
+      - ECO321
+
+  mathematics:
+    required: 1
+    options:
+      - [MAT125]
+      - [MAT131]
+      - [AMS151]
+
+  statistics:
+    required: 1
+    options:
+      - [AMS102]
+      - [AMS110]
+      - [AMS310]
+      - [ECO320]
+
