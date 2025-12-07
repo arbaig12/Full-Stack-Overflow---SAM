@@ -1,68 +1,37 @@
-// src/pages/RegistrationSchedule.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from "react";
 
 export default function RegistrationSchedule() {
-  const [activeTab, setActiveTab] = useState('register');
+  const [activeTab, setActiveTab] = useState("register");
 
   const [terms, setTerms] = useState([]);
-  const [currentTermId, setCurrentTermId] = useState('');
-  const [selectedTermId, setSelectedTermId] = useState('');
+  const [currentTermId, setCurrentTermId] = useState("");
+  const [selectedTermId, setSelectedTermId] = useState("");
 
-  const [sections, setSections] = useState([]);       // all sections from backend
-  const [enrollments, setEnrollments] = useState([]); // my enrollments
+  const [sections, setSections] = useState([]);
+  const [enrollments, setEnrollments] = useState([]);
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [message, setMessage] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
-  // ---------- Helper functions for schedule conflict logic ----------
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
-  /**
-   * Parse meeting days from a compact code string OR from scheduleText.
-   * Examples it should handle:
-   *  - "MWF"
-   *  - "MTuThu"
-   *  - "MWF 11:30-12:50"
-   *  - "TuTh 09:30-10:45"
-   */
   const parseMeetingDays = (daysOrSchedule) => {
     if (!daysOrSchedule) return new Set();
-
-    const s = String(daysOrSchedule).replace(/\s+/g, ''); // remove spaces
-    const result = [];
-    let i = 0;
-
-    while (i < s.length) {
-      // Check 2-letter codes first
-      if (s.startsWith('Th', i)) {
-        result.push('Th');
-        i += 2;
-      } else if (s.startsWith('Tu', i)) {
-        result.push('Tu');
-        i += 2;
-      } else {
-        const ch = s[i];
-
-        // Single-letter day codes we care about
-        if (['M', 'T', 'W', 'F', 'S'].includes(ch)) {
-          result.push(ch);
-        }
-
-        i += 1;
-      }
+    const s = String(daysOrSchedule).replace(/\s+/g, "").toUpperCase();
+    const out = new Set();
+    for (const ch of s) {
+      if (["M", "T", "W", "R", "F"].includes(ch)) out.add(ch);
     }
-
-    return new Set(result);
+    return out;
   };
 
-  // Expect meetingTimes like "09:30-10:45" or embedded in scheduleText
   const parseTimeRange = (timeStr) => {
     if (!timeStr) return null;
     const str = String(timeStr);
-
-    // Basic 24-hour HH:MM-HH:MM
     const m = str.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
     if (!m) return null;
 
@@ -70,37 +39,20 @@ export default function RegistrationSchedule() {
     const start = parseInt(h1, 10) * 60 + parseInt(m1, 10);
     const end = parseInt(h2, 10) * 60 + parseInt(m2, 10);
 
-    if (Number.isNaN(start) || Number.isNaN(end) || end <= start) {
-      return null;
-    }
-
-    return { start, end }; // minutes since midnight
+    if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return null;
+    return { start, end };
   };
 
-  const timeRangesOverlap = (a, b) => {
-    // [a.start, a.end) intersects [b.start, b.end)
-    return a.start < b.end && b.start < a.end;
-  };
+  const timeRangesOverlap = (a, b) => a.start < b.end && b.start < a.end;
 
-  /**
-   * Check for conflict between a candidate section and current enrollments
-   * in the selected term.
-   *
-   * Rule: if they share at least one day AND the time ranges overlap,
-   * then it's a conflict.
-   */
   const findScheduleConflict = (candidate) => {
-    // Use meetingDays first, but fall back to scheduleText for both days & times.
     const candDaySource = candidate.meetingDays || candidate.scheduleText;
     const candDays = parseMeetingDays(candDaySource);
     const candRange =
       parseTimeRange(candidate.meetingTimes) ||
       parseTimeRange(candidate.scheduleText);
 
-    if (!candDays.size || !candRange) {
-      // If we can't interpret candidate's schedule, don't block.
-      return null;
-    }
+    if (!candDays.size || !candRange) return null;
 
     for (const enr of enrollments) {
       if (String(enr.termId) !== String(selectedTermId)) continue;
@@ -108,35 +60,28 @@ export default function RegistrationSchedule() {
       const enrDaySource = enr.meetingDays || enr.scheduleText;
       const enrDays = parseMeetingDays(enrDaySource);
       const enrRange =
-        parseTimeRange(enr.meetingTimes) ||
-        parseTimeRange(enr.scheduleText);
+        parseTimeRange(enr.meetingTimes) || parseTimeRange(enr.scheduleText);
 
       if (!enrDays.size || !enrRange) continue;
 
-      // 🔴 Any overlapping day at all?
       const hasDayOverlap = [...candDays].some((d) => enrDays.has(d));
       if (!hasDayOverlap) continue;
 
-      // 🔴 Time overlap on at least one shared day?
-      if (timeRangesOverlap(candRange, enrRange)) {
-        return enr; // First conflicting enrollment
-      }
+      if (timeRangesOverlap(candRange, enrRange)) return enr;
     }
 
     return null;
   };
 
-  // ---------- Initial load ----------
-
   useEffect(() => {
     async function loadRegistrationData() {
       try {
         setLoading(true);
-        setError('');
-        setMessage('');
+        setError("");
+        setMessage("");
 
-        const res = await fetch('/api/registration/init', {
-          credentials: 'include',
+        const res = await fetch("/api/registration/init", {
+          credentials: "include",
         });
 
         if (!res.ok) {
@@ -145,15 +90,10 @@ export default function RegistrationSchedule() {
 
         const data = await res.json();
         if (data.ok === false) {
-          throw new Error(data.error || 'Failed to load registration data.');
+          throw new Error(data.error || "Failed to load registration data.");
         }
 
-        const {
-          systemState,
-          terms = [],
-          sections = [],
-          enrollments = [],
-        } = data;
+        const { systemState, terms = [], sections = [], enrollments = [] } = data;
 
         setTerms(terms);
         setSections(sections);
@@ -167,10 +107,9 @@ export default function RegistrationSchedule() {
           setCurrentTermId(String(terms[0].termId));
           setSelectedTermId(String(terms[0].termId));
         }
-
       } catch (e) {
         console.error(e);
-        setError(e.message || 'Failed to load registration data.');
+        setError(e.message || "Failed to load registration data.");
       } finally {
         setLoading(false);
       }
@@ -179,20 +118,22 @@ export default function RegistrationSchedule() {
     loadRegistrationData();
   }, []);
 
-  // ---------- Helpers ----------
+  useEffect(() => {
+    setPage(1);
+  }, [selectedTermId, searchTerm, activeTab]);
 
   const getTermLabel = (termId) => {
     const t = terms.find((term) => String(term.termId) === String(termId));
-    return t ? `${t.semester} ${t.year}` : '';
+    return t ? `${t.semester} ${t.year}` : "";
   };
 
   const getAvailabilityColor = (enrolledCount, capacity) => {
     const e = enrolledCount || 0;
     const c = capacity || 1;
     const percentage = (e / c) * 100;
-    if (percentage >= 90) return '#ff4444';
-    if (percentage >= 75) return '#ff8800';
-    return '#44aa44';
+    if (percentage >= 90) return "#ff4444";
+    if (percentage >= 75) return "#ff8800";
+    return "#44aa44";
   };
 
   const getTotalCredits = (termId) => {
@@ -201,72 +142,75 @@ export default function RegistrationSchedule() {
       .reduce((sum, e) => sum + (e.credits || 0), 0);
   };
 
-  // ---------- Derived lists ----------
-
-  const enrollmentsForSelectedTerm = enrollments.filter(
-    (e) => String(e.termId) === String(selectedTermId)
+  const enrollmentsForSelectedTerm = useMemo(
+    () => enrollments.filter((e) => String(e.termId) === String(selectedTermId)),
+    [enrollments, selectedTermId]
   );
 
-  const enrolledClassIds = new Set(
-    enrollmentsForSelectedTerm.map((e) => String(e.classId))
+  const enrolledClassIds = useMemo(
+    () => new Set(enrollmentsForSelectedTerm.map((e) => String(e.classId))),
+    [enrollmentsForSelectedTerm]
   );
 
-  const filteredSections = sections.filter((sec) => {
-    const sameTerm = String(sec.termId) === String(selectedTermId);
+  const filteredSections = useMemo(() => {
+    return sections.filter((sec) => {
+      const sameTerm = String(sec.termId) === String(selectedTermId);
+      const matchesSearch =
+        sec.courseTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        sec.courseCode.toLowerCase().includes(searchTerm.toLowerCase());
+      const notAlreadyEnrolled = !enrolledClassIds.has(String(sec.classId));
+      return sameTerm && matchesSearch && notAlreadyEnrolled;
+    });
+  }, [sections, selectedTermId, searchTerm, enrolledClassIds]);
 
-    const matchesSearch =
-      sec.courseTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sec.courseCode.toLowerCase().includes(searchTerm.toLowerCase());
+  const totalPages = Math.max(1, Math.ceil(filteredSections.length / PAGE_SIZE));
 
-    const notAlreadyEnrolled = !enrolledClassIds.has(String(sec.classId));
-
-    return sameTerm && matchesSearch && notAlreadyEnrolled;
-  });
-
-  // ---------- Actions ----------
+  const pagedSections = useMemo(() => {
+    const safePage = Math.min(Math.max(1, page), totalPages);
+    const start = (safePage - 1) * PAGE_SIZE;
+    return filteredSections.slice(start, start + PAGE_SIZE);
+  }, [filteredSections, page, totalPages]);
 
   const handleRegister = async (section) => {
     try {
       setActionLoading(true);
-      setMessage('');
-      setError('');
+      setMessage("");
+      setError("");
 
-      // 1) Local schedule conflict check BEFORE hitting backend
       const conflict = findScheduleConflict(section);
       if (conflict) {
         setError(
-          `Schedule conflict: ${section.courseCode} (${section.scheduleText || 'time TBA'}) ` +
-          `overlaps with ${conflict.courseCode} (${conflict.scheduleText || 'time TBA'}).`
+          `Schedule conflict: ${section.courseCode} (${section.scheduleText || "time TBA"}) ` +
+            `overlaps with ${conflict.courseCode} (${conflict.scheduleText || "time TBA"}).`
         );
-        return; // Don’t call backend
+        return;
       }
 
-      // 2) Proceed to backend if no conflict
-      const res = await fetch('/api/registration/enroll', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+      const res = await fetch("/api/registration/enroll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ classId: section.classId }),
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || data.ok === false) {
-        throw new Error(data.error || `Failed to register for ${section.courseCode}.`);
+        throw new Error(
+          data.error || `Failed to register for ${section.courseCode}.`
+        );
       }
 
-      // Backend should return:
-      // { ok: true, enrollment: { ... }, updatedSection: { ... } }
       const { enrollment, updatedSection } = data;
 
-      if (enrollment) {
-        setEnrollments((prev) => [...prev, enrollment]);
-      }
+      if (enrollment) setEnrollments((prev) => [...prev, enrollment]);
 
       if (updatedSection) {
         setSections((prev) =>
           prev.map((s) =>
-            String(s.classId) === String(updatedSection.classId) ? updatedSection : s
+            String(s.classId) === String(updatedSection.classId)
+              ? updatedSection
+              : s
           )
         );
       }
@@ -274,7 +218,7 @@ export default function RegistrationSchedule() {
       setMessage(`Successfully registered for ${section.courseCode}.`);
     } catch (e) {
       console.error(e);
-      setError(e.message || 'Failed to register.');
+      setError(e.message || "Failed to register.");
     } finally {
       setActionLoading(false);
     }
@@ -283,24 +227,24 @@ export default function RegistrationSchedule() {
   const handleWithdraw = async (enrollment) => {
     try {
       setActionLoading(true);
-      setMessage('');
-      setError('');
+      setMessage("");
+      setError("");
 
-      const res = await fetch('/api/registration/withdraw', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+      const res = await fetch("/api/registration/withdraw", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ enrollmentId: enrollment.enrollmentId }),
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || data.ok === false) {
-        throw new Error(data.error || `Failed to withdraw from ${enrollment.courseCode}.`);
+        throw new Error(
+          data.error || `Failed to withdraw from ${enrollment.courseCode}.`
+        );
       }
 
-      // Backend should return:
-      // { ok: true, updatedSection: { ... } }
       const { updatedSection } = data;
 
       setEnrollments((prev) =>
@@ -310,7 +254,9 @@ export default function RegistrationSchedule() {
       if (updatedSection) {
         setSections((prev) =>
           prev.map((s) =>
-            String(s.classId) === String(updatedSection.classId) ? updatedSection : s
+            String(s.classId) === String(updatedSection.classId)
+              ? updatedSection
+              : s
           )
         );
       }
@@ -318,23 +264,136 @@ export default function RegistrationSchedule() {
       setMessage(`Successfully withdrew from ${enrollment.courseCode}.`);
     } catch (e) {
       console.error(e);
-      setError(e.message || 'Failed to withdraw.');
+      setError(e.message || "Failed to withdraw.");
     } finally {
       setActionLoading(false);
     }
   };
 
-  // ---------- UI ----------
-
   const termLabel = getTermLabel(selectedTermId);
   const totalCredits = getTotalCredits(selectedTermId);
+
+  const Pagination = () => {
+    if (totalPages <= 1) return null;
+
+    const maxButtons = 7;
+    let start = Math.max(1, page - Math.floor(maxButtons / 2));
+    let end = start + maxButtons - 1;
+    if (end > totalPages) {
+      end = totalPages;
+      start = Math.max(1, end - maxButtons + 1);
+    }
+
+    const pages = [];
+    for (let p = start; p <= end; p++) pages.push(p);
+
+    const go = (p) => setPage(Math.min(Math.max(1, p), totalPages));
+
+    return (
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          justifyContent: "center",
+          alignItems: "center",
+          marginTop: 18,
+          flexWrap: "wrap",
+        }}
+      >
+        <button
+          onClick={() => go(1)}
+          disabled={page === 1}
+          style={{
+            padding: "6px 10px",
+            border: "1px solid #ddd",
+            borderRadius: 6,
+            background: "white",
+            cursor: page === 1 ? "not-allowed" : "pointer",
+            opacity: page === 1 ? 0.6 : 1,
+          }}
+        >
+          First
+        </button>
+        <button
+          onClick={() => go(page - 1)}
+          disabled={page === 1}
+          style={{
+            padding: "6px 10px",
+            border: "1px solid #ddd",
+            borderRadius: 6,
+            background: "white",
+            cursor: page === 1 ? "not-allowed" : "pointer",
+            opacity: page === 1 ? 0.6 : 1,
+          }}
+        >
+          Prev
+        </button>
+
+        {start > 1 && <span style={{ color: "#777" }}>…</span>}
+
+        {pages.map((p) => (
+          <button
+            key={p}
+            onClick={() => go(p)}
+            style={{
+              padding: "6px 10px",
+              border: "1px solid #ddd",
+              borderRadius: 6,
+              background: p === page ? "#1976d2" : "white",
+              color: p === page ? "white" : "#333",
+              cursor: "pointer",
+              fontWeight: p === page ? "bold" : "normal",
+            }}
+          >
+            {p}
+          </button>
+        ))}
+
+        {end < totalPages && <span style={{ color: "#777" }}>…</span>}
+
+        <button
+          onClick={() => go(page + 1)}
+          disabled={page === totalPages}
+          style={{
+            padding: "6px 10px",
+            border: "1px solid #ddd",
+            borderRadius: 6,
+            background: "white",
+            cursor: page === totalPages ? "not-allowed" : "pointer",
+            opacity: page === totalPages ? 0.6 : 1,
+          }}
+        >
+          Next
+        </button>
+        <button
+          onClick={() => go(totalPages)}
+          disabled={page === totalPages}
+          style={{
+            padding: "6px 10px",
+            border: "1px solid #ddd",
+            borderRadius: 6,
+            background: "white",
+            cursor: page === totalPages ? "not-allowed" : "pointer",
+            opacity: page === totalPages ? 0.6 : 1,
+          }}
+        >
+          Last
+        </button>
+
+        <div style={{ color: "#666", fontSize: 12, marginLeft: 6 }}>
+          Page <strong>{page}</strong> of <strong>{totalPages}</strong> (
+          {filteredSections.length} sections)
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div style={{ padding: 20 }}>
       <h1>Course Registration &amp; Schedule</h1>
 
       {loading && (
-        <p style={{ color: '#666', marginBottom: 16 }}>
+        <p style={{ color: "#666", marginBottom: 16 }}>
           Loading registration data...
         </p>
       )}
@@ -345,9 +404,9 @@ export default function RegistrationSchedule() {
             padding: 12,
             marginBottom: 16,
             borderRadius: 6,
-            background: error ? '#f8d7da' : '#d4edda',
-            color: error ? '#721c24' : '#155724',
-            border: `1px solid ${error ? '#f5c6cb' : '#c3e6cb'}`,
+            background: error ? "#f8d7da" : "#d4edda",
+            color: error ? "#721c24" : "#155724",
+            border: `1px solid ${error ? "#f5c6cb" : "#c3e6cb"}`,
             fontSize: 14,
           }}
         >
@@ -355,22 +414,21 @@ export default function RegistrationSchedule() {
         </div>
       )}
 
-      {/* Term selector always visible */}
       <div
         style={{
-          display: 'flex',
-          justifyContent: 'space-between',
+          display: "flex",
+          justifyContent: "space-between",
           gap: 16,
           marginBottom: 16,
-          alignItems: 'center',
+          alignItems: "center",
         }}
       >
         <div>
           <label
             style={{
-              display: 'block',
+              display: "block",
               marginBottom: 4,
-              fontWeight: 'bold',
+              fontWeight: "bold",
               fontSize: 14,
             }}
           >
@@ -380,8 +438,8 @@ export default function RegistrationSchedule() {
             value={selectedTermId}
             onChange={(e) => setSelectedTermId(e.target.value)}
             style={{
-              padding: '8px 12px',
-              border: '1px solid #ddd',
+              padding: "8px 12px",
+              border: "1px solid #ddd",
               borderRadius: 6,
               fontSize: 14,
             }}
@@ -389,64 +447,63 @@ export default function RegistrationSchedule() {
             {terms.map((t) => (
               <option key={t.termId} value={t.termId}>
                 {t.semester} {t.year}
-                {String(t.termId) === String(currentTermId) ? ' (current)' : ''}
+                {String(t.termId) === String(currentTermId) ? " (current)" : ""}
               </option>
             ))}
           </select>
         </div>
 
-        <div style={{ fontSize: 13, color: '#555' }}>
-          Total enrolled in {termLabel || 'selected term'}:{' '}
+        <div style={{ fontSize: 13, color: "#555" }}>
+          Total enrolled in {termLabel || "selected term"}:{" "}
           <strong>
             {enrollmentsForSelectedTerm.length} course
-            {enrollmentsForSelectedTerm.length !== 1 ? 's' : ''}, {totalCredits} credits
+            {enrollmentsForSelectedTerm.length !== 1 ? "s" : ""},{" "}
+            {totalCredits} credits
           </strong>
         </div>
       </div>
 
-      {/* Tab Navigation */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
         <button
-          onClick={() => setActiveTab('register')}
+          onClick={() => setActiveTab("register")}
           style={{
-            padding: '12px 24px',
-            border: 'none',
+            padding: "12px 24px",
+            border: "none",
             borderRadius: 6,
-            background: activeTab === 'register' ? '#1976d2' : '#f5f5f5',
-            color: activeTab === 'register' ? 'white' : '#333',
-            cursor: 'pointer',
-            fontWeight: 'bold',
+            background: activeTab === "register" ? "#1976d2" : "#f5f5f5",
+            color: activeTab === "register" ? "white" : "#333",
+            cursor: "pointer",
+            fontWeight: "bold",
           }}
         >
           Register for Courses
         </button>
         <button
-          onClick={() => setActiveTab('schedule')}
+          onClick={() => setActiveTab("schedule")}
           style={{
-            padding: '12px 24px',
-            border: 'none',
+            padding: "12px 24px",
+            border: "none",
             borderRadius: 6,
-            background: activeTab === 'schedule' ? '#1976d2' : '#f5f5f5',
-            color: activeTab === 'schedule' ? 'white' : '#333',
-            cursor: 'pointer',
-            fontWeight: 'bold',
+            background: activeTab === "schedule" ? "#1976d2" : "#f5f5f5",
+            color: activeTab === "schedule" ? "white" : "#333",
+            cursor: "pointer",
+            fontWeight: "bold",
           }}
         >
           My Schedule ({enrollmentsForSelectedTerm.length} course
-          {enrollmentsForSelectedTerm.length !== 1 ? 's' : ''}, {totalCredits} credits)
+          {enrollmentsForSelectedTerm.length !== 1 ? "s" : ""}, {totalCredits}{" "}
+          credits)
         </button>
       </div>
 
-      {/* REGISTER TAB */}
-      {activeTab === 'register' && (
+      {activeTab === "register" && (
         <div>
-          <h2>Available Sections for {termLabel || 'selected term'}</h2>
+          <h2>Available Sections for {termLabel || "selected term"}</h2>
 
-          {/* Search box */}
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr',
+              display: "grid",
+              gridTemplateColumns: "1fr",
               gap: 16,
               marginBottom: 24,
             }}
@@ -457,61 +514,55 @@ export default function RegistrationSchedule() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
-                padding: '8px 12px',
-                border: '1px solid #ddd',
+                padding: "8px 12px",
+                border: "1px solid #ddd",
                 borderRadius: 6,
                 fontSize: 14,
               }}
             />
           </div>
 
-          <div style={{ display: 'grid', gap: 16 }}>
-            {filteredSections.map((sec) => {
+          <div style={{ display: "grid", gap: 16 }}>
+            {pagedSections.map((sec) => {
               const isFull = (sec.enrolledCount || 0) >= (sec.capacity || 0);
               return (
                 <div
                   key={sec.classId}
                   style={{
-                    border: '1px solid #e0e0e0',
+                    border: "1px solid #e0e0e0",
                     borderRadius: 8,
                     padding: 20,
-                    background: '#fff',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    background: "#fff",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
                   }}
                 >
                   <div
                     style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr auto',
-                      alignItems: 'start',
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto",
+                      alignItems: "start",
                     }}
                   >
                     <div>
                       <div
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
+                          display: "flex",
+                          alignItems: "center",
                           gap: 12,
                           marginBottom: 8,
                         }}
                       >
-                        <h3
-                          style={{
-                            margin: 0,
-                            fontSize: 18,
-                            color: '#333',
-                          }}
-                        >
+                        <h3 style={{ margin: 0, fontSize: 18, color: "#333" }}>
                           {sec.courseCode} – {sec.courseTitle} (Sec {sec.sectionNum})
                         </h3>
                         <span
                           style={{
-                            padding: '2px 8px',
+                            padding: "2px 8px",
                             borderRadius: 12,
                             fontSize: 12,
-                            fontWeight: 'bold',
-                            background: '#e3f2fd',
-                            color: '#1976d2',
+                            fontWeight: "bold",
+                            background: "#e3f2fd",
+                            color: "#1976d2",
                           }}
                         >
                           {sec.credits} credits
@@ -520,39 +571,37 @@ export default function RegistrationSchedule() {
 
                       <div
                         style={{
-                          display: 'grid',
+                          display: "grid",
                           gridTemplateColumns:
-                            'repeat(auto-fit, minmax(200px, 1fr))',
+                            "repeat(auto-fit, minmax(200px, 1fr))",
                           gap: 12,
                           fontSize: 14,
                           marginBottom: 12,
                         }}
                       >
                         <div>
-                          <strong>Instructor:</strong>{' '}
-                          {sec.instructorName || 'TBA'}
+                          <strong>Instructor:</strong> {sec.instructorName || "TBA"}
                         </div>
                         <div>
-                          <strong>Schedule:</strong>{' '}
-                          {sec.scheduleText || 'TBA'}
+                          <strong>Schedule:</strong> {sec.scheduleText || "TBA"}
                         </div>
                         <div>
-                          <strong>Room:</strong> {sec.roomLabel || 'TBA'}
+                          <strong>Room:</strong> {sec.roomLabel || "TBA"}
                         </div>
                       </div>
                     </div>
 
-                    <div style={{ textAlign: 'right' }}>
+                    <div style={{ textAlign: "right" }}>
                       <div
                         style={{
-                          padding: '8px 12px',
+                          padding: "8px 12px",
                           borderRadius: 6,
                           background: getAvailabilityColor(
                             sec.enrolledCount,
                             sec.capacity
                           ),
-                          color: 'white',
-                          fontWeight: 'bold',
+                          color: "white",
+                          fontWeight: "bold",
                           fontSize: 14,
                           marginBottom: 8,
                         }}
@@ -563,17 +612,18 @@ export default function RegistrationSchedule() {
                         onClick={() => handleRegister(sec)}
                         disabled={isFull || actionLoading}
                         style={{
-                          padding: '8px 16px',
-                          border: 'none',
+                          padding: "8px 16px",
+                          border: "none",
                           borderRadius: 6,
-                          background: isFull ? '#ccc' : '#28a745',
-                          color: 'white',
-                          cursor: isFull || actionLoading ? 'not-allowed' : 'pointer',
-                          fontWeight: 'bold',
+                          background: isFull ? "#ccc" : "#28a745",
+                          color: "white",
+                          cursor:
+                            isFull || actionLoading ? "not-allowed" : "pointer",
+                          fontWeight: "bold",
                           opacity: actionLoading ? 0.8 : 1,
                         }}
                       >
-                        {isFull ? 'Full' : 'Register'}
+                        {isFull ? "Full" : "Register"}
                       </button>
                     </div>
                   </div>
@@ -585,89 +635,84 @@ export default function RegistrationSchedule() {
           {filteredSections.length === 0 && !loading && (
             <div
               style={{
-                textAlign: 'center',
+                textAlign: "center",
                 padding: 40,
-                color: '#666',
-                background: '#f9f9f9',
+                color: "#666",
+                background: "#f9f9f9",
                 borderRadius: 8,
-                border: '1px solid #e0e0e0',
+                border: "1px solid #e0e0e0",
                 marginTop: 16,
               }}
             >
               <p>No available sections found for this term / search.</p>
             </div>
           )}
+
+          <Pagination />
         </div>
       )}
 
-      {/* SCHEDULE TAB */}
-      {activeTab === 'schedule' && (
+      {activeTab === "schedule" && (
         <div>
-          <h2>My Schedule – {termLabel || 'selected term'}</h2>
+          <h2>My Schedule – {termLabel || "selected term"}</h2>
 
           {enrollmentsForSelectedTerm.length === 0 ? (
             <div
               style={{
-                textAlign: 'center',
+                textAlign: "center",
                 padding: 40,
-                color: '#666',
-                background: '#f9f9f9',
+                color: "#666",
+                background: "#f9f9f9",
                 borderRadius: 8,
-                border: '1px solid #e0e0e0',
+                border: "1px solid #e0e0e0",
               }}
             >
               <p>You are not enrolled in any courses for this term.</p>
               <p>
-                Use the &quot;Register for Courses&quot; tab to add courses to your
-                schedule.
+                Use the &quot;Register for Courses&quot; tab to add courses to
+                your schedule.
               </p>
             </div>
           ) : (
-            <div style={{ display: 'grid', gap: 16 }}>
+            <div style={{ display: "grid", gap: 16 }}>
               {enrollmentsForSelectedTerm.map((enr) => (
                 <div
                   key={enr.enrollmentId}
                   style={{
-                    border: '1px solid #e0e0e0',
+                    border: "1px solid #e0e0e0",
                     borderRadius: 8,
                     padding: 20,
-                    background: '#fff',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    background: "#fff",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
                   }}
                 >
                   <div
                     style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr auto',
-                      alignItems: 'start',
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto",
+                      alignItems: "start",
                     }}
                   >
                     <div>
                       <div
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
+                          display: "flex",
+                          alignItems: "center",
                           gap: 12,
                           marginBottom: 8,
                         }}
                       >
-                        <h3
-                          style={{
-                            margin: 0,
-                            fontSize: 18,
-                            color: '#333',
-                          }}
-                        >
+                        <h3 style={{ margin: 0, fontSize: 18, color: "#333" }}>
                           {enr.courseCode} – {enr.courseTitle}
                         </h3>
                         <span
                           style={{
-                            padding: '2px 8px',
+                            padding: "2px 8px",
                             borderRadius: 12,
                             fontSize: 12,
-                            fontWeight: 'bold',
-                            background: '#e8f5e8',
-                            color: '#2e7d32',
+                            fontWeight: "bold",
+                            background: "#e8f5e8",
+                            color: "#2e7d32",
                           }}
                         >
                           {enr.credits} credits
@@ -676,49 +721,43 @@ export default function RegistrationSchedule() {
 
                       <div
                         style={{
-                          display: 'grid',
+                          display: "grid",
                           gridTemplateColumns:
-                            'repeat(auto-fit, minmax(200px, 1fr))',
+                            "repeat(auto-fit, minmax(200px, 1fr))",
                           gap: 12,
                           fontSize: 14,
                         }}
                       >
                         <div>
-                          <strong>Instructor:</strong>{' '}
-                          {enr.instructorName || 'TBA'}
+                          <strong>Instructor:</strong> {enr.instructorName || "TBA"}
                         </div>
                         <div>
-                          <strong>Schedule:</strong> {enr.scheduleText || 'TBA'}
+                          <strong>Schedule:</strong> {enr.scheduleText || "TBA"}
                         </div>
                         <div>
-                          <strong>Room:</strong> {enr.roomLabel || 'TBA'}
+                          <strong>Room:</strong> {enr.roomLabel || "TBA"}
                         </div>
                         <div>
-                          <strong>Status:</strong>{' '}
-                          <span
-                            style={{
-                              color: '#28a745',
-                              fontWeight: 'bold',
-                            }}
-                          >
+                          <strong>Status:</strong>{" "}
+                          <span style={{ color: "#28a745", fontWeight: "bold" }}>
                             Enrolled
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    <div style={{ textAlign: 'right' }}>
+                    <div style={{ textAlign: "right" }}>
                       <button
                         onClick={() => handleWithdraw(enr)}
                         disabled={actionLoading}
                         style={{
-                          padding: '8px 16px',
-                          border: 'none',
+                          padding: "8px 16px",
+                          border: "none",
                           borderRadius: 6,
-                          background: '#dc3545',
-                          color: 'white',
-                          cursor: actionLoading ? 'not-allowed' : 'pointer',
-                          fontWeight: 'bold',
+                          background: "#dc3545",
+                          color: "white",
+                          cursor: actionLoading ? "not-allowed" : "pointer",
+                          fontWeight: "bold",
                           opacity: actionLoading ? 0.8 : 1,
                         }}
                       >

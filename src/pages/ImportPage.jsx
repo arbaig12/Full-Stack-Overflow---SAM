@@ -88,7 +88,7 @@ export default function ImportPage() {
 
       {renderFileInput('Import Users', 'users', 'import/users', '.yaml,.yml')}
       {renderFileInput('Import Course Catalog', 'catalog', 'import/catalog', '.yaml,.yml')}
-      {renderFileInput('Import Class Schedule', 'schedule', 'import/schedule', '.pdf')}
+      {renderFileInput('Import Class Schedule', 'schedule', 'api/import/schedule', '.pdf')}
       {renderFileInput('Import Academic Calendar', 'calendar', 'import/calendar', '.yaml,.yml')}
       {renderFileInput('Import Degree Requirements', 'degreeReq', 'api/import/degree-requirements', '.yaml,.yml')}
       {renderFileInput('Import Rooms', 'rooms', 'api/import/rooms', '.yaml,.yml')}
