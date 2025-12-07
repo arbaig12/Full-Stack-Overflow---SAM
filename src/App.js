@@ -17,6 +17,7 @@ import Plan from './pages/Plan.jsx';
 import ClassManage from './pages/ClassManage.jsx';
 import WaiversHolds from './pages/WaiversHolds.jsx';
 import AuditLog from './pages/AuditLog.jsx';
+import AcademicCalendar from './pages/AcademicCalendar.jsx';
 
 
 export default function App() {
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="classManage" element={<ClassManage />} />
           <Route path="waiversHolds" element={<WaiversHolds />} />
           <Route path="auditLog" element={<AuditLog />} />
+          <Route path="academicCalendar" element={<AcademicCalendar />} />
         </Route>
       </Route>
 

@@ -239,7 +239,8 @@ router.get('/academic-calendar/:term_id', async (req, res) => {
 
     const term = termResult.rows[0];
 
-    // Get academic calendar
+    // Get academic calendar - use case-insensitive matching for semester
+    // Also try both string and numeric year matching
     const calendarSql = `
       SELECT
         id,
@@ -254,13 +255,33 @@ router.get('/academic-calendar/:term_id', async (req, res) => {
         advanced_registration_begins,
         semester_end
       FROM academic_calendar
-      WHERE (term->>'semester') = $1 AND (term->>'year') = $2
+      WHERE LOWER(TRIM(term->>'semester')) = LOWER(TRIM($1)) 
+        AND (term->>'year')::text = $2
     `;
+
+    // Debug logging
+    console.log(`[academic-calendar] Looking up calendar for term_id=${term_id}, semester='${term.semester}', year=${term.year}`);
 
     const calendarResult = await req.db.query(calendarSql, [
       term.semester,
       String(term.year)
     ]);
+
+    if (calendarResult.rows.length === 0) {
+      // Try alternative matching - sometimes the year might be stored differently
+      const altResult = await req.db.query(`
+        SELECT id, term, term->>'semester' as stored_semester, term->>'year' as stored_year
+        FROM academic_calendar
+      `);
+      console.log(`[academic-calendar] No match found. Available calendars:`, 
+        altResult.rows.map(r => `${r.stored_semester} ${r.stored_year}`).join(', '));
+    } else {
+      console.log(`[academic-calendar] Found ${calendarResult.rows.length} calendar(s). Calendar data:`, {
+        id: calendarResult.rows[0].id,
+        hasDates: !!calendarResult.rows[0].major_and_minor_changes_end,
+        semesterEnd: calendarResult.rows[0].semester_end
+      });
+    }
 
     if (calendarResult.rows.length === 0) {
       return res.json({
@@ -276,6 +297,21 @@ router.get('/academic-calendar/:term_id', async (req, res) => {
     }
 
     const calendar = calendarResult.rows[0];
+
+    // Debug: log the actual calendar data being returned
+    console.log(`[academic-calendar] Returning calendar for ${term.semester} ${term.year}:`, {
+      id: calendar.id,
+      semesterEnd: calendar.semester_end,
+      waitlist: calendar.waitlist,
+      majorAndMinorChangesBegin: calendar.major_and_minor_changes_begin
+    });
+
+    // Disable caching for this response to avoid stale data
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
 
     return res.json({
       ok: true,

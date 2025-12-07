@@ -1,0 +1,1312 @@
+academic_advisors:
+- SBU_ID: 100000001
+  first_name: AMS
+  last_name: Advisor
+  email: AMS.Advisor@stonybrook.edu
+  level: department
+  academic_unit: [AMS]
+- SBU_ID: 100000021
+  first_name: AMS
+  last_name: Advisor2
+  email: AMS.Advisor2@stonybrook.edu
+  level: department
+  academic_unit: [AMS]
+- SBU_ID: 100000002
+  first_name: CEAS
+  last_name: Advisor
+  email: CEAS.Advisor@stonybrook.edu
+  level: college
+  academic_unit: [CEAS]
+- SBU_ID: 100000003
+  first_name: CSE
+  last_name: Advisor
+  email: CSE.Advisor@stonybrook.edu
+  level: department
+  academic_unit: [CSE]
+- SBU_ID: 100000014
+  first_name: CSE
+  last_name: Advisor2
+  email: CSE.Advisor2@stonybrook.edu
+  level: department
+  academic_unit: [CSE]
+- SBU_ID: 100000013
+  first_name: SBU
+  last_name: Advisor
+  email: SBU.Advisor@stonybrook.edu
+  level: university
+  academic_unit: [SBU]
+instructors:
+- SBU_ID: 100000004
+  first_name: Scott
+  last_name: Stoller
+  email: scott.stoller@stonybrook.edu
+- SBU_ID: 100000005
+  first_name: Niranjan
+  last_name: Balasubramanian
+  email: Niranjan.Balasubramanian@stonybrook.edu
+- SBU_ID: 100000016
+  first_name: Robert
+  last_name: Alessi
+  email: Robert.Alessi@stonybrook.edu
+- SBU_ID: 100000017
+  first_name: Steven
+  last_name: Stern
+  email: Steven.Stern@stonybrook.edu
+- SBU_ID: 100000018
+  first_name: Wenhan
+  last_name: Gao
+  email: Wanhan.Gao@stonybrook.edu
+- SBU_ID: 100000019
+  first_name: Yi
+  last_name: Liu
+  email: Yi.Liu@stonybrook.edu
+students:
+- SBU_ID: 100000026
+  first_name: AMS_cse_pol
+  last_name: Two
+  email: AMScsepol.Two@stonybrook.edu
+  university_entry: {semester: Fall, year: 2022 }
+  direct_admit: AMS
+  AOI: null
+  college: CEAS
+  majors: [AMS]
+  degrees: [BS]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  minors: [CSE, POL]
+  minor_requirement_versions: [{semester: Fall, year: 2024}, {semester: Fall, year: 2025}]
+  planned_majors: []
+  planned_major_requirement_versions: []
+  planned_degrees: []
+  planned_minors: []
+  planned_minor_requirement_versions: []
+  graduation: null
+  transfer_courses: []
+  classes:
+    - {class_id: 94710, department: SBU, course_num: 101, section: S01, semester: Fall, year: 2022, credits: 1, GPNC: null, grade: S}
+    - {class_id: 94695, department: WRT, course_num: 102, section: 17, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 88762, department: AMS, course_num: 151, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 99905, department: POL, course_num: 101, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 90423, department: AMS, course_num: 103, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 55321, department: SBU, course_num: 102, section: S113, semester: Spring, year: 2023, credits: 1, GPNC: null, grade: A}
+    - {class_id: 99906, department: AMS, course_num: 161, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48059, department: CSE, course_num: 114, section: L04, semester: Spring, year: 2023, credits: 4, GPNC: null, grade: A}
+    - {class_id: 99907, department: POL, course_num: 102, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 46820, department: POL, course_num: 103, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89700, department: AMS, course_num: 210, section: 02, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 99908, department: AMS, course_num: 261, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 80631, department: POL, course_num: 201, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 96013, department: POL, course_num: 270, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89552, department: CSE, course_num: 214, section: R01, semester: Fall, year: 2023, credits: 4, GPNC: null, grade: A}
+    - {class_id: 49358, department: AMS, course_num: 301, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 49360, department: AMS, course_num: 310, section: 02, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48125, department: POL, course_num: 323, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48521, department: POL, course_num: 353, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 49278, department: CSE, course_num: 220, section: R01, semester: Spring, year: 2024, credits: 4, GPNC: null, grade: A}
+- SBU_ID: 100000036
+  first_name: AMS_cse_pol
+  last_name: Three
+  email: AMScsepol.Three@stonybrook.edu
+  university_entry: {semester: Fall, year: 2022 }
+  direct_admit: AMS
+  AOI: null
+  college: CEAS
+  majors: [AMS]
+  degrees: [BS]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  minors: [CSE, POL]
+  minor_requirement_versions: [{semester: Fall, year: 2024}, {semester: Fall, year: 2025}]
+  planned_majors: []
+  planned_major_requirement_versions: []
+  planned_degrees: []
+  planned_minors: []
+  planned_minor_requirement_versions: []
+  graduation: null
+  transfer_courses: []
+  classes:
+    - {class_id: 94710, department: SBU, course_num: 101, section: S01, semester: Fall, year: 2022, credits: 1, GPNC: null, grade: S}
+    - {class_id: 94695, department: WRT, course_num: 102, section: 17, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 88762, department: AMS, course_num: 151, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 99905, department: POL, course_num: 101, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 90423, department: AMS, course_num: 103, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 55321, department: SBU, course_num: 102, section: S113, semester: Spring, year: 2023, credits: 1, GPNC: null, grade: A}
+    - {class_id: 99906, department: AMS, course_num: 161, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48059, department: CSE, course_num: 114, section: L04, semester: Spring, year: 2023, credits: 4, GPNC: null, grade: A}
+    - {class_id: 99907, department: POL, course_num: 102, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 46820, department: POL, course_num: 103, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89700, department: AMS, course_num: 210, section: 02, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 99908, department: AMS, course_num: 261, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 80631, department: POL, course_num: 201, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 96013, department: POL, course_num: 270, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89552, department: CSE, course_num: 214, section: R01, semester: Fall, year: 2023, credits: 4, GPNC: null, grade: A}
+    - {class_id: 49358, department: AMS, course_num: 301, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 49360, department: AMS, course_num: 310, section: 02, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48125, department: POL, course_num: 323, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48521, department: POL, course_num: 353, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 49278, department: CSE, course_num: 220, section: R01, semester: Spring, year: 2024, credits: 4, GPNC: null, grade: A}
+    - {class_id: 91778, department: AMS, course_num: 303, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89834, department: AMS, course_num: 315, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 86377, department: ARH, course_num: 107, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 96609, department: EGL, course_num: 191, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 94397, department: CSE, course_num: 304, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 51973, department: AMS, course_num: 311, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 53869, department: AMS, course_num: 326, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 41507, department: CHE, course_num: 131, section: R01, semester: Spring, year: 2025, credits: 4, GPNC: null, grade: A}
+    - {class_id: 57105, department: CSE, course_num: 323, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 47733, department: EGL, course_num: 130, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+- SBU_ID: 100000006
+  first_name: AMS_cse_pol
+  last_name: Four
+  email: AMScsepol.Four@stonybrook.edu
+  university_entry: {semester: Fall, year: 2022 }
+  direct_admit: AMS
+  AOI: null
+  college: CEAS
+  majors: [AMS]
+  degrees: [BS]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  minors: [CSE, POL]
+  minor_requirement_versions: [{semester: Fall, year: 2024}, {semester: Fall, year: 2025}]
+  planned_majors: []
+  planned_major_requirement_versions: []
+  planned_degrees: []
+  planned_minors: []
+  planned_minor_requirement_versions: []
+  graduation: null
+  transfer_courses: []
+  classes:
+    - {class_id: 94710, department: SBU, course_num: 101, section: S01, semester: Fall, year: 2022, credits: 1, GPNC: null, grade: S}
+    - {class_id: 94695, department: WRT, course_num: 102, section: 17, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 88762, department: AMS, course_num: 151, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 99905, department: POL, course_num: 101, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 90423, department: AMS, course_num: 103, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 55321, department: SBU, course_num: 102, section: S113, semester: Spring, year: 2023, credits: 1, GPNC: null, grade: A}
+    - {class_id: 99906, department: AMS, course_num: 161, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48059, department: CSE, course_num: 114, section: L04, semester: Spring, year: 2023, credits: 4, GPNC: null, grade: C}
+    - {class_id: 99907, department: POL, course_num: 102, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 46820, department: POL, course_num: 103, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89700, department: AMS, course_num: 210, section: 02, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 99908, department: AMS, course_num: 261, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 80631, department: POL, course_num: 201, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 96013, department: POL, course_num: 270, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89552, department: CSE, course_num: 214, section: R01, semester: Fall, year: 2023, credits: 4, GPNC: null, grade: A}
+    - {class_id: 49358, department: AMS, course_num: 301, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 49360, department: AMS, course_num: 310, section: 02, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48125, department: POL, course_num: 323, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48521, department: POL, course_num: 353, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 49278, department: CSE, course_num: 220, section: R01, semester: Spring, year: 2024, credits: 4, GPNC: null, grade: A}
+    - {class_id: 91778, department: AMS, course_num: 303, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89834, department: AMS, course_num: 315, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 86377, department: ARH, course_num: 107, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 96609, department: EGL, course_num: 191, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 94397, department: CSE, course_num: 304, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 51973, department: AMS, course_num: 311, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 53869, department: AMS, course_num: 326, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 41507, department: CHE, course_num: 131, section: R01, semester: Spring, year: 2025, credits: 4, GPNC: null, grade: A}
+    - {class_id: 57105, department: CSE, course_num: 323, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 47733, department: EGL, course_num: 130, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89292, department: AMS, course_num: 316, section: 01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 90203, department: AMS, course_num: 317, section: 01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 85840, department: CHE, course_num: 133, section: L01, semester: Fall, year: 2025, credits: 1, GPNC: null, grade: null}
+    - {class_id: 95330, department: AMS, course_num: 300, section: S30, semester: Fall, year: 2025, credits: 1, GPNC: null, grade: null}
+    - {class_id: 95911, department: POL, course_num: 351, section: 01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 87932, department: CSE, course_num: 310, section: 01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+  course_plan:
+    - {department: AMS, course_num: 394, semester: Spring, year: 2026, credits: 3}
+    - {department: CSE, course_num: 327, semester: Spring, year: 2026, credits: 3}
+    - {department: POL, course_num: 371, semester: Spring, year: 2026, credits: 3}
+    - {department: POL, course_num: 350, semester: Spring, year: 2026, credits: 3}
+    - {department: AMS, course_num: 361, semester: Spring, year: 2026, credits: 3}
+- SBU_ID: 100000046
+  first_name: AMS_cse_pol
+  last_name: Conc
+  email: AMScsepol.Conc@stonybrook.edu
+  university_entry: {semester: Fall, year: 2022 }
+  direct_admit: AMS
+  AOI: null
+  college: CEAS
+  majors: [AMS]
+  degrees: [BS]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  minors: [CSE, POL]
+  minor_requirement_versions: [{semester: Fall, year: 2024}, {semester: Fall, year: 2025}]
+  planned_majors: []
+  planned_major_requirement_versions: []
+  planned_degrees: []
+  planned_minors: []
+  planned_minor_requirement_versions: []
+  graduation: null
+  transfer_courses: []
+  classes:
+    - {class_id: 94710, department: SBU, course_num: 101, section: S01, semester: Fall, year: 2022, credits: 1, GPNC: null, grade: S}
+    - {class_id: 94695, department: WRT, course_num: 102, section: 17, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 88762, department: AMS, course_num: 151, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 99905, department: POL, course_num: 101, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 90423, department: AMS, course_num: 103, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 55321, department: SBU, course_num: 102, section: S113, semester: Spring, year: 2023, credits: 1, GPNC: null, grade: A}
+    - {class_id: 99906, department: AMS, course_num: 161, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48059, department: CSE, course_num: 114, section: L04, semester: Spring, year: 2023, credits: 4, GPNC: null, grade: A}
+    - {class_id: 99907, department: POL, course_num: 102, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 46820, department: POL, course_num: 103, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89700, department: AMS, course_num: 210, section: 02, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 99908, department: AMS, course_num: 261, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 80631, department: POL, course_num: 201, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 96013, department: POL, course_num: 270, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89552, department: CSE, course_num: 214, section: R01, semester: Fall, year: 2023, credits: 4, GPNC: null, grade: A}
+    - {class_id: 49358, department: AMS, course_num: 301, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 49360, department: AMS, course_num: 310, section: 02, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 55660, department: POL, course_num: 309, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48521, department: POL, course_num: 353, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 49278, department: CSE, course_num: 220, section: R01, semester: Spring, year: 2024, credits: 4, GPNC: null, grade: A}
+    - {class_id: 91778, department: AMS, course_num: 303, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89834, department: AMS, course_num: 315, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 86377, department: ARH, course_num: 107, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 96609, department: EGL, course_num: 191, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 94397, department: CSE, course_num: 304, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 51973, department: AMS, course_num: 311, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 53869, department: AMS, course_num: 326, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 41507, department: CHE, course_num: 131, section: R01, semester: Spring, year: 2025, credits: 4, GPNC: null, grade: A}
+    - {class_id: 57105, department: CSE, course_num: 323, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 47733, department: EGL, course_num: 130, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89292, department: AMS, course_num: 316, section: 01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 90203, department: AMS, course_num: 317, section: 01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 85840, department: CHE, course_num: 133, section: L01, semester: Fall, year: 2025, credits: 1, GPNC: null, grade: null}
+    - {class_id: 95330, department: AMS, course_num: 300, section: S30, semester: Fall, year: 2025, credits: 1, GPNC: null, grade: null}
+    - {class_id: 87792, department: POL, course_num: 337, section: 01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 87932, department: CSE, course_num: 310, section: 01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 87260, department: POL, course_num: 333, section: 01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+  course_plan:
+    - {department: AMS, course_num: 394, semester: Spring, year: 2026, credits: 3}
+    - {department: CSE, course_num: 327, semester: Spring, year: 2026, credits: 3}
+    - {department: POL, course_num: 371, semester: Spring, year: 2026, credits: 3}
+    - {department: AMS, course_num: 361, semester: Spring, year: 2026, credits: 3}
+- SBU_ID: 116632620
+  first_name: BIO
+  last_name: Two
+  email: BIO.Two@stonybrook.edu
+  university_entry: {semester: Fall, year: 2022}
+  AOI: BIO
+  majors: [BIO]
+  degrees: [BA]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  minors: []
+  minor_requirement_versions: []
+  graduation: null
+  transfer_courses: []
+  classes:
+    - {class_id: 80532, department: WRT, course_num: 101, section: "01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 84975, department: CHE, course_num: 129, section: "R01", semester: Fall, year: 2022, credits: 4, GPNC: null, grade: B}
+    - {class_id: 81021, department: MAT, course_num: 125, section: "R01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: B}
+    - {class_id: 40180, department: WRT, course_num: 102, section: "01", semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 40929, department: CHE, course_num: 132, section: "R01", semester: Spring, year: 2023, credits: 4, GPNC: null, grade: B-}
+    - {class_id: 85857, department: BIO, course_num: 203, section: "01", semester: Fall, year: 2023, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 85033, department: BIO, course_num: 204, section: "L01", semester: Fall, year: 2023, credits: 2, GPNC: null, grade: A-}
+    - {class_id: 95772, department: ARH, course_num: 201, section: "01", semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 87151, department: PHY, course_num: 121, section: "L01", semester: Fall, year: 2023, credits: 4, GPNC: null, grade: B+}
+    - {class_id: 47113, department: BIO, course_num: 202, section: "01", semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+- SBU_ID: 116632630
+  first_name: BIO
+  last_name: Three
+  email: BIO.Three@stonybrook.edu
+  university_entry: {semester: Fall, year: 2022}
+  AOI: BIO
+  majors: [BIO]
+  degrees: [BA]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  minors: []
+  minor_requirement_versions: []
+  graduation: null
+  transfer_courses: []
+  classes:
+    - {class_id: 80532, department: WRT, course_num: 101, section: "01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 84975, department: CHE, course_num: 129, section: "R01", semester: Fall, year: 2022, credits: 4, GPNC: null, grade: B}
+    - {class_id: 81021, department: MAT, course_num: 125, section: "R01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: B}
+    - {class_id: 40180, department: WRT, course_num: 102, section: "01", semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 40929, department: CHE, course_num: 132, section: "R01", semester: Spring, year: 2023, credits: 4, GPNC: null, grade: B-}
+    - {class_id: 85857, department: BIO, course_num: 203, section: "01", semester: Fall, year: 2023, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 85033, department: BIO, course_num: 204, section: "L01", semester: Fall, year: 2023, credits: 2, GPNC: null, grade: A-}
+    - {class_id: 95772, department: ARH, course_num: 201, section: "01", semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 87151, department: PHY, course_num: 121, section: "L01", semester: Fall, year: 2023, credits: 4, GPNC: null, grade: B+}
+    - {class_id: 47474, department: BIO, course_num: 361, section: "01", semester: Spring, year: 2024, credits: 3, GPNC: null, grade: B}
+    - {class_id: 46689, department: PHY, course_num: 122, section: "L01", semester: Spring, year: 2024, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 41013, department: BIO, course_num: 354, section: "01", semester: Fall, year: 2024, credits: 3, GPNC: null, grade: null}
+    - {class_id: 47113, department: BIO, course_num: 202, section: "01", semester: Spring, year: 2025, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 41680, department: BIO, course_num: 358, section: "01", semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A-}
+- SBU_ID: 116632640
+  first_name: BIO
+  last_name: Four
+  email: BIO.Four@stonybrook.edu
+  university_entry: {semester: Fall, year: 2022}
+  AOI: BIO
+  majors: [BIO]
+  degrees: [BA]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  minors: []
+  minor_requirement_versions: []
+  graduation: {semester: Spring, year: 2027}
+  transfer_courses: []
+  classes:
+    - {class_id: 80532, department: WRT, course_num: 101, section: "01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 80566, department: SPN, course_num: 111, section: "01", semester: Fall, year: 2022, credits: 4, GPNC: null, grade: B+}
+    - {class_id: 94465, department: POL, course_num: 308, section: "01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 90873, department: CSE, course_num: 114, section: "L01", semester: Fall, year: 2022, credits: 4, GPNC: null, grade: B}
+    - {class_id: 84975, department: CHE, course_num: 129, section: "R01", semester: Fall, year: 2022, credits: 4, GPNC: null, grade: B}
+    - {class_id: 81021, department: MAT, course_num: 125, section: "R01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: B}
+    - {class_id: 81189, department: HIS, course_num: 103, section: "R01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 40180, department: WRT, course_num: 102, section: "01", semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 40265, department: SPN, course_num: 112, section: "01", semester: Spring, year: 2023, credits: 4, GPNC: null, grade: A-}
+    - {class_id: 40929, department: CHE, course_num: 132, section: "R01", semester: Spring, year: 2023, credits: 4, GPNC: null, grade: B-}
+    - {class_id: 95772, department: ARH, course_num: 201, section: "01", semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 80678, department: PHI, course_num: 108, section: "02", semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 85857, department: BIO, course_num: 203, section: "01", semester: Fall, year: 2023, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 85033, department: BIO, course_num: 204, section: "L01", semester: Fall, year: 2023, credits: 2, GPNC: null, grade: A-}
+    - {class_id: 87151, department: PHY, course_num: 121, section: "L01", semester: Fall, year: 2023, credits: 4, GPNC: null, grade: B+}
+    - {class_id: 46543, department: PHI, course_num: 300, section: "01", semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 47474, department: BIO, course_num: 361, section: "01", semester: Spring, year: 2024, credits: 3, GPNC: null, grade: B}
+    - {class_id: 46689, department: PHY, course_num: 122, section: "L01", semester: Spring, year: 2024, credits: 4, GPNC: null, grade: B}
+    - {class_id: 41014, department: BIO, course_num: 320, section: "01", semester: Fall, year: 2024, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 96087, department: POL, course_num: 310, section: "01", semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 87339, department: BIO, course_num: 459, section: "T01", semester: Fall, year: 2024, credits: 0, GPNC: null, grade: S}
+    - {class_id: 47113, department: BIO, course_num: 202, section: "01", semester: Spring, year: 2025, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 41680, department: BIO, course_num: 358, section: "01", semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 41005, department: WRT, course_num: 201, section: "01", semester: Fall, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 85332, department: BIO, course_num: 354, section: "01", semester: Fall, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 41015, department: BIO, course_num: 365, section: "01", semester: Spring, year: 2026, credits: 3, GPNC: null, grade: null}
+  course_plan:
+    - {department: BIO, course_num: 362, semester: Spring, year: 2026, credits: 3}
+    - {department: BIO, course_num: 201, semester: Spring, year: 2026, credits: 3}
+    - {department: CHE, course_num: 321, semester: Fall, year: 2026, credits: 3}
+    - {department: CHE, course_num: 327, semester: Fall, year: 2026, credits: 2}
+    - {department: BIO, course_num: 211, semester: Fall, year: 2026, credits: 4}
+    - {department: BIO, course_num: 310, semester: Fall, year: 2026, credits: 3}
+    - {department: BIO, course_num: 353, semester: Spring, year: 2027, credits: 3}
+- SBU_ID: 116632654
+  first_name: BIO
+  last_name: Calc
+  email: BIO.Calc@stonybrook.edu
+  university_entry: {semester: Fall, year: 2022}
+  direct_admit: null
+  AOI: BIO
+  college: null
+  majors: [BIO]
+  degrees: [BA]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  minors: []
+  minor_requirement_versions: []
+  planned_majors: []
+  planned_major_requirement_versions: []
+  planned_degrees: []
+  planned_minors: []
+  planned_minor_requirement_versions: []
+  graduation: {semester: Spring, year: 2027}
+  transfer_courses: []
+  classes:
+    - {class_id: 80532, department: WRT, course_num: 101, section: "01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 80566, department: SPN, course_num: 111, section: "01", semester: Fall, year: 2022, credits: 4, GPNC: null, grade: B+}
+    - {class_id: 94465, department: POL, course_num: 308, section: "01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 90873, department: CSE, course_num: 114, section: "L01", semester: Fall, year: 2022, credits: 4, GPNC: null, grade: B}
+    - {class_id: 84975, department: CHE, course_num: 129, section: "R01", semester: Fall, year: 2022, credits: 4, GPNC: null, grade: B}
+    - {class_id: 41018, department: MAT, course_num: 123, section: "01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: B}
+    - {class_id: 81189, department: HIS, course_num: 103, section: "R01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 40180, department: WRT, course_num: 102, section: "01", semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 40265, department: SPN, course_num: 112, section: "01", semester: Spring, year: 2023, credits: 4, GPNC: null, grade: A-}
+    - {class_id: 40929, department: CHE, course_num: 132, section: "R01", semester: Spring, year: 2023, credits: 4, GPNC: null, grade: B-}
+    - {class_id: 95772, department: ARH, course_num: 201, section: "01", semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 80678, department: PHI, course_num: 108, section: "02", semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 85857, department: BIO, course_num: 203, section: "01", semester: Fall, year: 2023, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 85033, department: BIO, course_num: 204, section: "L01", semester: Fall, year: 2023, credits: 2, GPNC: null, grade: A-}
+    - {class_id: 87151, department: PHY, course_num: 121, section: "L01", semester: Fall, year: 2023, credits: 4, GPNC: null, grade: B+}
+    - {class_id: 46543, department: PHI, course_num: 300, section: "01", semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 47474, department: BIO, course_num: 361, section: "01", semester: Spring, year: 2024, credits: 3, GPNC: null, grade: B}
+    - {class_id: 46689, department: PHY, course_num: 122, section: "L01", semester: Spring, year: 2024, credits: 4, GPNC: null, grade: B}
+    - {class_id: 41014, department: BIO, course_num: 320, section: "01", semester: Fall, year: 2024, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 96087, department: POL, course_num: 310, section: "01", semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 87339, department: BIO, course_num: 459, section: "T01", semester: Fall, year: 2024, credits: 0, GPNC: null, grade: S}
+    - {class_id: 47113, department: BIO, course_num: 202, section: "01", semester: Spring, year: 2025, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 41680, department: BIO, course_num: 358, section: "01", semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 41005, department: WRT, course_num: 201, section: "01", semester: Fall, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 85332, department: BIO, course_num: 354, section: "01", semester: Fall, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 41015, department: BIO, course_num: 365, section: "01", semester: Spring, year: 2026, credits: 3, GPNC: null, grade: null}
+  course_plan:
+    - {department: BIO, course_num: 362, semester: Spring, year: 2026, credits: 3}
+    - {department: BIO, course_num: 201, semester: Spring, year: 2026, credits: 3}
+    - {department: CHE, course_num: 321, semester: Fall, year: 2026, credits: 3}
+    - {department: CHE, course_num: 327, semester: Fall, year: 2026, credits: 2}
+    - {department: BIO, course_num: 211, semester: Fall, year: 2026, credits: 4}
+    - {department: BIO, course_num: 310, semester: Fall, year: 2026, credits: 3}
+    - {department: BIO, course_num: 353, semester: Spring, year: 2027, credits: 3}
+- SBU_ID: 100000027
+  first_name: CSE_AMS
+  last_name: Two
+  email: CSEAMS.Two@stonybrook.edu
+  university_entry: {semester: Fall, year: 2024 }
+  direct_admit: CSE
+  AOI: null
+  college: CEAS
+  majors: [CSE, AMS]
+  degrees: [BS, BS]
+  major_requirement_versions: [{semester: Fall, year: 2024}, {semester: Fall, year: 2025}]
+  minors: []
+  minor_requirement_versions: []
+  planned_majors: []
+  planned_major_requirement_versions: []
+  planned_degrees: []
+  planned_minors: []
+  planned_minor_requirement_versions: []
+  graduation: null
+  transfer_courses:
+    - {class: AP CHE 131, university: AP, credits: 4, department: CHE, course_num: 131, grade: T}
+    - {class: AP Waiver CHE 133, university: AP, credits: 0, department: CHE, course_num: 133, grade: T}
+    - {class: Math Placement Exam PRELV9, university: SBU, credits: 0, department: AMS, course_num: 161, grade: T}
+    - {class: AP English Language Comp, university: AP, credits: 3, department: WRT, course_num: 101, grade: T}
+    - {class: AP Computer Science A, university: AP, credits: 3, department: CSE, course_num: 114, grade: T}
+  classes:
+    - {class_id: 99901, department: AMS, course_num: 261, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 88761, department: AMS, course_num: 210, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 94709, department: SBU, course_num: 101, section: S01, semester: Fall, year: 2022, credits: 1, GPNC: null, grade: S}
+    - {class_id: 88753, department: AMS, course_num: 310, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 90157, department: CSE, course_num: 214, section: R05, semester: Fall, year: 2022, credits: 4, GPNC: null, grade: A}
+    - {class_id: 96000, department: CSE, course_num: 215, section: R05, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48142, department: AMS, course_num: 301, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 55308, department: SBU, course_num: 102, section: S01, semester: Spring, year: 2023, credits: 1, GPNC: null, grade: A}
+    - {class_id: 99902, department: AMS, course_num: 475, section: T02, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 50383, department: CSE, course_num: 216, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 40180, department: WRT, course_num: 102, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 92104, department: AMS, course_num: 325, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89557, department: CSE, course_num: 220, section: R01, semester: Fall, year: 2023, credits: 4, GPNC: null, grade: A}
+    - {class_id: 89561, department: CSE, course_num: 303, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 91775, department: CSE, course_num: 316, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 99903, department: CSE, course_num: 475, section: T01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 50520, department: CSE, course_num: 300, section: 02, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 50870, department: CSE, course_num: 312, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 50731, department: CSE, course_num: 320, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 51284, department: AMS, course_num: 103, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 99904, department: CSE, course_num: 475, section: T02, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 56410, department: POL, course_num: 101, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+- SBU_ID: 100000037
+  first_name: CSE_AMS
+  last_name: Three
+  email: CSEAMS.Three@stonybrook.edu
+  university_entry: {semester: Fall, year: 2024 }
+  direct_admit: CSE
+  AOI: null
+  college: CEAS
+  majors: [CSE, AMS]
+  degrees: [BS, BS]
+  major_requirement_versions: [{semester: Fall, year: 2024}, {semester: Fall, year: 2025}]
+  minors: []
+  minor_requirement_versions: []
+  planned_majors: []
+  planned_major_requirement_versions: []
+  planned_degrees: []
+  planned_minors: []
+  planned_minor_requirement_versions: []
+  graduation: null
+  transfer_courses:
+    - {class: AP CHE 131, university: AP, credits: 4, department: CHE, course_num: 131, grade: T}
+    - {class: AP Waiver CHE 133, university: AP, credits: 0, department: CHE, course_num: 133, grade: T}
+    - {class: Math Proctored Plcmnt Level 9, university: SBU, credits: 0, department: AMS, course_num: 161, grade: T}
+    - {class: AP English Language Comp, university: AP, credits: 3, department: WRT, course_num: 101, grade: T}
+    - {class: AP Computer Science A, university: AP, credits: 3, department: CSE, course_num: 114, grade: T}
+  classes:
+    - {class_id: 99901, department: AMS, course_num: 261, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 88761, department: AMS, course_num: 210, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 94709, department: SBU, course_num: 101, section: S01, semester: Fall, year: 2022, credits: 1, GPNC: null, grade: S}
+    - {class_id: 88753, department: AMS, course_num: 310, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 90157, department: CSE, course_num: 214, section: R05, semester: Fall, year: 2022, credits: 4, GPNC: null, grade: A}
+    - {class_id: 96000, department: CSE, course_num: 215, section: R05, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48142, department: AMS, course_num: 301, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 55308, department: SBU, course_num: 102, section: S01, semester: Spring, year: 2023, credits: 1, GPNC: null, grade: A}
+    - {class_id: 99902, department: AMS, course_num: 475, section: T02, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 50383, department: CSE, course_num: 216, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 40180, department: WRT, course_num: 102, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 92104, department: AMS, course_num: 325, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89557, department: CSE, course_num: 220, section: R01, semester: Fall, year: 2023, credits: 4, GPNC: null, grade: A}
+    - {class_id: 89561, department: CSE, course_num: 303, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 91775, department: CSE, course_num: 316, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 99903, department: CSE, course_num: 475, section: T01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 50520, department: CSE, course_num: 300, section: 02, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 50870, department: CSE, course_num: 312, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 50731, department: CSE, course_num: 320, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 51284, department: AMS, course_num: 103, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 99904, department: CSE, course_num: 475, section: T02, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 56410, department: POL, course_num: 101, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89835, department: AMS, course_num: 311, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 92029, department: CSE, course_num: 360, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89709, department: CSE, course_num: 373, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 86972, department: PHY, course_num: 131, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 51975, department: AMS, course_num: 315, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 53869, department: AMS, course_num: 332, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 54072, department: AMS, course_num: 361, section: 02, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 54281, department: CSE, course_num: 361, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 41514, department: CHE, course_num: 132, section: R01, semester: Spring, year: 2025, credits: 4, GPNC: null, grade: F}
+- SBU_ID: 100000007
+  first_name: CSE_AMS
+  last_name: Four
+  email: CSEAMS.Four@stonybrook.edu
+  university_entry: {semester: Fall, year: 2024 }
+  direct_admit: CSE
+  AOI: null
+  college: CEAS
+  majors: [CSE, AMS]
+  degrees: [BS, BS]
+  major_requirement_versions: [{semester: Fall, year: 2024}, {semester: Fall, year: 2025}]
+  minors: []
+  minor_requirement_versions: []
+  planned_majors: []
+  planned_major_requirement_versions: []
+  planned_degrees: []
+  planned_minors: []
+  planned_minor_requirement_versions: []
+  graduation: null
+  transfer_courses:
+    - {class: AP CHE 131, university: AP, credits: 4, department: CHE, course_num: 131, grade: T}
+    - {class: AP Waiver CHE 133, university: AP, credits: 0, department: CHE, course_num: 133, grade: T}
+    - {class: Math Placement Exam PRELV9, university: SBU, credits: 0, department: AMS, course_num: 161, grade: T}
+    - {class: AP English Language Comp, university: AP, credits: 3, department: WRT, course_num: 101, grade: T}
+    - {class: AP Computer Science A, university: AP, credits: 3, department: CSE, course_num: 114, grade: T}
+  classes:
+    - {class_id: 99901, department: AMS, course_num: 261, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 88761, department: AMS, course_num: 210, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 94709, department: SBU, course_num: 101, section: S01, semester: Fall, year: 2022, credits: 1, GPNC: null, grade: S}
+    - {class_id: 88753, department: AMS, course_num: 310, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 90157, department: CSE, course_num: 214, section: R05, semester: Fall, year: 2022, credits: 4, GPNC: null, grade: A}
+    - {class_id: 96000, department: CSE, course_num: 215, section: R05, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48142, department: AMS, course_num: 301, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 55308, department: SBU, course_num: 102, section: S01, semester: Spring, year: 2023, credits: 1, GPNC: null, grade: A}
+    - {class_id: 99902, department: AMS, course_num: 475, section: T02, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 50383, department: CSE, course_num: 216, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 40180, department: WRT, course_num: 102, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 92104, department: AMS, course_num: 325, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89557, department: CSE, course_num: 220, section: R01, semester: Fall, year: 2023, credits: 4, GPNC: null, grade: A}
+    - {class_id: 89561, department: CSE, course_num: 303, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 91775, department: CSE, course_num: 316, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 99903, department: CSE, course_num: 475, section: T01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 50520, department: CSE, course_num: 300, section: 02, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 50870, department: CSE, course_num: 312, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 50731, department: CSE, course_num: 320, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 51284, department: AMS, course_num: 103, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 99904, department: CSE, course_num: 475, section: T02, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 56410, department: POL, course_num: 101, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89835, department: AMS, course_num: 311, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 92029, department: CSE, course_num: 360, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89709, department: CSE, course_num: 373, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 86972, department: PHY, course_num: 131, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 51975, department: AMS, course_num: 315, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 53869, department: AMS, course_num: 332, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 54072, department: AMS, course_num: 361, section: 02, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 54281, department: CSE, course_num: 361, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 41514, department: CHE, course_num: 132, section: R01, semester: Spring, year: 2025, credits: 4, GPNC: null, grade: D}
+    - {class_id: 87932, department: CSE, course_num: 310, section: 01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 81831, department: CHE, course_num: 132, section: R01, semester: Fall, year: 2025, credits: 4, GPNC: null, grade: null}
+    - {class_id: 90202, department: AMS, course_num: 380, section: 01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 89908, department: CSE, course_num: 416, section: 02, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+  course_plan:
+    - {department: CSE, course_num: 354, semester: Spring, year: 2026, credits: 3}
+    - {department: POL, course_num: 102, semester: Spring, year: 2026, credits: 3}
+    - {department: POL, course_num: 310, semester: Spring, year: 2026, credits: 3}
+    - {department: CSE, course_num: 363, semester: Spring, year: 2026, credits: 3}
+    - {department: EGL, course_num: 191, semester: Spring, year: 2026, credits: 3}
+- SBU_ID: 100000047
+  first_name: CSE_AMS
+  last_name: Transfer
+  email: CSEAMS.Transfer@stonybrook.edu
+  university_entry: {semester: Fall, year: 2024 }
+  direct_admit: CSE
+  AOI: null
+  college: CEAS
+  majors: [CSE, AMS]
+  degrees: [BS, BS]
+  major_requirement_versions: [{semester: Fall, year: 2024}, {semester: Fall, year: 2025}]
+  minors: []
+  minor_requirement_versions: []
+  planned_majors: []
+  planned_major_requirement_versions: []
+  planned_degrees: []
+  planned_minors: []
+  planned_minor_requirement_versions: []
+  graduation: null
+  transfer_courses:
+    - {class: AP CHE 131, university: AP, credits: 4, department: CHE, course_num: 131, grade: T}
+    - {class: AP Waiver CHE 133, university: AP, credits: 0, department: CHE, course_num: 133, grade: T}
+    - {class: Math Proctored Plcmnt Level 9, university: SBU, credits: 0, department: AMS, course_num: 161, grade: T}
+    - {class: AP English Language Comp, university: AP, credits: 3, department: WRT, course_num: 101, grade: T}
+    - {class: AP Computer Science A, university: AP, credits: 3, department: CSE, course_num: 114, grade: T}
+    - {class: CSE 303 Equivalent, university: SCCC, credits: 3, department: CSE, course_num: 303, grade: T}
+    - {class: CSE 310 Equivalent, university: SCCC, credits: 3, department: CSE, course_num: 310, grade: T}
+    - {class: CSE 316 Equivalent, university: SCCC, credits: 3, department: CSE, course_num: 316, grade: T}
+    - {class: CSE 320 Equivalent, university: SCCC, credits: 3, department: CSE, course_num: 320, grade: T}
+    - {class: CSE 373 Equivalent, university: SCCC, credits: 3, department: CSE, course_num: 373, grade: T}
+    - {class: CSE 416 Equivalent, university: SCCC, credits: 3, department: CSE, course_num: 416, grade: T}
+    - {class: CSE 220 Equivalent, university: SCCC, credits: 4, department: CSE, course_num: 220, grade: T}
+    - {class: CSE 214 Equivalent, university: SCCC, credits: 4, department: CSE, course_num: 214, grade: T}
+    - {class: CSE 215 Equivalent, university: SCCC, credits: 3, department: CSE, course_num: 215, grade: T}
+    - {class: CSE 216 Equivalent, university: SCCC, credits: 3, department: CSE, course_num: 216, grade: T}
+  classes:
+    - {class_id: 99901, department: AMS, course_num: 261, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 88761, department: AMS, course_num: 210, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 94709, department: SBU, course_num: 101, section: S01, semester: Fall, year: 2022, credits: 1, GPNC: null, grade: S}
+    - {class_id: 88753, department: AMS, course_num: 310, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48142, department: AMS, course_num: 301, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 55308, department: SBU, course_num: 102, section: S01, semester: Spring, year: 2023, credits: 1, GPNC: null, grade: A}
+    - {class_id: 99902, department: AMS, course_num: 475, section: T02, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 40180, department: WRT, course_num: 102, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 92104, department: AMS, course_num: 325, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 99903, department: CSE, course_num: 475, section: T01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 50520, department: CSE, course_num: 300, section: 02, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 50870, department: CSE, course_num: 312, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 51284, department: AMS, course_num: 103, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 99904, department: CSE, course_num: 475, section: T02, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 56410, department: POL, course_num: 101, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 89835, department: AMS, course_num: 311, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 92029, department: CSE, course_num: 360, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 86972, department: PHY, course_num: 131, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 51975, department: AMS, course_num: 315, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 53869, department: AMS, course_num: 332, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 54072, department: AMS, course_num: 361, section: 02, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 54281, department: CSE, course_num: 361, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 41514, department: CHE, course_num: 132, section: R01, semester: Spring, year: 2025, credits: 4, GPNC: null, grade: D}
+    - {class_id: 81831, department: CHE, course_num: 132, section: R01, semester: Fall, year: 2025, credits: 4, GPNC: null, grade: null}
+    - {class_id: 89367, department: AMS, course_num: 476, section: T01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+  course_plan:
+    - {department: CSE, course_num: 354, semester: Spring, year: 2026, credits: 3}
+    - {department: POL, course_num: 102, semester: Spring, year: 2026, credits: 3}
+    - {department: POL, course_num: 310, semester: Spring, year: 2026, credits: 3}
+    - {department: CSE, course_num: 363, semester: Spring, year: 2026, credits: 3}
+    - {department: EGL, course_num: 191, semester: Spring, year: 2026, credits: 3}
+- SBU_ID: 100632629
+  first_name: ECO_ams
+  last_name: Zero
+  email: ECOams.Zero@stonybrook.edu
+  university_entry: {semester: Fall, year: 2025}
+  AOI: ECO
+  majors: [ECO]
+  degrees: [BA]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  minors: [AMS]
+  minor_requirement_versions: [{semester: Fall, year: 2025}]
+  graduation: null
+  transfer_courses: []
+  classes: []
+  course_plan: []
+- SBU_ID: 100100026
+  first_name: ECO_AMS
+  last_name: Two
+  email: ECOams.Two@stonybrook.edu
+  university_entry: {semester: Fall, year: 2022}
+  direct_admit: null
+  AOI: ECO
+  college: CAS
+  majors: [ECO]
+  degrees: [BA]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  minors: [AMS]
+  minor_requirement_versions: [{semester: Fall, year: 2025}]
+  planned_majors: []
+  planned_major_requirement_versions: []
+  planned_degrees: []
+  planned_minors: []
+  planned_minor_requirement_versions : []
+  graduation: null
+  transfer_courses:
+   - {class: Math Proctored Plcmnt Level 9, university: SBU, credits: 0, department: MAT, course_num: LVL9, grade: 9}
+   - {class: AP English Language Comp, university: AP, credits: 3, department: WRT, course_num: 101, grade: T}
+  classes:
+   - {class_id: 94709, department: SBU, course_num: 101, section: S02, semester: Fall, year: 2022, credits: 1, GPNC: null, grade: S}
+   - {class_id: 81046, department: MAT, course_num: 203, section: R01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: B+}
+   - {class_id: 81899, department: ECO, course_num: 108, section: R01, semester: Fall, year: 2022, credits: 4, GPNC: null, grade: A}
+   - {class_id: 88762, department: AMS, course_num: 151, section: 02, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+   - {class_id: 93486, department: CSE, course_num: 101, section: L07, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+   - {class_id: 52909, department: AMS, course_num: 161, section: 02, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A-}
+   - {class_id: 47854, department: ARH, course_num: 201, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+   - {class_id: 40189, department: WRT, course_num: 102, section: 10, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+   - {class_id: 48135, department: AMS, course_num: 210, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+   - {class_id: 45683, department: CHI, course_num: 120, section: R01, semester: Spring, year: 2023, credits: 4, GPNC: null, grade: A}
+   - {class_id: 81019, department: ECO, course_num: 303, section: R01, semester: Fall, year: 2023, credits: 4, GPNC: null, grade: A}
+   - {class_id: 87020, department: ECO, course_num: 320, section: R03, semester: Fall, year: 2023, credits: 4, GPNC: null, grade: A-}
+   - {class_id: 96819, department: EGL, course_num: 217, section: 30, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+   - {class_id: 96844, department: ECO, course_num: 323, section: R01, semester: Fall, year: 2023, credits: 4, GPNC: null, grade: A}
+   - {class_id: 40693, department: ECO, course_num: 305, section: R01, semester: Spring, year: 2024, credits: 4, GPNC: null, grade: A}
+   - {class_id: 40698, department: ECO, course_num: 321, section: R01, semester: Spring, year: 2024, credits: 4, GPNC: null, grade: A}
+   - {class_id: 48593, department: ECO, course_num: 337, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+   - {class_id: 49359, department: AMS, course_num: 310, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+- SBU_ID: 100100036
+  first_name: ECO_AMS
+  last_name: Three
+  email: ECO_AMS.Three@stonybrook.edu
+  university_entry: {semester: Fall, year: 2022}
+  direct_admit: null
+  AOI: ECO
+  college: CAS
+  majors: [ECO]
+  degrees: [BA]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  minors: [AMS]
+  minor_requirement_versions: [{semester: Fall, year: 2025}]
+  planned_majors: []
+  planned_major_requirement_versions: []
+  planned_degrees: []
+  planned_minors: []
+  planned_minor_requirement_versions : []
+  graduation: null
+  transfer_courses:
+   - {class: Math Proctored Plcmnt Level 9, university: SBU, credits: 0, department: MAT, course_num: LVL9, grade: 9}
+   - {class: AP English Language Comp, university: AP, credits: 3, department: WRT, course_num: 101, grade: T}
+  classes:
+   - {class_id: 94709, department: SBU, course_num: 101, section: S02, semester: Fall, year: 2022, credits: 1, GPNC: null, grade: S}
+   - {class_id: 81046, department: MAT, course_num: 203, section: R01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: B+}
+   - {class_id: 81899, department: ECO, course_num: 108, section: R01, semester: Fall, year: 2022, credits: 4, GPNC: null, grade: A}
+   - {class_id: 88762, department: AMS, course_num: 151, section: 02, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+   - {class_id: 93486, department: CSE, course_num: 101, section: L07, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+   - {class_id: 52909, department: AMS, course_num: 161, section: 02, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A-}
+   - {class_id: 47854, department: ARH, course_num: 201, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+   - {class_id: 40189, department: WRT, course_num: 102, section: 10, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+   - {class_id: 48135, department: AMS, course_num: 210, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+   - {class_id: 45683, department: CHI, course_num: 120, section: R01, semester: Spring, year: 2023, credits: 4, GPNC: null, grade: A}
+   - {class_id: 81019, department: ECO, course_num: 303, section: R01, semester: Fall, year: 2023, credits: 4, GPNC: null, grade: A}
+   - {class_id: 87020, department: ECO, course_num: 320, section: R03, semester: Fall, year: 2023, credits: 4, GPNC: null, grade: A-}
+   - {class_id: 96819, department: EGL, course_num: 217, section: 30, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+   - {class_id: 96844, department: ECO, course_num: 323, section: R01, semester: Fall, year: 2023, credits: 4, GPNC: null, grade: A}
+   - {class_id: 40693, department: ECO, course_num: 305, section: R01, semester: Spring, year: 2024, credits: 4, GPNC: null, grade: A}
+   - {class_id: 40698, department: ECO, course_num: 321, section: R01, semester: Spring, year: 2024, credits: 4, GPNC: null, grade: A}
+   - {class_id: 48593, department: ECO, course_num: 337, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+   - {class_id: 49359, department: AMS, course_num: 310, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+   - {class_id: 94752, department: ECO, course_num: 373, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+   - {class_id: 88122, department: ECO, course_num: 355, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+   - {class_id: 96951, department: ECO, course_num: 383, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+   - {class_id: 89047, department: ECO, course_num: 327, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A-}
+   - {class_id: 94319, department: WRT, course_num: 201, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+   - {class_id: 45878, department: ECO, course_num: 487, section: T03, semester: Spring, year: 2025, credits: 6, GPNC: null, grade: A}
+   - {class_id: 47961, department: ECO, course_num: 459, section: T03, semester: Spring, year: 2025, credits: 0, GPNC: null, grade: S}
+   - {class_id: 48359, department: WRT, course_num: 302, section: 03, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: S}
+   - {class_id: 48819, department: ECO, course_num: 360, section: 01, semester: Spring, year: 2025, credits: 6, GPNC: null, grade: A}
+- SBU_ID: 100100006
+  first_name: ECO_ams
+  last_name: Four
+  email: ECOams.Four@stonybrook.edu
+  university_entry: {semester: Fall, year: 2022}
+  direct_admit: null
+  AOI: ECO
+  college: CAS
+  majors: [ECO]
+  degrees: [BA]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  minors: [AMS]
+  minor_requirement_versions: [{semester: Fall, year: 2025}]
+  planned_majors: []
+  planned_major_requirement_versions: []
+  planned_degrees: []
+  planned_minors: []
+  planned_minor_requirement_versions : []
+  graduation: null
+  transfer_courses:
+   - {class: Math Proctored Plcmnt Level 9, university: SBU, credits: 0, department: MAT, course_num: LVL9, grade: 9}
+   - {class: AP English Language Comp, university: AP, credits: 3, department: WRT, course_num: 101, grade: T}
+  classes:
+   - {class_id: 94709, department: SBU, course_num: 101, section: S02, semester: Fall, year: 2022, credits: 1, GPNC: null, grade: S}
+   - {class_id: 81046, department: MAT, course_num: 203, section: R01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: B+}
+   - {class_id: 81899, department: ECO, course_num: 108, section: R01, semester: Fall, year: 2022, credits: 4, GPNC: null, grade: A}
+   - {class_id: 88762, department: AMS, course_num: 151, section: 02, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+   - {class_id: 93486, department: CSE, course_num: 101, section: L07, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+   - {class_id: 52909, department: AMS, course_num: 161, section: 02, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A-}
+   - {class_id: 47854, department: ARH, course_num: 201, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+   - {class_id: 40189, department: WRT, course_num: 102, section: 10, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+   - {class_id: 48135, department: AMS, course_num: 210, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+   - {class_id: 45683, department: CHI, course_num: 120, section: R01, semester: Spring, year: 2023, credits: 4, GPNC: null, grade: A}
+   - {class_id: 81019, department: ECO, course_num: 303, section: R01, semester: Fall, year: 2023, credits: 4, GPNC: null, grade: A}
+   - {class_id: 87020, department: ECO, course_num: 320, section: R03, semester: Fall, year: 2023, credits: 4, GPNC: null, grade: A-}
+   - {class_id: 96819, department: EGL, course_num: 217, section: 30, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+   - {class_id: 96844, department: ECO, course_num: 323, section: R01, semester: Fall, year: 2023, credits: 4, GPNC: null, grade: A}
+   - {class_id: 40693, department: ECO, course_num: 305, section: R01, semester: Spring, year: 2024, credits: 4, GPNC: null, grade: A}
+   - {class_id: 40698, department: ECO, course_num: 321, section: R01, semester: Spring, year: 2024, credits: 4, GPNC: null, grade: A}
+   - {class_id: 48593, department: ECO, course_num: 337, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+   - {class_id: 49359, department: AMS, course_num: 310, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+   - {class_id: 94752, department: ECO, course_num: 373, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+   - {class_id: 88122, department: ECO, course_num: 355, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+   - {class_id: 96951, department: ECO, course_num: 383, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+   - {class_id: 89047, department: ECO, course_num: 327, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A-}
+   - {class_id: 94319, department: WRT, course_num: 201, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+   - {class_id: 45878, department: ECO, course_num: 487, section: T03, semester: Spring, year: 2025, credits: 6, GPNC: null, grade: A}
+   - {class_id: 47961, department: ECO, course_num: 459, section: T03, semester: Spring, year: 2025, credits: 0, GPNC: null, grade: S}
+   - {class_id: 48359, department: WRT, course_num: 302, section: 03, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: S}
+   - {class_id: 48819, department: ECO, course_num: 360, section: 01, semester: Spring, year: 2025, credits: 6, GPNC: null, grade: A}
+   - {class_id: 95064, department: POL, course_num: 375, section: S01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+   - {class_id: 86106, department: ECO, course_num: 475, section: T12, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+   - {class_id: 86632, department: ECO, course_num: 487, section: T03, semester: Fall, year: 2025, credits: 6, GPNC: null, grade: null}
+   - {class_id: 89827, department: AMS, course_num: 361, section: R05, semester: Fall, year: 2025, credits: 4, GPNC: null, grade: null}
+   - {class_id: 45015, department: ECO, course_num: 476, section: T12, semester: Spring, year: 2026, credits: 3, GPNC: null, grade: null}
+  course_plan:
+   - {department: AMS, course_num: 380, semester: Spring, year: 2026, credits: 3}
+   - {department: AMS, course_num: 315, semester: Spring, year: 2026, credits: 3}
+   - {department: AMS, course_num: 351, semester: Spring, year: 2026, credits: 3}
+- SBU_ID: 100340006
+  first_name: ECO_ams
+  last_name: Writing
+  email: ECOams.Writing@stonybrook.edu
+  university_entry: {semester: Fall, year: 2022}
+  direct_admit: null
+  AOI: ECO
+  college: CAS
+  majors: [ECO]
+  degrees: [BA]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  minors: [AMS]
+  minor_requirement_versions: [{semester: Fall, year: 2025}]
+  planned_majors: []
+  planned_major_requirement_versions: []
+  planned_degrees: []
+  planned_minors: []
+  planned_minor_requirement_versions : []
+  graduation: null
+  transfer_courses:
+   - {class: Math Proctored Plcmnt Level 9, university: SBU, credits: 0, department: MAT, course_num: LVL9, grade: 9}
+   - {class: AP English Language Comp, university: AP, credits: 3, department: WRT, course_num: 101, grade: T}
+   - {class: AP Chemistry, university: AP, credits: 4, department: CHE, course_num: 131, grade: T}
+   - {class: AP Statistics, university: AP, credits: 3, department: AMS, course_num: 102, grade: T}
+   - {class: AP Precalculus, university: AP, credits: 3, department: MAT, course_num: 103, grade: T}
+   - {class: AP Physics Electricity and Magnetism, university: AP, credits: 3, department: PHY, course_num: 127, grade: T}
+  classes:
+   - {class_id: 94709, department: SBU, course_num: 101, section: S02, semester: Fall, year: 2022, credits: 1, GPNC: null, grade: S}
+   - {class_id: 81046, department: MAT, course_num: 203, section: R01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: B+}
+   - {class_id: 81899, department: ECO, course_num: 108, section: R01, semester: Fall, year: 2022, credits: 4, GPNC: null, grade: A}
+   - {class_id: 88762, department: AMS, course_num: 151, section: 02, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+   - {class_id: 93486, department: CSE, course_num: 101, section: L07, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+   - {class_id: 52909, department: AMS, course_num: 161, section: 02, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A-}
+   - {class_id: 47854, department: ARH, course_num: 201, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+   - {class_id: 40189, department: WRT, course_num: 102, section: 10, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+   - {class_id: 48135, department: AMS, course_num: 210, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+   - {class_id: 45683, department: CHI, course_num: 120, section: R01, semester: Spring, year: 2023, credits: 4, GPNC: null, grade: A}
+   - {class_id: 81019, department: ECO, course_num: 303, section: R01, semester: Fall, year: 2023, credits: 4, GPNC: null, grade: A}
+   - {class_id: 87020, department: ECO, course_num: 320, section: R03, semester: Fall, year: 2023, credits: 4, GPNC: null, grade: A-}
+   - {class_id: 96819, department: EGL, course_num: 217, section: 30, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+   - {class_id: 96844, department: ECO, course_num: 323, section: R01, semester: Fall, year: 2023, credits: 4, GPNC: null, grade: A}
+   - {class_id: 40693, department: ECO, course_num: 305, section: R01, semester: Spring, year: 2024, credits: 4, GPNC: null, grade: A}
+   - {class_id: 40698, department: ECO, course_num: 321, section: R01, semester: Spring, year: 2024, credits: 4, GPNC: null, grade: A}
+   - {class_id: 48593, department: ECO, course_num: 337, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+   - {class_id: 49359, department: AMS, course_num: 310, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+   - {class_id: 94752, department: ECO, course_num: 373, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+   - {class_id: 88122, department: ECO, course_num: 355, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+   - {class_id: 96951, department: ECO, course_num: 383, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+   - {class_id: 88196, department: ECO, course_num: 359, section: 30, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: S}
+   - {class_id: 94319, department: WRT, course_num: 201, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+   - {class_id: 45878, department: ECO, course_num: 487, section: T03, semester: Spring, year: 2025, credits: 6, GPNC: null, grade: A}
+   - {class_id: 47961, department: ECO, course_num: 459, section: T03, semester: Spring, year: 2025, credits: 0, GPNC: null, grade: S}
+   - {class_id: 46425, department: ECO, course_num: 475, section: T03, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: S}
+   - {class_id: 48359, department: WRT, course_num: 302, section: 03, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: S}
+   - {class_id: 48819, department: ECO, course_num: 360, section: 01, semester: Spring, year: 2025, credits: 6, GPNC: null, grade: A}
+   - {class_id: 95064, department: POL, course_num: 375, section: S01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+   - {class_id: 86626, department: ECO, course_num: 476, section: T03, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+   - {class_id: 86632, department: ECO, course_num: 487, section: T03, semester: Fall, year: 2025, credits: 6, GPNC: null, grade: null}
+   - {class_id: 89827, department: AMS, course_num: 361, section: R01, semester: Fall, year: 2025, credits: 4, GPNC: null, grade: null}
+  course_plan:
+   - {department: AMS, course_num: 380, semester: Spring, year: 2026, credits: 3}
+   - {department: AMS, course_num: 315, semester: Spring, year: 2026, credits: 3}
+   - {department: AMS, course_num: 351, semester: Spring, year: 2026, credits: 3}
+   - {department: ECO, course_num: 383, semester: Spring, year: 2026, credits: 3}
+- SBU_ID: 116430027
+  first_name: POL
+  last_name: Two
+  email: POL.Two@stonybrook.edu
+  university_entry: {semester: Fall, year: 2022 }
+  direct_admit: POL
+  AOI: null
+  college: CAS
+  majors: [POL]
+  degrees: [BA]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  planned_majors: []
+  planned_major_requirement_versions: []
+  planned_degrees: []
+  minors: []
+  minor_requirement_versions: []
+  planned_minors: []
+  planned_minor_requirement_versions : []
+  graduation: null
+  transfer_courses:
+  - {class: Math Proctored Plcmnt Level 9, university: SBU, credits: 0, department: MAT, course_num: LVL9, grade: 9}
+  - {class: AP English Language Comp, university: AP, credits: 3, department: WRT, course_num: 101, grade: T}
+  classes:
+    - {class_id: 94709, department: SBU, course_num: 101, section: S02, semester: Fall, year: 2022, credits: 1, GPNC: null, grade: S}
+    - {class_id: 80834, department: POL, course_num: 101, section: 30, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 80835, department: POL, course_num: 103, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 95717, department: ARH, course_num: 202, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 82038, department: CHI, course_num: 120, section: R01, semester: Fall, year: 2022, credits: 4, GPNC: null, grade: A-}
+    - {class_id: 55308, department: SBU, course_num: 102, section: S100, semester: Spring, year: 2023, credits: 1, GPNC: null, grade: S}
+    - {class_id: 40180, department: WRT, course_num: 102, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 40318, department: POL, course_num: 102, section: 30, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 47241, department: EGL, course_num: 112, section: 01, semester: Spring, year: 2023, credits: 4, GPNC: null, grade: A}
+    - {class_id: 49268, department: AMS, course_num: 151, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 80631, department: POL, course_num: 201, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 96013, department: POL, course_num: 270, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 91319, department: CSE, course_num: 101, section: L01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 87350, department: POL, course_num: 332, section: 30, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 96159, department: WRT, course_num: 201, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 40161, department: PSY, course_num: 103, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 49360, department: AMS, course_num: 310, section: 02, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48125, department: POL, course_num: 323, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: C-}
+    - {class_id: 48521, department: POL, course_num: 353, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 56606, department: POL, course_num: 369, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+- SBU_ID: 116430037
+  first_name: POL
+  last_name: Three
+  email: POL.Three@stonybrook.edu
+  university_entry: {semester: Fall, year: 2022 }
+  direct_admit: POL
+  AOI: null
+  college: CAS
+  majors: [POL]
+  degrees: [BA]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  planned_majors: []
+  planned_major_requirement_versions: []
+  planned_degrees: []
+  minors: []
+  minor_requirement_versions: []
+  planned_minors: []
+  planned_minor_requirement_versions : []
+  graduation: null
+  transfer_courses:
+    - {class: Math Proctored Plcmnt Level 9, university: SBU, credits: 0, department: MAT, course_num: LVL9, grade: 9}
+    - {class: AP English Language Comp, university: AP, credits: 3, department: WRT, course_num: 101, grade: T}
+  classes:
+    - {class_id: 94709, department: SBU, course_num: 101, section: S02, semester: Fall, year: 2022, credits: 1, GPNC: null, grade: S}
+    - {class_id: 80834, department: POL, course_num: 101, section: 30, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 80835, department: POL, course_num: 103, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 95717, department: ARH, course_num: 202, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 82038, department: CHI, course_num: 120, section: R01, semester: Fall, year: 2022, credits: 4, GPNC: null, grade: A-}
+    - {class_id: 55308, department: SBU, course_num: 102, section: S100, semester: Spring, year: 2023, credits: 1, GPNC: null, grade: S}
+    - {class_id: 40180, department: WRT, course_num: 102, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 40318, department: POL, course_num: 102, section: 30, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 47241, department: EGL, course_num: 112, section: 01, semester: Spring, year: 2023, credits: 4, GPNC: null, grade: A}
+    - {class_id: 49268, department: AMS, course_num: 151, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 80631, department: POL, course_num: 201, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 96013, department: POL, course_num: 270, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 91319, department: CSE, course_num: 101, section: L01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 87350, department: POL, course_num: 332, section: 30, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 96159, department: WRT, course_num: 201, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 40161, department: PSY, course_num: 103, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 49360, department: AMS, course_num: 310, section: 02, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48125, department: POL, course_num: 323, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: C-}
+    - {class_id: 48521, department: POL, course_num: 353, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 56606, department: POL, course_num: 369, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 81529, department: POL, course_num: 287, section: T01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 81316, department: POL, course_num: 495, section: T01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 96090, department: POL, course_num: 325, section: 01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 97032, department: ARH, course_num: 390, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 81899, department: ECO, course_num: 303, section: R03, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 47893, department: BIO, course_num: 211, section: R01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 56720, department: POL, course_num: 371, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 40963, department: POL, course_num: 496, section: T01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48716, department: POL, course_num: 444, section: T01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: S}
+    - {class_id: 47255, department: POL, course_num: 320, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+- SBU_ID: 116430007
+  first_name: POL
+  last_name: Four
+  email: POL.Four@stonybrook.edu
+  university_entry: {semester: Fall, year: 2022 }
+  direct_admit: POL
+  AOI: null
+  college: CAS
+  majors: [POL]
+  degrees: [BA]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  minors: []
+  minor_requirement_versions: []
+  planned_majors: []
+  planned_major_requirement_versions: []
+  planned_degrees: []
+  planned_minors: []
+  planned_minor_requirement_versions : []
+  graduation: null
+  transfer_courses:
+    - {class: Math Proctored Plcmnt Level 9, university: SBU, credits: 0, department: MAT, course_num: LVL9, grade: 9}
+    - {class: AP English Language Comp, university: AP, credits: 3, department: WRT, course_num: 101, grade: T}
+  classes:
+    - {class_id: 94709, department: SBU, course_num: 101, section: S02, semester: Fall, year: 2022, credits: 1, GPNC: null, grade: S}
+    - {class_id: 80834, department: POL, course_num: 101, section: 30, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 80835, department: POL, course_num: 103, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 95717, department: ARH, course_num: 202, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 82038, department: CHI, course_num: 120, section: R01, semester: Fall, year: 2022, credits: 4, GPNC: null, grade: A-}
+    - {class_id: 55308, department: SBU, course_num: 102, section: S100, semester: Spring, year: 2023, credits: 1, GPNC: null, grade: S}
+    - {class_id: 40180, department: WRT, course_num: 102, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 40318, department: POL, course_num: 102, section: 30, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 47241, department: EGL, course_num: 112, section: 01, semester: Spring, year: 2023, credits: 4, GPNC: null, grade: A}
+    - {class_id: 49268, department: AMS, course_num: 151, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 80631, department: POL, course_num: 201, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 96013, department: POL, course_num: 270, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 91319, department: CSE, course_num: 101, section: L01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 87350, department: POL, course_num: 332, section: 30, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 96159, department: WRT, course_num: 201, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 40161, department: PSY, course_num: 103, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 49360, department: AMS, course_num: 310, section: 02, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48125, department: POL, course_num: 323, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: C}
+    - {class_id: 48521, department: POL, course_num: 353, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 56606, department: POL, course_num: 369, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 81529, department: POL, course_num: 287, section: T01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 81316, department: POL, course_num: 495, section: T01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 96090, department: POL, course_num: 325, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 97032, department: ARH, course_num: 390, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 81899, department: ECO, course_num: 303, section: R03, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 47893, department: BIO, course_num: 211, section: R01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 56720, department: POL, course_num: 371, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 40963, department: POL, course_num: 496, section: T01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48716, department: POL, course_num: 444, section: T01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: S}
+    - {class_id: 47255, department: POL, course_num: 320, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 95064, department: POL, course_num: 375, section: S01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 83737, department: POL, course_num: 475, section: T01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 92470, department: POL, course_num: 366, section: 01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 92057, department: POL, course_num: 327, section: 01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 95267, department: POL, course_num: 378, section: S01, semester: Fall, year: 2025, credits: 3, GPNC: B, grade: null}
+  course_plan:
+      - {department: POL, course_num: 350, semester: Spring, year: 2026, credits: 3}
+      - {department: POL, course_num: 476, semester: Spring, year: 2026, credits: 3}
+      - {department: POL, course_num: 374, semester: Spring, year: 2026, credits: 3}
+      - {department: POL, course_num: 373, semester: Spring, year: 2026, credits: 3}
+      - {department: ECO, course_num: 305, semester: Spring, year: 2026, credits: 3}
+- SBU_ID: 116930007
+  first_name: POL
+  last_name: Grade
+  email: POL.Grade@stonybrook.edu
+  university_entry: {semester: Fall, year: 2022 }
+  direct_admit: POL
+  AOI: null
+  college: CAS
+  majors: [POL]
+  degrees: [BA]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  planned_majors: []
+  planned_major_requirement_versions: []
+  planned_degrees: []
+  minors: []
+  minor_requirement_versions: []
+  planned_minors: []
+  planned_minor_requirement_versions : []
+  graduation: null
+  transfer_courses:
+  - {class: Math Proctored Plcmnt Level 9, university: SBU, credits: 0, department: MAT, course_num: LVL9, grade: 9}
+  - {class: AP English Language Comp, university: AP, credits: 3, department: WRT, course_num: 101, grade: T}
+  classes:
+    - {class_id: 94709, department: SBU, course_num: 101, section: S02, semester: Fall, year: 2022, credits: 1, GPNC: null, grade: S}
+    - {class_id: 80834, department: POL, course_num: 101, section: 30, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 80835, department: POL, course_num: 103, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 95717, department: ARH, course_num: 202, section: 01, semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 82038, department: CHI, course_num: 120, section: R01, semester: Fall, year: 2022, credits: 4, GPNC: null, grade: A-}
+    - {class_id: 55308, department: SBU, course_num: 102, section: S100, semester: Spring, year: 2023, credits: 1, GPNC: null, grade: S}
+    - {class_id: 40180, department: WRT, course_num: 102, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 40318, department: POL, course_num: 102, section: 30, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 47241, department: EGL, course_num: 112, section: 01, semester: Spring, year: 2023, credits: 4, GPNC: null, grade: A}
+    - {class_id: 49268, department: AMS, course_num: 151, section: 01, semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 80631, department: POL, course_num: 201, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: C-}
+    - {class_id: 96013, department: POL, course_num: 270, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 91319, department: CSE, course_num: 101, section: L01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 87350, department: POL, course_num: 332, section: 30, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 96159, department: WRT, course_num: 201, section: 01, semester: Fall, year: 2023, credits: 3, GPNC: null, grade: A}
+    - {class_id: 40161, department: PSY, course_num: 103, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 49360, department: AMS, course_num: 310, section: 02, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48125, department: POL, course_num: 323, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: C}
+    - {class_id: 48521, department: POL, course_num: 353, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 56606, department: POL, course_num: 369, section: 01, semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 81529, department: POL, course_num: 287, section: T01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 81316, department: POL, course_num: 495, section: T01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 96090, department: POL, course_num: 325, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 97032, department: ARH, course_num: 390, section: 01, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 81899, department: ECO, course_num: 303, section: R03, semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 47893, department: BIO, course_num: 211, section: R01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 56720, department: POL, course_num: 371, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 40963, department: POL, course_num: 496, section: T01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 48716, department: POL, course_num: 444, section: T01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: S}
+    - {class_id: 47255, department: POL, course_num: 320, section: 01, semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 95064, department: POL, course_num: 375, section: S01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 83737, department: POL, course_num: 475, section: T01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 92470, department: POL, course_num: 366, section: 01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 92057, department: POL, course_num: 327, section: 01, semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 95267, department: POL, course_num: 378, section: S01, semester: Fall, year: 2025, credits: 3, GPNC: B, grade: null}
+  course_plan:
+      - {department: POL, course_num: 350, semester: Spring, year: 2026, credits: 3}
+      - {department: POL, course_num: 476, semester: Spring, year: 2026, credits: 3}
+      - {department: POL, course_num: 374, semester: Spring, year: 2026, credits: 3}
+      - {department: POL, course_num: 373, semester: Spring, year: 2026, credits: 3}
+      - {department: ECO, course_num: 305, semester: Spring, year: 2026, credits: 3}
+- SBU_ID: 100632621
+  first_name: PSY_bio
+  last_name: Zero
+  email: PSYbio.Zero@stonybrook.edu
+  university_entry: {semester: Fall, year: 2025}
+  AOI: PSY
+  majors: [PSY]
+  degrees: [BA]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  minors: [BIO]
+  minor_requirement_versions: [{semester: Fall, year: 2025}]
+  graduation: null
+  transfer_courses: []
+  classes: []
+  course_plan: []
+- SBU_ID: 116632621
+  first_name: PSY_bio
+  last_name: Two
+  email: PSYbio.Two@stonybrook.edu
+  university_entry: {semester: Fall, year: 2022}
+  AOI: PSY
+  majors: [PSY]
+  degrees: [BA]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  minors: [BIO]
+  minor_requirement_versions: [{semester: Fall, year: 2025}]
+  graduation: null
+  transfer_courses:
+    - {class: PSY101, university: SCCC, credits: 3, department: PSY, course_num: 101, grade: A}
+    - {class: BIO105, university: SCCC, credits: 3, department: BIO, course_num: 105, grade: B+}
+  classes:
+    - {class_id: 80532, department: WRT, course_num: 101, section: "01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 80566, department: SPN, course_num: 111, section: "01", semester: Fall, year: 2022, credits: 4, GPNC: null, grade: B+}
+    - {class_id: 95990, department: POL, course_num: 216, section: "01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 95913, department: PHI, course_num: 108, section: "01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 81189, department: HIS, course_num: 103, section: "R01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 40180, department: WRT, course_num: 102, section: "01", semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 40265, department: SPN, course_num: 112, section: "01", semester: Spring, year: 2023, credits: 4, GPNC: null, grade: A-}
+    - {class_id: 48056, department: CSE, course_num: 114, section: "L01", semester: Spring, year: 2023, credits: 4, GPNC: null, grade: B}
+    - {class_id: 53808, department: BIO, course_num: 203, section: "01", semester: Spring, year: 2023, credits: 3, GPNC: null, grade: B}
+    - {class_id: 47820, department: BIO, course_num: 204, section: "L02", semester: Spring, year: 2023, credits: 2, GPNC: null, grade: A-}
+    - {class_id: 42003, department: AMS, course_num: 102, section: "01", semester: Fall, year: 2023, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 42007, department: PSY, course_num: 201, section: "01", semester: Fall, year: 2023, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 42004, department: ARH, course_num: 201, section: "01", semester: Spring, year: 2024, credits: 3, GPNC: null, grade: B-}
+    - {class_id: 57952, department: BIO, course_num: 353, section: "01", semester: Spring, year: 2024, credits: 3, GPNC: null, grade: C+}
+- SBU_ID: 116632631
+  first_name: PSY_bio
+  last_name: Three
+  email: PSYbio.Three@stonybrook.edu
+  university_entry: {semester: Fall, year: 2022}
+  AOI: PSY
+  majors: [PSY]
+  degrees: [BA]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  minors: [BIO]
+  minor_requirement_versions: [{semester: Fall, year: 2025}]
+  graduation: null
+  transfer_courses:
+    - {class: PSY101, university: SCCC, credits: 3, department: PSY, course_num: 101, grade: A}
+    - {class: BIO105, university: SCCC, credits: 3, department: BIO, course_num: 105, grade: B+}
+  classes:
+    - {class_id: 80532, department: WRT, course_num: 101, section: "01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 80566, department: SPN, course_num: 111, section: "01", semester: Fall, year: 2022, credits: 4, GPNC: null, grade: B+}
+    - {class_id: 95990, department: POL, course_num: 216, section: "01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 95913, department: PHI, course_num: 108, section: "01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 81189, department: HIS, course_num: 103, section: "R01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 40180, department: WRT, course_num: 102, section: "01", semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 40265, department: SPN, course_num: 112, section: "01", semester: Spring, year: 2023, credits: 4, GPNC: null, grade: A-}
+    - {class_id: 48056, department: CSE, course_num: 114, section: "L01", semester: Spring, year: 2023, credits: 4, GPNC: null, grade: B}
+    - {class_id: 53808, department: BIO, course_num: 203, section: "01", semester: Spring, year: 2023, credits: 3, GPNC: null, grade: B}
+    - {class_id: 47820, department: BIO, course_num: 204, section: "L02", semester: Spring, year: 2023, credits: 2, GPNC: null, grade: A-}
+    - {class_id: 42003, department: AMS, course_num: 102, section: "01", semester: Fall, year: 2023, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 42007, department: PSY, course_num: 201, section: "01", semester: Fall, year: 2023, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 42004, department: ARH, course_num: 201, section: "01", semester: Spring, year: 2024, credits: 3, GPNC: null, grade: B-}
+    - {class_id: 47280, department: PSY, course_num: 333, section: "01", semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 86554, department: PSY, course_num: 103, section: "01", semester: Fall, year: 2024, credits: 3, GPNC: null, grade: B}
+    - {class_id: 94837, department: PSY, course_num: 220, section: "01", semester: Fall, year: 2024, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 81410, department: SOC, course_num: 201, section: "01", semester: Fall, year: 2024, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 40882, department: SOC, course_num: 105, section: "01", semester: Spring, year: 2025, credits: 3, GPNC: null, grade: B}
+    - {class_id: 40987, department: PSY, course_num: 310, section: "R01", semester: Spring, year: 2025, credits: 4, GPNC: null, grade: A}
+    - {class_id: 57805, department: PSY, course_num: 301, section: "01", semester: Spring, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 56991, department: ARH, course_num: 334, section: "01", semester: Spring, year: 2025, credits: 3, GPNC: null, grade: B}
+    - {class_id: 56992, department: ARH, course_num: 339, section: "S01", semester: Spring, year: 2025, credits: 3, GPNC: null, grade: A}
+- SBU_ID: 116632641
+  first_name: PSY_bio
+  last_name: Four
+  email: PSYbio.Four@stonybrook.edu
+  university_entry: {semester: Fall, year: 2022}
+  AOI: PSY
+  majors: [PSY]
+  degrees: [BA]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  minors: [BIO]
+  minor_requirement_versions: [{semester: Fall, year: 2025}]
+  graduation: {semester: Spring, year: 2026}
+  transfer_courses:
+    - {class: PSY101, university: SCCC, credits: 3, department: PSY, course_num: 101, grade: A}
+    - {class: BIO105, university: SCCC, credits: 3, department: BIO, course_num: 105, grade: B+}
+  classes:
+    - {class_id: 80532, department: WRT, course_num: 101, section: "01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 95990, department: POL, course_num: 216, section: "01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 80566, department: SPN, course_num: 111, section: "01", semester: Fall, year: 2022, credits: 4, GPNC: null, grade: B+}
+    - {class_id: 95913, department: PHI, course_num: 108, section: "01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 81189, department: HIS, course_num: 103, section: "R01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 40180, department: WRT, course_num: 102, section: "01", semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 40265, department: SPN, course_num: 112, section: "01", semester: Spring, year: 2023, credits: 4, GPNC: null, grade: A-}
+    - {class_id: 48056, department: CSE, course_num: 114, section: "L01", semester: Spring, year: 2023, credits: 4, GPNC: null, grade: B}
+    - {class_id: 53808, department: BIO, course_num: 203, section: "01", semester: Spring, year: 2023, credits: 3, GPNC: null, grade: B}
+    - {class_id: 47820, department: BIO, course_num: 204, section: "L02", semester: Spring, year: 2023, credits: 2, GPNC: null, grade: A-}
+    - {class_id: 42003, department: AMS, course_num: 102, section: "01", semester: Fall, year: 2023, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 42007, department: PSY, course_num: 201, section: "01", semester: Fall, year: 2023, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 47280, department: PSY, course_num: 333, section: "01", semester: Spring, year: 2024, credits: 3, GPNC: null, grade: null}
+    - {class_id: 42004, department: ARH, course_num: 201, section: "01", semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 57952, department: BIO, course_num: 353, section: "01", semester: Spring, year: 2024, credits: 3, GPNC: null, grade: null}
+    - {class_id: 86554, department: PSY, course_num: 103, section: "01", semester: Fall, year: 2024, credits: 3, GPNC: null, grade: null}
+    - {class_id: 94837, department: PSY, course_num: 220, section: "01", semester: Fall, year: 2024, credits: 3, GPNC: null, grade: null}
+    - {class_id: 81410, department: SOC, course_num: 201, section: "01", semester: Fall, year: 2024, credits: 3, GPNC: null, grade: null}
+    - {class_id: 40882, department: SOC, course_num: 105, section: "01", semester: Spring, year: 2025, credits: 3, GPNC: null, grade: B}
+    - {class_id: 40987, department: PSY, course_num: 310, section: "R01", semester: Spring, year: 2025, credits: 4, GPNC: null, grade: null}
+    - {class_id: 57805, department: PSY, course_num: 301, section: "01", semester: Spring, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 56991, department: ARH, course_num: 334, section: "01", semester: Spring, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 56992, department: ARH, course_num: 339, section: "S01", semester: Spring, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 42006, department: WRT, course_num: 201, section: "01", semester: Fall, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 81232, department: PSY, course_num: 230, section: "01", semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 81233, department: PSY, course_num: 240, section: "01", semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 93683, department: PSY, course_num: 250, section: "01", semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 81936, department: BIO, course_num: 202, section: "01", semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+  course_plan:
+    - {department: PSY, course_num: 330, semester: Spring, year: 2026, credits: 3}
+    - {department: PSY, course_num: 380, semester: Spring, year: 2026, credits: 4}
+    - {department: BIO, course_num: 361, semester: Spring, year: 2026, credits: 3}
+    - {department: BIO, course_num: 365, semester: Spring, year: 2026, credits: 3}
+    - {department: SOC, course_num: 301, semester: Spring, year: 2026, credits: 3}
+    - {department: SOC, course_num: 302, semester: Spring, year: 2026, credits: 3}
+- SBU_ID: 116632653
+  first_name: PSY_bio
+  last_name: OneUpper
+  email: PSYbio.OneUpper@stonybrook.edu
+  university_entry: {semester: Fall, year: 2022}
+  AOI: PSY
+  majors: [PSY]
+  degrees: [BA]
+  major_requirement_versions: [{semester: Fall, year: 2025}]
+  minors: [BIO]
+  minor_requirement_versions: [{semester: Fall, year: 2025}]
+  graduation: {semester: Spring, year: 2026}
+  transfer_courses:
+    - {class: PSY101, university: SCCC, credits: 3, department: PSY, course_num: 101, grade: A}
+    - {class: BIO105, university: SCCC, credits: 3, department: BIO, course_num: 105, grade: B+}
+  classes:
+    - {class_id: 80532, department: WRT, course_num: 101, section: "01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 95990, department: POL, course_num: 216, section: "01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 80566, department: SPN, course_num: 111, section: "01", semester: Fall, year: 2022, credits: 4, GPNC: null, grade: B+}
+    - {class_id: 95913, department: PHI, course_num: 108, section: "01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: A}
+    - {class_id: 81189, department: HIS, course_num: 103, section: "R01", semester: Fall, year: 2022, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 40180, department: WRT, course_num: 102, section: "01", semester: Spring, year: 2023, credits: 3, GPNC: null, grade: A-}
+    - {class_id: 40265, department: SPN, course_num: 112, section: "01", semester: Spring, year: 2023, credits: 4, GPNC: null, grade: A-}
+    - {class_id: 48056, department: CSE, course_num: 114, section: "L01", semester: Spring, year: 2023, credits: 4, GPNC: null, grade: B}
+    - {class_id: 53808, department: BIO, course_num: 203, section: "01", semester: Spring, year: 2023, credits: 3, GPNC: null, grade: B}
+    - {class_id: 47820, department: BIO, course_num: 204, section: "L02", semester: Spring, year: 2023, credits: 2, GPNC: null, grade: A-}
+    - {class_id: 42003, department: AMS, course_num: 102, section: "01", semester: Fall, year: 2023, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 42007, department: PSY, course_num: 201, section: "01", semester: Fall, year: 2023, credits: 3, GPNC: null, grade: B+}
+    - {class_id: 47280, department: PSY, course_num: 333, section: "01", semester: Spring, year: 2024, credits: 3, GPNC: null, grade: null}
+    - {class_id: 42004, department: ARH, course_num: 201, section: "01", semester: Spring, year: 2024, credits: 3, GPNC: null, grade: A}
+    - {class_id: 57952, department: BIO, course_num: 353, section: "01", semester: Spring, year: 2024, credits: 3, GPNC: null, grade: null}
+    - {class_id: 86554, department: PSY, course_num: 103, section: "01", semester: Fall, year: 2024, credits: 3, GPNC: null, grade: null}
+    - {class_id: 94837, department: PSY, course_num: 220, section: "01", semester: Fall, year: 2024, credits: 3, GPNC: null, grade: null}
+    - {class_id: 81410, department: SOC, course_num: 201, section: "01", semester: Fall, year: 2024, credits: 3, GPNC: null, grade: null}
+    - {class_id: 40882, department: SOC, course_num: 105, section: "01", semester: Spring, year: 2025, credits: 3, GPNC: null, grade: B}
+    - {class_id: 40987, department: PSY, course_num: 310, section: "R01", semester: Spring, year: 2025, credits: 4, GPNC: null, grade: null}
+    - {class_id: 57805, department: PSY, course_num: 301, section: "01", semester: Spring, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 56991, department: ARH, course_num: 334, section: "01", semester: Spring, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 56992, department: ARH, course_num: 339, section: "S01", semester: Spring, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 42006, department: WRT, course_num: 201, section: "01", semester: Fall, year: 2025, credits: 3, GPNC: null, grade: A}
+    - {class_id: 81232, department: PSY, course_num: 230, section: "01", semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 81233, department: PSY, course_num: 240, section: "01", semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 93683, department: PSY, course_num: 250, section: "01", semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+    - {class_id: 81936, department: BIO, course_num: 202, section: "01", semester: Fall, year: 2025, credits: 3, GPNC: null, grade: null}
+  course_plan:
+    - {department: PSY, course_num: 330, semester: Spring, year: 2026, credits: 3}
+    - {department: PSY, course_num: 380, semester: Spring, year: 2026, credits: 4}
+    - {department: BIO, course_num: 361, semester: Spring, year: 2026, credits: 3}
+    - {department: BIO, course_num: 365, semester: Spring, year: 2026, credits: 3}
+    - {department: SOC, course_num: 301, semester: Spring, year: 2026, credits: 3}

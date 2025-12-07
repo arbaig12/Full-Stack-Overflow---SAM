@@ -1,0 +1,16 @@
+# room capacity file for demos.  version: 2025-11-30
+# CSE416, Software Engineering, Scott D. Stoller.
+
+rooms:
+  - building: FREY HALL  # buildings are identified by the same names as in the Schedule of Classes
+    room: 317
+    capacity: 60
+  - building: HARRIMAN HLL
+    room: 137
+    capacity: 100
+  - building: JAVITS LECTR
+    room: 102
+    capacity: 80
+  - building: HVY ENGR LAB
+    room: 201
+    capacity: 1

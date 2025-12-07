@@ -1,0 +1,18 @@
+# sample university-level graduation requirements file.
+# CSE416, Software Engineering, Scott D. Stoller.
+
+# change log:
+# 2025-11-05 added SBC category STAS
+
+graduation_requirements:
+  minimum_credits: 120
+  # list of SBC categories
+  SBCs: [ARTS,GLO,HUM,LANG,QPS,SBS,SNW,TECH,USA,WRT,STAS,EXP+,HFA+,SBS+,STEM+,CER,DIV,ESI,SPK,WRTD]
+  # list of colleges exempt from the LANG requirement.  a student is exempt if all of their majors 
+  # are in these colleges.
+  # since SAM is not required to fully support colleges and schools other than CAS and CEAS, we ignore  
+  # the majors in the School of Health Professions and School of Social Welfare that are exempt or
+  # partially exempt from the LANG requirement.
+  LANG_exemptions: [CEAS]
+
+ 

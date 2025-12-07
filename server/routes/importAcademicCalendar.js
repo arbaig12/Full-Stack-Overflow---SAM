@@ -45,6 +45,16 @@ router.post("/academic-calendar", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "Term must include semester and year" });
     }
 
+    // Normalize semester: capitalize first letter, rest lowercase (e.g., "Fall", "Spring")
+    const normalizedTerm = {
+      semester: String(term.semester).trim().charAt(0).toUpperCase() + String(term.semester).trim().slice(1).toLowerCase(),
+      year: Number(term.year)
+    };
+
+    if (!normalizedTerm.year || isNaN(normalizedTerm.year)) {
+      return res.status(400).json({ error: "Term year must be a valid number" });
+    }
+
     if (!req.db) {
       return res.status(500).json({ error: "Database connection not found" });
     }
@@ -52,13 +62,13 @@ router.post("/academic-calendar", upload.single("file"), async (req, res) => {
     // Check if the term already exists
     const existsQuery = `
       SELECT id FROM academic_calendar
-      WHERE (term->>'semester') = $1 AND (term->>'year') = $2
+      WHERE LOWER(TRIM(term->>'semester')) = LOWER(TRIM($1)) AND (term->>'year')::text = $2
     `;
-    const existsResult = await req.db.query(existsQuery, [term.semester, String(term.year)]);
+    const existsResult = await req.db.query(existsQuery, [normalizedTerm.semester, String(normalizedTerm.year)]);
 
     if (existsResult.rows.length > 0) {
       return res.status(409).json({
-        error: `Academic calendar for ${term.semester} ${term.year} already exists.`,
+        error: `Academic calendar for ${normalizedTerm.semester} ${normalizedTerm.year} already exists.`,
       });
     }
 
@@ -84,7 +94,7 @@ router.post("/academic-calendar", upload.single("file"), async (req, res) => {
     `;
 
     const values = [
-      JSON.stringify(term),
+      JSON.stringify(normalizedTerm),
       major_and_minor_changes_end || null,
       waitlist || null,
       waitlist_process_ends || null,
@@ -99,7 +109,7 @@ router.post("/academic-calendar", upload.single("file"), async (req, res) => {
     const result = await req.db.query(insertQuery, values);
 
     res.json({
-      message: `Academic calendar for ${term.semester} ${term.year} imported successfully`,
+      message: `Academic calendar for ${normalizedTerm.semester} ${normalizedTerm.year} imported successfully`,
       id: result.rows[0].id,
     });
   } catch (err) {
