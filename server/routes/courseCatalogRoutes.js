@@ -112,11 +112,19 @@ router.post('/scrape', async (req, res) => {
     // Run puppeteer/axios/cheerio scraper
     const scrapeResults = await scrapeCatalog(termLabel, subjects);
 
-    let upserted = 0;
+    // Collect all courses and departments first for bulk processing
+    const coursesToInsert = [];
+    const departmentCache = new Map(); // Cache department IDs to avoid repeated queries
 
     for (const subjectBlock of scrapeResults) {
       const subjectCode = subjectBlock.subject; // e.g. "CSE"
-      const departmentId = await getOrCreateDepartment(db, subjectCode);
+      
+      // Get or create department (with caching)
+      if (!departmentCache.has(subjectCode)) {
+        const departmentId = await getOrCreateDepartment(db, subjectCode);
+        departmentCache.set(subjectCode, departmentId);
+      }
+      const departmentId = departmentCache.get(subjectCode);
 
       for (const course of subjectBlock.courses) {
         // course.title looks like "CSE 214: Data Structures"
@@ -141,61 +149,97 @@ router.post('/scrape', async (req, res) => {
         const advisoryPrerequisites = course.advisory_prereq || '';
         const sbc = course.sbc || '';
 
-        // Upsert into courses by (subject, course_num, catalog_term_id)
-        await db.query(
-          `
-          INSERT INTO courses (
-            department_id,
-            subject,
-            course_num,
-            title,
-            description,
-            credits,
-            catalog_term_id,
-            prerequisites,
-            corequisites,
-            anti_requisites,
-            advisory_prerequisites,
-            sbc
-          )
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-          ON CONFLICT (subject, course_num, catalog_term_id)
-          DO UPDATE SET
-            department_id          = EXCLUDED.department_id,
-            title                  = EXCLUDED.title,
-            description            = EXCLUDED.description,
-            credits                = EXCLUDED.credits,
-            prerequisites          = EXCLUDED.prerequisites,
-            corequisites           = EXCLUDED.corequisites,
-            anti_requisites        = EXCLUDED.anti_requisites,
-            advisory_prerequisites = EXCLUDED.advisory_prerequisites,
-            sbc                    = EXCLUDED.sbc
-          `,
-          [
-            departmentId,
-            subject,
-            courseNum,
-            title,
-            description,
-            credits || 0,
-            catalogTermId,
-            prerequisites,
-            corequisites,
-            antiRequisites,
-            advisoryPrerequisites,
-            sbc
-          ]
-        );
-
-        upserted += 1;
+        coursesToInsert.push({
+          departmentId,
+          subject,
+          courseNum,
+          title,
+          description,
+          credits: credits || 0,
+          catalogTermId,
+          prerequisites,
+          corequisites,
+          antiRequisites,
+          advisoryPrerequisites,
+          sbc,
+        });
       }
     }
+
+    // Bulk insert courses in chunks
+    const chunkSize = 500;
+    let upserted = 0;
+
+    for (let i = 0; i < coursesToInsert.length; i += chunkSize) {
+      const chunk = coursesToInsert.slice(i, i + chunkSize);
+      
+      // Build multi-value INSERT statement
+      const values = [];
+      const params = [];
+      let paramIndex = 1;
+
+      for (const course of chunk) {
+        values.push(
+          `($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}, $${paramIndex + 9}, $${paramIndex + 10}, $${paramIndex + 11})`
+        );
+        params.push(
+          course.departmentId,
+          course.subject,
+          course.courseNum,
+          course.title,
+          course.description,
+          course.credits,
+          course.catalogTermId,
+          course.prerequisites,
+          course.corequisites,
+          course.antiRequisites,
+          course.advisoryPrerequisites,
+          course.sbc
+        );
+        paramIndex += 12;
+      }
+
+      const sql = `
+        INSERT INTO courses (
+          department_id,
+          subject,
+          course_num,
+          title,
+          description,
+          credits,
+          catalog_term_id,
+          prerequisites,
+          corequisites,
+          anti_requisites,
+          advisory_prerequisites,
+          sbc
+        )
+        VALUES ${values.join(', ')}
+        ON CONFLICT (subject, course_num, catalog_term_id)
+        DO UPDATE SET
+          department_id          = EXCLUDED.department_id,
+          title                  = EXCLUDED.title,
+          description            = EXCLUDED.description,
+          credits                = EXCLUDED.credits,
+          prerequisites          = EXCLUDED.prerequisites,
+          corequisites           = EXCLUDED.corequisites,
+          anti_requisites        = EXCLUDED.anti_requisites,
+          advisory_prerequisites = EXCLUDED.advisory_prerequisites,
+          sbc                    = EXCLUDED.sbc
+      `;
+
+      await db.query(sql, params);
+      upserted += chunk.length;
+    }
+
+    // Extract the actual subjects that were scraped from the results
+    const scrapedSubjects = scrapeResults.map(result => result.subject);
 
     return res.json({
       ok: true,
       term: `${semester} ${year}`,
       catalogTermId,
-      subjects,
+      subjects: scrapedSubjects, // Return the actual subjects that were scraped
       upserted
     });
   } catch (e) {
@@ -614,6 +658,77 @@ router.get('/subjects', async (req, res) => {
     });
   } catch (e) {
     console.error('[catalog] /subjects failed:', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+/**
+ * DELETE /courses
+ * Delete all courses from the database.
+ * 
+ * WARNING: This is a destructive operation for demo purposes only.
+ * 
+ * @route DELETE /courses
+ * @returns {Object} 200 - Success message with count of deleted courses
+ * @returns {Object} 500 - Query failure
+ */
+router.delete('/courses', async (req, res) => {
+  try {
+    // In future: check req.user.role === 'Registrar'
+    
+    console.log('[catalog] DELETE /courses - Starting deletion...');
+    
+    // Get count before deletion for response
+    const countResult = await req.db.query('SELECT COUNT(*) as count FROM courses');
+    const count = parseInt(countResult.rows[0].count) || 0;
+    
+    console.log(`[catalog] DELETE /courses - Found ${count} courses to delete`);
+    
+    // Delete related records first to avoid foreign key constraint violations
+    // Note: Using CASCADE would be better, but this ensures it works regardless of FK setup
+    
+    // Delete enrollments that reference class_sections that reference courses
+    await req.db.query(`
+      DELETE FROM enrollments 
+      WHERE class_id IN (
+        SELECT class_id FROM class_sections WHERE course_id IS NOT NULL
+      )
+    `);
+    console.log('[catalog] DELETE /courses - Deleted related enrollments');
+    
+    // Delete class sections that reference courses
+    await req.db.query('DELETE FROM class_sections WHERE course_id IS NOT NULL');
+    console.log('[catalog] DELETE /courses - Deleted related class sections');
+    
+    // Delete prerequisite waivers that reference courses
+    await req.db.query('DELETE FROM prerequisite_waivers WHERE course_id IS NOT NULL');
+    console.log('[catalog] DELETE /courses - Deleted related prerequisite waivers');
+    
+    // Delete department permissions that reference courses
+    await req.db.query('DELETE FROM department_permissions WHERE course_id IS NOT NULL');
+    console.log('[catalog] DELETE /courses - Deleted related department permissions');
+    
+    // Now delete all courses
+    const deleteResult = await req.db.query('DELETE FROM courses');
+    
+    console.log(`[catalog] DELETE /courses - Deleted ${deleteResult.rowCount || count} courses`);
+    
+    // Verify deletion
+    const verifyResult = await req.db.query('SELECT COUNT(*) as count FROM courses');
+    const remaining = parseInt(verifyResult.rows[0].count) || 0;
+    
+    if (remaining > 0) {
+      console.warn(`[catalog] DELETE /courses - Warning: ${remaining} courses still remain after deletion`);
+    }
+    
+    return res.json({
+      ok: true,
+      message: `Deleted ${count} course(s) from the database.`,
+      deleted: count,
+      remaining: remaining
+    });
+  } catch (e) {
+    console.error('[catalog] DELETE /courses failed:', e);
     return res.status(500).json({ ok: false, error: e.message });
   }
 });

@@ -8,6 +8,7 @@ export default function CourseCatalog() {
   const [sortBy, setSortBy] = useState('id');
   const [loading, setLoading] = useState(false);
   const [scrapeStatus, setScrapeStatus] = useState('');
+  const [deleteStatus, setDeleteStatus] = useState('');
   const [page, setPage] = useState(1);
 
   const PAGE_SIZE = 100;
@@ -64,6 +65,7 @@ export default function CourseCatalog() {
   const handleScrapeClick = async () => {
     try {
       setScrapeStatus('Running SBU catalog scrape...');
+      setDeleteStatus('');
 
       const res = await fetch('/api/catalog/scrape', {
         method: 'POST',
@@ -83,14 +85,60 @@ export default function CourseCatalog() {
         throw new Error(data?.error || `HTTP ${res.status}`);
       }
 
+      const subjectsList = Array.isArray(data.subjects) && data.subjects.length > 0
+        ? data.subjects.join(', ')
+        : 'default subjects';
+      
       setScrapeStatus(
-        `Imported/updated ${data.upserted} courses for ${data.term} (${data.subjects.join(', ')}).`
+        `Imported/updated ${data.upserted} courses for ${data.term}${subjectsList !== 'default subjects' ? ` (${subjectsList})` : ''}.`
       );
 
       await loadCourses();
     } catch (err) {
       console.error(err);
       setScrapeStatus(`Error: ${err.message}`);
+    }
+  };
+
+  const handleDeleteClick = async () => {
+    if (!window.confirm('Are you sure you want to delete ALL courses from the database? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setDeleteStatus('Deleting all courses...');
+      setScrapeStatus('');
+
+      const res = await fetch('/api/catalog/courses', {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      let data = null;
+      try {
+        data = await res.json();
+      } catch (e) {
+        console.error('Failed to parse response:', e);
+      }
+
+      if (!res.ok) {
+        const errorMsg = data?.error || `HTTP ${res.status}`;
+        console.error('Delete failed:', errorMsg, data);
+        throw new Error(errorMsg);
+      }
+
+      if (data && data.ok === false) {
+        throw new Error(data.error || 'Delete failed');
+      }
+
+      setDeleteStatus(data?.message || `Deleted ${data?.deleted || 0} course(s).`);
+      
+      // Clear courses immediately and reload
+      setCourses([]);
+      await loadCourses();
+    } catch (err) {
+      console.error('Delete error:', err);
+      setDeleteStatus(`Error: ${err.message}`);
     }
   };
 
@@ -281,7 +329,7 @@ export default function CourseCatalog() {
       <h1>Course Catalog</h1>
 
       {role === 'registrar' && (
-        <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <button
             onClick={handleScrapeClick}
             style={{
@@ -296,7 +344,25 @@ export default function CourseCatalog() {
           >
             Import/Refresh from SBU Catalog
           </button>
-          {scrapeStatus && <span style={{ fontSize: 13, color: '#555' }}>{scrapeStatus}</span>}
+          <button
+            onClick={handleDeleteClick}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 6,
+              border: 'none',
+              background: '#d32f2f',
+              color: '#fff',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+            }}
+          >
+            Delete All Courses
+          </button>
+          {(scrapeStatus || deleteStatus) && (
+            <span style={{ fontSize: 13, color: '#555' }}>
+              {scrapeStatus || deleteStatus}
+            </span>
+          )}
         </div>
       )}
 

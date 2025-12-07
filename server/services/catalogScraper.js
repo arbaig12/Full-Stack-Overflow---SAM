@@ -9,8 +9,15 @@ import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import pLimit from 'p-limit';
 
 puppeteer.use(StealthPlugin());
+
+// Required subjects per project specifications (Section 3.1)
+const REQUIRED_SUBJECTS = ['BIO', 'PSY', 'CSE', 'ECO', 'AMS', 'POL'];
+
+// Concurrency limits (configurable via environment variables)
+const REQUEST_CONCURRENCY = parseInt(process.env.REQUEST_CONCURRENCY || '30', 10);
 
 /**
  * Parses the raw HTML of a course detail page to meet all project requirements.
@@ -114,17 +121,49 @@ function parseCourseDetails(html) {
 
   // More robust prerequisite simplification
   // If the prerequisite contains both a course and a placement exam, simplify it.
+  // Example: "Level 2+ or higher on the mathematics placement examination or MAT 123 or higher"
+  // → "MAT 123 or higher"
   const placementText = 'on the mathematics placement examination';
   if (
     prereq.toLowerCase().includes(placementText) &&
     (prereq.includes('MAT') || prereq.includes('AMS'))
   ) {
-    // Split the string at the placement exam part and take everything before it.
-    const simplifiedPrereq = prereq.split(/or level \d\+? /i)[0].trim();
-    console.warn(
-      `[Parser] WARNING: Simplified placement exam prerequisite for '${title}'. Original: "${prereq}". Simplified: "${simplifiedPrereq}".`
-    );
-    prereq = simplifiedPrereq;
+    // Find the placement exam section and extract everything after it
+    // Pattern: "...placement examination or MAT 123 or higher" → "MAT 123 or higher"
+    const placementIndex = prereq.toLowerCase().indexOf(placementText);
+    if (placementIndex !== -1) {
+      // Find "or" after the placement exam text
+      const afterPlacement = prereq.substring(placementIndex + placementText.length);
+      const orMatch = afterPlacement.match(/^\s*or\s+(.+)/i);
+      
+      if (orMatch) {
+        const simplifiedPrereq = orMatch[1].trim();
+        console.warn(
+          `[Parser] WARNING: Simplified placement exam prerequisite for '${title}'. Original: "${prereq}". Simplified: "${simplifiedPrereq}".`
+        );
+        prereq = simplifiedPrereq;
+      } else {
+        // Fallback: split by "or" and find the part with MAT/AMS
+        const parts = prereq.split(/or\s+/i);
+        const coursePart = parts.find(part => 
+          (part.includes('MAT') || part.includes('AMS')) && 
+          !part.toLowerCase().includes('placement')
+        );
+        
+        if (coursePart) {
+          // Include "or higher" if it follows the course part
+          const courseIndex = prereq.indexOf(coursePart);
+          const afterCourse = prereq.substring(courseIndex + coursePart.length);
+          const orHigherMatch = afterCourse.match(/^\s*or\s+higher/i);
+          const simplifiedPrereq = coursePart.trim() + (orHigherMatch ? ' or higher' : '');
+          
+          console.warn(
+            `[Parser] WARNING: Simplified placement exam prerequisite for '${title}'. Original: "${prereq}". Simplified: "${simplifiedPrereq}".`
+          );
+          prereq = simplifiedPrereq;
+        }
+      }
+    }
   }
 
   const courseCodeMatch = title.match(/^([A-Z]{2,4})\s*(\d{3})/);
@@ -274,96 +313,74 @@ function parseCourseDetails(html) {
 //   return results;
 // }
 
-export async function scrapeCatalog(term, subjects) {
-  const baseCatalog = 'https://catalog.stonybrook.edu';
+/**
+ * Scrapes a single subject's courses from the SBU catalog.
+ * 
+ * @param {Object} params - Parameters object
+ * @param {string} params.subject - Subject code (e.g., "CSE")
+ * @param {string} params.baseCatalog - Base catalog URL
+ * @param {Object} params.browser - Puppeteer browser instance
+ * @param {boolean} params.isSupported - Whether subject is in required list
+ * @returns {Promise<Object>} Subject result with courses
+ */
+async function scrapeSubject({ subject, baseCatalog, browser, isSupported }) {
+  const indexUrl = `${baseCatalog}/content.php?filter%5B27%5D=${subject}&filter%5B29%5D=&filter%5Bkeyword%5D=&filter%5B32%5D=1&filter%5Bcpage%5D=1&cur_cat_oid=7&expand=&navoid=225&search_database=Filter&filter%5Bexact_match%5D=1#acalog_template_course_filter`;
 
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
+  if (!isSupported) {
+    console.warn(
+      `[Scraper] WARNING: Subject '${subject}' is not in supported list (${REQUIRED_SUBJECTS.join(', ')}). Prerequisites may be marked as unknown.`
+    );
+  }
 
-  const results = [];
-
+  console.log(`[Scraper] Navigating to index for ${subject}`);
+  const searchPage = await browser.newPage();
+  
   try {
-    let subjectList = subjects;
+    await searchPage.goto(indexUrl, {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
+    });
 
-    // 🔍 If subjects were not provided, auto-discover ALL subject codes
-    if (!Array.isArray(subjectList) || subjectList.length === 0) {
-      const subjectPage = await browser.newPage();
-
-      // This page has the course filter form with the subject dropdown
-      const filterUrl = `${baseCatalog}/content.php?catoid=7&navoid=225`;
-      await subjectPage.goto(filterUrl, {
-        waitUntil: 'domcontentloaded',
-        timeout: 60000,
-      });
-
-      subjectList = await subjectPage.evaluate(() =>
-        Array.from(
-          document.querySelectorAll('select[name="filter[27]"] option')
-        )
-          .map((opt) => opt.value.trim())
-          // drop empty / placeholder values
-          .filter((v) => v && v !== '0')
-      );
-
-      await subjectPage.close();
-
-      console.log(
-        `[Scraper] Auto-discovered ${subjectList.length} subjects: ${subjectList.join(
-          ', '
-        )}`
-      );
-    }
-
-    console.log(
-      `[Scraper] Starting catalog scrape for ${term} → ${subjectList.join(', ')}`
+    const coursesOnPage = await searchPage.evaluate(() =>
+      Array.from(document.querySelectorAll('a[href*="preview_course"]'))
+        .map((a) => ({
+          href: a.getAttribute('href'),
+          text: a.textContent.trim(),
+        }))
+        .filter((c) => /[A-Z]{2,4}\s*\d+/.test(c.text))
     );
 
-    for (const subject of subjectList) {
-      const indexUrl = `${baseCatalog}/content.php?filter%5B27%5D=${subject}&filter%5B29%5D=&filter%5Bkeyword%5D=&filter%5B32%5D=1&filter%5Bcpage%5D=1&cur_cat_oid=7&expand=&navoid=225&search_database=Filter&filter%5Bexact_match%5D=1#acalog_template_course_filter`;
+    console.log(
+      `[Scraper] Extracted ${coursesOnPage.length} course links for ${subject}`
+    );
 
-      console.log(`[Scraper] Navigating to index for ${subject}`);
-      const searchPage = await browser.newPage();
-      await searchPage.goto(indexUrl, {
-        waitUntil: 'domcontentloaded',
-        timeout: 60000,
-      });
+    const courseDetails = [];
+    
+    // Use p-limit to control concurrent HTTP requests
+    const requestLimit = pLimit(REQUEST_CONCURRENCY);
+    
+    console.log(
+      `[Scraper] Fetching ${coursesOnPage.length} course pages for ${subject} (${REQUEST_CONCURRENCY} concurrent)...`
+    );
 
-      const coursesOnPage = await searchPage.evaluate(() =>
-        Array.from(document.querySelectorAll('a[href*="preview_course"]'))
-          .map((a) => ({
-            href: a.getAttribute('href'),
-            text: a.textContent.trim(),
-          }))
-          .filter((c) => /[A-Z]{2,4}\s*\d+/.test(c.text))
-      );
-
-      console.log(
-        `[Scraper] Extracted ${coursesOnPage.length} course links for ${subject}`
-      );
-      await searchPage.close();
-
-      const courseDetails = [];
-      const batchSize = 10;
-
-      console.log(
-        `[Scraper] Fetching ${coursesOnPage.length} pages in ${Math.ceil(
-          coursesOnPage.length / batchSize
-        )} batches...`
-      );
-
-      for (let i = 0; i < coursesOnPage.length; i += batchSize) {
-        const batch = coursesOnPage.slice(i, i + batchSize);
-        console.log(
-          `[Scraper] Processing batch ${Math.floor(i / batchSize) + 1}...`
-        );
-
-        const requestPromises = batch.map((course) => {
-          const cleanedHref = course.href.replace(/&amp;/g, '&');
-          const fullUrl = cleanedHref.startsWith('http')
-            ? cleanedHref
-            : `${baseCatalog}/${cleanedHref}`;
+    // Fetch all course pages in parallel with concurrency control
+    const fetchPromises = coursesOnPage.map((course) =>
+      requestLimit(async () => {
+        try {
+          let cleanedHref = course.href.replace(/&amp;/g, '&');
+          
+          // Handle relative URLs properly
+          let fullUrl;
+          if (cleanedHref.startsWith('http://') || cleanedHref.startsWith('https://')) {
+            fullUrl = cleanedHref;
+          } else if (cleanedHref.startsWith('/')) {
+            // Absolute path from root
+            fullUrl = `${baseCatalog}${cleanedHref}`;
+          } else {
+            // Relative path
+            fullUrl = `${baseCatalog}/${cleanedHref}`;
+          }
+          
           const coid = fullUrl.match(/coid=(\d+)/)?.[1] || 'unknown';
 
           const options = {
@@ -375,41 +392,101 @@ export async function scrapeCatalog(term, subjects) {
             timeout: 10000,
           };
 
-          return axios.get(fullUrl, options).then((response) => ({
-            status: 'fulfilled',
-            coid,
-            url: fullUrl,
-            html: response.data,
-          }));
-        });
-
-        const responses = await Promise.allSettled(requestPromises);
-
-        for (const response of responses) {
-          if (response.status === 'fulfilled') {
-            try {
-              const { coid, url, html } = response.value;
-              const details = parseCourseDetails(html);
-              courseDetails.push({ coid, url, ...details });
-            } catch (e) {
+          const response = await axios.get(fullUrl, options);
+          const details = parseCourseDetails(response.data);
+          
+          // Mark requisites as unknown for unsupported subjects
+          if (!isSupported) {
+            if (details.prereq) details.prereq = 'unknown';
+            if (details.coreq) details.coreq = 'unknown';
+            if (details.anti_req) details.anti_req = 'unknown';
+            if (details.advisory_prereq) details.advisory_prereq = 'unknown';
+          }
+          
+          return { coid, url: fullUrl, ...details };
+        } catch (e) {
+          // Only log 404s if they're unexpected, or log first few errors for debugging
+          if (e.response?.status === 404) {
+            // 404s are common for broken/invalid course links - don't spam logs
+            // Only log occasionally to avoid flooding
+            if (Math.random() < 0.1) { // Log ~10% of 404s
               console.error(
-                `[Scraper] ✗ Failed to parse coid=${response.value.coid}: ${e.message}`
+                `[Scraper] ✗ 404 for ${subject} course (sample): ${e.config?.url || 'unknown URL'}`
               );
             }
           } else {
-            const failedUrl = response.reason.config?.url || 'Unknown URL';
             console.error(
-              `[Scraper] ✗ Failed to fetch ${failedUrl}: ${response.reason.message}`
+              `[Scraper] ✗ Failed to fetch/parse course for ${subject}: ${e.message}`
             );
           }
+          return null;
         }
-      }
+      })
+    );
 
-      results.push({
+    const responses = await Promise.allSettled(fetchPromises);
+    
+    for (const response of responses) {
+      if (response.status === 'fulfilled' && response.value) {
+        courseDetails.push(response.value);
+      }
+    }
+
+    return {
+      subject,
+      count: courseDetails.length,
+      courses: courseDetails,
+    };
+  } finally {
+    await searchPage.close();
+  }
+}
+
+export async function scrapeCatalog(term, subjects) {
+  const baseCatalog = 'https://catalog.stonybrook.edu';
+
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+
+  const results = [];
+
+  try {
+    // Default to required subjects if none provided
+    let subjectList = subjects;
+    if (!Array.isArray(subjectList) || subjectList.length === 0) {
+      subjectList = [...REQUIRED_SUBJECTS];
+      console.log(
+        `[Scraper] No subjects provided, defaulting to required subjects: ${subjectList.join(', ')}`
+      );
+    }
+
+    console.log(
+      `[Scraper] Starting catalog scrape for ${term} → ${subjectList.join(', ')}`
+    );
+
+    // Process all subjects in parallel
+    const subjectPromises = subjectList.map((subject) => {
+      const isSupported = REQUIRED_SUBJECTS.includes(subject.toUpperCase());
+      return scrapeSubject({
         subject,
-        count: courseDetails.length,
-        courses: courseDetails,
+        baseCatalog,
+        browser,
+        isSupported,
       });
+    });
+
+    const subjectResults = await Promise.allSettled(subjectPromises);
+    
+    for (const result of subjectResults) {
+      if (result.status === 'fulfilled') {
+        results.push(result.value);
+      } else {
+        console.error(
+          `[Scraper] ✗ Failed to scrape subject: ${result.reason.message}`
+        );
+      }
     }
 
     console.log(
@@ -417,6 +494,7 @@ export async function scrapeCatalog(term, subjects) {
     );
   } catch (err) {
     console.error(`[Scraper] Fatal error: ${err.message}`);
+    throw err;
   } finally {
     await browser.close();
   }

@@ -1,0 +1,275 @@
+SAM Project Implementation Plan
+==============================
+
+Based on: plan/overview.txt, plan/demo.txt, and current project status
+
+PRIORITY ORDER OF TASKS
+========================
+
+PHASE 1: CRITICAL BUG FIXES (Do First)
+---------------------------------------
+1. Fix Google Login Role Constraint Error
+   - File: server/routes/authRoutes.js
+   - Issue: New users created via Google login missing required 'role' field
+   - Action: Add 'role' field to INSERT statement with default 'Student'
+   - Line 32: Change INSERT to include role column
+   - Test: Verify Google login creates users successfully
+
+PHASE 2: DEMO-REQUIRED FEATURES (Before Demo)
+---------------------------------------------
+2. Registration System Implementation
+   - Files: server/routes/registrationScheduleRoutes.js (may need creation)
+   - Required features from demo.txt:
+     a. Registration holds (academic advising, financial)
+     b. Waitlist functionality (automatic promotion when space opens)
+     c. Time conflict detection and waivers (requires instructor + advisor approval)
+     d. Prerequisite enforcement and waivers
+     e. Corequisite enforcement
+     f. Anti-requisite enforcement
+     g. Registration window enforcement (by class standing and credit thresholds)
+     h. Capacity override (registrar can override full classes)
+   - Database: Ensure enrollment, waitlist, holds, time_conflict_waivers tables exist
+   - Test cases: Sections 6, 6.1, 6.3 in demo.txt
+
+3. Student Profile Completion
+   - File: server/routes/studentProfileRoutes.js
+   - Required from demo.txt Section 5:
+     a. Audit log entries (show who issued holds, waivers, etc.)
+     b. Term GPA calculation (credit-weighted: sum(grade*credits)/sum(credits))
+     c. Cumulative GPA and credits per term
+     d. Class standing (U1-U4 based on credits)
+     e. Transfer courses display
+     f. Declared majors/minors with requirement versions
+     g. Class schedule with meeting times/locations
+   - Test: Verify Spring 2023 term GPA = (10*4+4*2)/14 = 3.43 (not 3.60)
+
+4. Degree Requirements Status Display
+   - File: server/routes/degreeProgressRoutes.js
+   - Required from demo.txt Section 4:
+     a. Show status: satisfied, in progress, unsatisfied
+     b. Show which courses satisfy each requirement
+     c. Handle course reuse restrictions (e.g., POL major: 42 credits, no double-counting)
+     d. Admission requirements for restricted majors (AMS, etc.)
+     e. Registrar waiver functionality (waive courses as if completed)
+   - Test cases: Multiple students in demo.txt Section 4
+
+5. Major/Minor Declaration System
+   - File: server/routes/programDeclarationRoutes.js
+   - Required from demo.txt Section 4.2:
+     a. Date-based restrictions (can't declare outside allowed periods)
+     b. Approval workflow (advisor approval required)
+     c. Transfer to CEAS approval (requires CEAS advisor)
+     d. Drop major/minor functionality
+     e. Effective term selection
+   - Test: CSE_AMS Four, AMS_cse_pol Four scenarios
+
+6. Class Schedule Planning
+   - File: src/pages/Plan.jsx (frontend) + backend routes
+   - Required from demo.txt Section 8:
+     a. Manual planning (add/remove courses to future terms)
+     b. Highlight non-required courses in plan
+     c. Prerequisite warnings for planned courses
+     d. Auto-planner:
+        - Generate plan to satisfy degree requirements
+        - Respect workload limits per term
+        - Include/exclude specific courses
+        - Show expected degree requirement status after plan
+     e. Export plans in user data export
+   - Test cases: CSE_AMS Two, PSY_bio Zero, ECO_ams Zero
+
+7. Grading System Enhancements
+   - File: server/routes/rostersGradingRoutes.js
+   - Required from demo.txt Section 7:
+     a. Incomplete grade handling (I grade)
+     b. Final grade submission after incomplete
+     c. GPNC (Pass/No Credit) grade display:
+        - Instructor sees actual grade (e.g., C)
+        - Student sees P if grade >= threshold, NC if < threshold
+     d. Failed prerequisite check (remove student from future classes if prerequisite failed)
+   - Test: CSE 416-02, POL 378, ECO 475 scenarios
+
+8. Registration Schedule Configuration
+   - File: server/routes/registrationScheduleRoutes.js
+   - Required from demo.txt Section 6.1:
+     a. Define registration windows by:
+        - Class standing (U1-U4)
+        - Credit thresholds (e.g., U4 with 100+ credits)
+        - Start dates
+     b. Window end dates from academic calendar
+   - Test: Fall 2025 and Spring 2026 registration schedules
+
+PHASE 3: DATA IMPORT AND SETUP (For Demo)
+-----------------------------------------
+9. Course Catalog Scraping
+   - File: server/services/catalogScraper.js
+   - Action: Scrape Fall 2025 catalog for BIO and CSE
+   - Verify: PSY, ECO, AMS, POL, ARH, CHE, CHI, EGL, HIS, PHY, SOC, WRT already scraped
+   - Test: Search PSY 310, AMS 458 (check prerequisites, corequisites, SBCs)
+
+10. Class Schedule Import
+    - File: server/routes/importRoutes.js or classScheduleRoutes.js
+    - Action: Import BIO and CSE classes from PDFs:
+      - 'classes 2025 Fall.pdf' for Fall 2025
+      - 'classes 2026 Spring.pdf' for Spring 2026
+    - Verify: Fall 2025 and Spring 2026 schedules for PSY, ECO, AMS, POL already imported
+    - Test: Search CSE 416-02, ECO 383 (multiple instructors)
+
+11. Academic Calendar Import
+    - File: server/routes/importAcademicCalendar.js
+    - Action: Import academic_calendar_fall2025.yaml and academic_calendar_spring2026.yaml
+    - Verify: Calendars display correctly
+
+12. Degree Requirements Import
+    - File: server/routes/importDegreeReq.js
+    - Action: Import degree requirements for:
+      - BIO (BA), PSY (BA), CSE, ECO, AMS, POL
+      - Fall 2024 version for CSE
+      - Fall 2025 version for others
+    - Verify: No errors
+
+13. User Data Import
+    - File: server/routes/importRoutes.js
+    - Action: Import users2.yaml
+    - Verify: Import succeeds, transfer course placement tests can be dropped
+    - Test: Search for "Advisor2", students with Major: AMS, Minor: POL
+
+14. Room Data Setup
+    - Action: Ensure rooms1.yaml is on server
+    - Verify: Room capacities are correct (e.g., HVY ENGR LAB 201 has capacity 1)
+
+PHASE 4: SUBMISSION DOCUMENTATION (Before Submission)
+------------------------------------------------------
+15. Implementation Grading Sheet (IGS)
+    - File: Create Full-Stack-Overflow-IGS.xlsx
+    - Content:
+      - Include "hw6 actual" and "hw7 actual" scores from graded submissions
+      - Fill "hw9 claimed" column with cumulative points (hw6 + hw7 + hw9 new)
+      - Prefix new comments with "hw9:"
+      - Should show 100% implementation (84+ points)
+    - Priority: HIGH - Required for grading
+
+16. AI Report Update
+    - File: Full-Stack-Overflow-AI-report.md (exists, needs update)
+    - Action: Append hw9 experience section
+    - Content:
+      - Document AI tool usage for hw9 (Cursor, ChatGPT, etc.)
+      - How AI helped with:
+        * Route implementation
+        * Test creation (77 backend tests, 12 frontend tests)
+        * Debugging (Google login issue, etc.)
+        * Code review
+      - What you learned
+      - Challenges faced
+    - Priority: HIGH - Required for submission
+
+17. Design Document
+    - File: Create Full-Stack-Overflow-Design-Document.md (or similar)
+    - Content (same structure as hw7-code2 if exists):
+      - Architecture overview
+      - Database schema (tables, relationships)
+      - API design (endpoints, request/response formats)
+      - System components (frontend, backend, database)
+      - Data flow diagrams (if applicable)
+      - Date wrapper utility explanation
+      - Testing architecture
+    - Priority: MEDIUM - Important documentation
+
+18. Video Creation
+    - Content (omits Step 1, replaced by live demo):
+      - Step 2: Automated testing demonstration
+        * Show running `cd server && npm test`
+        * Show coverage report (`cd server && npm run coverage`)
+        * Demonstrate a few test cases
+      - Step 3: Code walkthrough
+        * Walk through key route files (courseCatalogRoutes, classScheduleRoutes)
+        * Explain date wrapper implementation
+        * Show course catalog with prerequisites/SBCs
+      - Step 4: Architecture overview
+        * System architecture
+        * Database structure
+        * API endpoints
+      - Step 5: Future work/discussion
+        * What would you improve?
+        * What features would you add?
+    - Priority: MEDIUM - Required for submission
+
+PHASE 5: FINAL PREPARATION (Before Submission)
+----------------------------------------------
+19. Current Date Configuration
+    - File: server/routes/currentDateRoutes.js or similar
+    - Action: Ensure registrar can set SAM's current date
+    - Test: Set to October 1, 2025, then August 28, 2025, etc.
+    - Verify: Major/minor declaration restrictions work correctly
+
+20. Export User Data
+    - File: server/routes/userRoutes.js or importRoutes.js
+    - Action: Implement export functionality that includes:
+      - User data
+      - Generated course plans (from auto-planner)
+    - Test: Export data for CSE_AMS Two, PSY_bio Zero, ECO_ams Zero
+    - Action: Store exported files in zip, submit to Google Classroom
+
+21. Hash File Creation (if using option 2a)
+    - File: Create Full-Stack-Overflow-hw9-hash.txt
+    - Content: Hash command and result
+    - Commands:
+      - Linux/macOS: `find . -type f -name "*.js" -o -name "*.jsx" | sort | xargs cat | shasum -a 256`
+      - Windows: Use equivalent PowerShell command
+    - Action: Upload separately to Google Classroom
+
+22. Submission Zip Creation
+    - Contents:
+      - All implementation files
+      - Design document
+      - IGS (Implementation Grading Sheet)
+      - AI report
+      - Test reports (coverage) - TEST_REPORT.md exists
+      - Video file or link
+      - Any other required documentation
+    - Action: Create zip file, verify all contents included
+
+TESTING CHECKLIST (Run Throughout Development)
+----------------------------------------------
+- Backend tests: 77 tests passing (verify after each change)
+- Frontend tests: 12 test files (verify after each change)
+- Coverage: Maintain 81%+ route coverage
+- Manual testing: Run demo.txt test cases as features are implemented
+
+DEMO PREPARATION CHECKLIST (Before Demo)
+-----------------------------------------
+- [ ] Google authentication enabled
+- [ ] Database has registrar user(s)
+- [ ] Course catalogs scraped (BIO, CSE, plus PSY, ECO, AMS, POL, etc.)
+- [ ] Class schedules imported (Fall 2025, Spring 2026)
+- [ ] Academic calendars imported
+- [ ] Degree requirements imported
+- [ ] Users imported (users2.yaml)
+- [ ] Rooms data available (rooms1.yaml)
+- [ ] All demo test cases can be executed successfully
+
+CRITICAL DEPENDENCIES
+---------------------
+1. Google login fix (Phase 1) must be done first - blocks all authentication
+2. Registration system (Phase 2, #2) is complex and needed for many demo cases
+3. Student profile (Phase 2, #3) needed for multiple demo scenarios
+4. Degree requirements (Phase 2, #4) needed for multiple demo scenarios
+5. Data imports (Phase 3) can be done in parallel with Phase 2 development
+
+ESTIMATED EFFORT
+----------------
+- Phase 1: 15 minutes (quick bug fix)
+- Phase 2: 20-30 hours (major feature implementation)
+- Phase 3: 2-4 hours (data import and setup)
+- Phase 4: 4-6 hours (documentation and video)
+- Phase 5: 1-2 hours (final prep)
+
+Total: ~30-45 hours of work remaining
+
+NOTES
+-----
+- Testing is already complete (77 backend + 12 frontend tests, 81%+ coverage)
+- Route compliance fixes are already done
+- Focus should be on implementing missing features for demo
+- Documentation can be created in parallel with feature development
+- Demo preparation can be done closer to demo date, but data imports should be tested early
+
