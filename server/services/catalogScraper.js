@@ -366,70 +366,110 @@ async function scrapeSubject({ subject, baseCatalog, browser, isSupported }) {
     // Fetch all course pages in parallel with concurrency control
     const fetchPromises = coursesOnPage.map((course) =>
       requestLimit(async () => {
-        try {
-          let cleanedHref = course.href.replace(/&amp;/g, '&');
-          
-          // Handle relative URLs properly
-          let fullUrl;
-          if (cleanedHref.startsWith('http://') || cleanedHref.startsWith('https://')) {
-            fullUrl = cleanedHref;
-          } else if (cleanedHref.startsWith('/')) {
-            // Absolute path from root
-            fullUrl = `${baseCatalog}${cleanedHref}`;
-          } else {
-            // Relative path
-            fullUrl = `${baseCatalog}/${cleanedHref}`;
-          }
-          
-          const coid = fullUrl.match(/coid=(\d+)/)?.[1] || 'unknown';
-
-          const options = {
-            headers: {
-              Referer: indexUrl,
-              'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            },
-            timeout: 10000,
-          };
-
-          const response = await axios.get(fullUrl, options);
-          const details = parseCourseDetails(response.data);
-          
-          // Mark requisites as unknown for unsupported subjects
-          if (!isSupported) {
-            if (details.prereq) details.prereq = 'unknown';
-            if (details.coreq) details.coreq = 'unknown';
-            if (details.anti_req) details.anti_req = 'unknown';
-            if (details.advisory_prereq) details.advisory_prereq = 'unknown';
-          }
-          
-          return { coid, url: fullUrl, ...details };
-        } catch (e) {
-          // Only log 404s if they're unexpected, or log first few errors for debugging
-          if (e.response?.status === 404) {
-            // 404s are common for broken/invalid course links - don't spam logs
-            // Only log occasionally to avoid flooding
-            if (Math.random() < 0.1) { // Log ~10% of 404s
-              console.error(
-                `[Scraper] ✗ 404 for ${subject} course (sample): ${e.config?.url || 'unknown URL'}`
-              );
-            }
-          } else {
-            console.error(
-              `[Scraper] ✗ Failed to fetch/parse course for ${subject}: ${e.message}`
-            );
-          }
-          return null;
+        let cleanedHref = course.href.replace(/&amp;/g, '&');
+        
+        // Handle relative URLs properly
+        let fullUrl;
+        if (cleanedHref.startsWith('http://') || cleanedHref.startsWith('https://')) {
+          fullUrl = cleanedHref;
+        } else if (cleanedHref.startsWith('/')) {
+          // Absolute path from root
+          fullUrl = `${baseCatalog}${cleanedHref}`;
+        } else {
+          // Relative path
+          fullUrl = `${baseCatalog}/${cleanedHref}`;
         }
+        
+        const coid = fullUrl.match(/coid=(\d+)/)?.[1] || 'unknown';
+
+        const options = {
+          headers: {
+            Referer: indexUrl,
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          },
+          timeout: 15000, // Increased timeout
+        };
+
+        // Retry logic for transient failures (not 404s)
+        const maxRetries = 2;
+        let lastError = null;
+        
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+          try {
+            const response = await axios.get(fullUrl, options);
+            const details = parseCourseDetails(response.data);
+            
+            // Mark requisites as unknown for unsupported subjects
+            if (!isSupported) {
+              if (details.prereq) details.prereq = 'unknown';
+              if (details.coreq) details.coreq = 'unknown';
+              if (details.anti_req) details.anti_req = 'unknown';
+              if (details.advisory_prereq) details.advisory_prereq = 'unknown';
+            }
+            
+            return { coid, url: fullUrl, ...details };
+          } catch (e) {
+            lastError = e;
+            
+            // Don't retry on 404s - they're permanent failures (broken links)
+            if (e.response?.status === 404) {
+              // 404s are expected for broken/invalid course links - silently skip
+              return null;
+            }
+            
+            // Retry on network errors or timeouts
+            if (attempt < maxRetries && (
+              e.code === 'ECONNRESET' || 
+              e.code === 'ETIMEDOUT' || 
+              e.code === 'ENOTFOUND' ||
+              e.message?.includes('timeout') ||
+              (e.response?.status >= 500 && e.response?.status < 600)
+            )) {
+              // Wait before retry (exponential backoff)
+              await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+              continue;
+            }
+            
+            // For other errors, log and return null
+            if (attempt === maxRetries) {
+              // Only log on final failure, and only occasionally to avoid spam
+              if (Math.random() < 0.05) { // Log ~5% of non-404 errors
+                console.error(
+                  `[Scraper] ✗ Failed to fetch course for ${subject} after ${maxRetries + 1} attempts: ${e.message}`
+                );
+              }
+            }
+          }
+        }
+        
+        return null;
       })
     );
 
     const responses = await Promise.allSettled(fetchPromises);
     
+    let successCount = 0;
+    let failureCount = 0;
+    
     for (const response of responses) {
       if (response.status === 'fulfilled' && response.value) {
         courseDetails.push(response.value);
+        successCount++;
+      } else {
+        failureCount++;
       }
+    }
+    
+    // Log summary if there were significant failures (but 404s are expected)
+    if (failureCount > 0 && failureCount > coursesOnPage.length * 0.3) {
+      console.log(
+        `[Scraper] ${subject}: ${successCount} courses scraped, ${failureCount} failed (404s are expected for broken catalog links)`
+      );
+    } else {
+      console.log(
+        `[Scraper] ${subject}: ${successCount} courses scraped successfully`
+      );
     }
 
     return {

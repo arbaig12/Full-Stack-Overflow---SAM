@@ -10,6 +10,8 @@ export default function CourseCatalog() {
   const [scrapeStatus, setScrapeStatus] = useState('');
   const [deleteStatus, setDeleteStatus] = useState('');
   const [page, setPage] = useState(1);
+  const [scrapeTerm, setScrapeTerm] = useState('Fall2025');
+  const [scrapeSubjects, setScrapeSubjects] = useState('BIO,CSE');
 
   const PAGE_SIZE = 100;
 
@@ -67,13 +69,26 @@ export default function CourseCatalog() {
       setScrapeStatus('Running SBU catalog scrape...');
       setDeleteStatus('');
 
+      // Parse subjects from comma-separated string
+      const subjectsArray = scrapeSubjects
+        .split(',')
+        .map(s => s.trim().toUpperCase())
+        .filter(s => s.length > 0);
+
+      const requestBody = {
+        term: scrapeTerm.trim() || 'Fall2025',
+      };
+
+      // Only include subjects if provided
+      if (subjectsArray.length > 0) {
+        requestBody.subjects = subjectsArray;
+      }
+
       const res = await fetch('/api/catalog/scrape', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          term: 'Fall2025',
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       let data = null;
@@ -99,6 +114,7 @@ export default function CourseCatalog() {
       setScrapeStatus(`Error: ${err.message}`);
     }
   };
+
 
   const handleDeleteClick = async () => {
     if (!window.confirm('Are you sure you want to delete ALL courses from the database? This action cannot be undone.')) {
@@ -142,29 +158,109 @@ export default function CourseCatalog() {
     }
   };
 
+  // Helper function to highlight search terms in text
+  const highlightText = (text, searchTerm) => {
+    if (!searchTerm || !text) return text;
+    
+    const textStr = String(text);
+    const searchStr = String(searchTerm).trim();
+    
+    if (!searchStr) return textStr;
+    
+    // Escape special regex characters
+    const escapedSearch = searchStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escapedSearch})`, 'gi');
+    const parts = textStr.split(regex);
+    
+    // Filter out empty strings and map to React elements
+    return parts
+      .filter(part => part.length > 0)
+      .map((part, index) => {
+        if (part.toLowerCase() === searchStr.toLowerCase()) {
+          return (
+            <mark key={index} style={{ backgroundColor: '#ffeb3b', padding: '2px 0', fontWeight: 'bold' }}>
+              {part}
+            </mark>
+          );
+        }
+        return <span key={index}>{part}</span>;
+      });
+  };
+
   const filteredCourses = useMemo(() => {
-    const q = searchTerm.toLowerCase();
+    const q = searchTerm.toLowerCase().trim();
+    
+    if (!q) {
+      return courses.filter((course) => {
+        const matchesTerm = course.term === selectedTerm;
+        const matchesDepartment =
+          selectedDepartment === 'All' || course.id.startsWith(selectedDepartment);
+        return matchesTerm && matchesDepartment;
+      }).map(course => ({ ...course, matchScore: 0 }));
+    }
 
-    return courses.filter((course) => {
-      const matchesSearch =
-        course.name.toLowerCase().includes(q) ||
-        course.id.toLowerCase().includes(q) ||
-        course.prereqText.toLowerCase().includes(q) ||
-        course.coreqText.toLowerCase().includes(q) ||
-        course.sbcText.toLowerCase().includes(q);
+    return courses
+      .filter((course) => {
+        const matchesSearch =
+          course.name.toLowerCase().includes(q) ||
+          course.id.toLowerCase().includes(q) ||
+          course.prereqText.toLowerCase().includes(q) ||
+          course.coreqText.toLowerCase().includes(q) ||
+          course.sbcText.toLowerCase().includes(q) ||
+          course.description.toLowerCase().includes(q);
 
-      const matchesTerm = course.term === selectedTerm;
+        const matchesTerm = course.term === selectedTerm;
 
-      const matchesDepartment =
-        selectedDepartment === 'All' || course.id.startsWith(selectedDepartment);
+        const matchesDepartment =
+          selectedDepartment === 'All' || course.id.startsWith(selectedDepartment);
 
-      return matchesSearch && matchesTerm && matchesDepartment;
-    });
+        return matchesSearch && matchesTerm && matchesDepartment;
+      })
+      .map((course) => {
+        // Calculate match score: title matches get highest priority
+        let matchScore = 0;
+        const nameLower = course.name.toLowerCase();
+        const idLower = course.id.toLowerCase();
+        
+        // Title match gets highest score (100)
+        if (nameLower.includes(q)) {
+          matchScore += 100;
+          // Exact title match gets even higher
+          if (nameLower === q || nameLower.startsWith(q)) {
+            matchScore += 50;
+          }
+        }
+        
+        // Course ID match gets high score (50)
+        if (idLower.includes(q)) {
+          matchScore += 50;
+          // Exact ID match gets even higher
+          if (idLower === q) {
+            matchScore += 25;
+          }
+        }
+        
+        // Other field matches get lower scores
+        if (course.prereqText.toLowerCase().includes(q)) matchScore += 10;
+        if (course.coreqText.toLowerCase().includes(q)) matchScore += 10;
+        if (course.sbcText.toLowerCase().includes(q)) matchScore += 10;
+        if (course.description.toLowerCase().includes(q)) matchScore += 5;
+        
+        return { ...course, matchScore };
+      });
   }, [courses, searchTerm, selectedTerm, selectedDepartment]);
 
   const sortedCourses = useMemo(() => {
     const arr = [...filteredCourses];
     arr.sort((a, b) => {
+      // If there's a search term, prioritize by match score first
+      if (searchTerm.trim()) {
+        if (b.matchScore !== a.matchScore) {
+          return b.matchScore - a.matchScore; // Higher score first
+        }
+      }
+      
+      // Then sort by the selected sort option
       switch (sortBy) {
         case 'name':
           return a.name.localeCompare(b.name);
@@ -178,7 +274,7 @@ export default function CourseCatalog() {
       }
     });
     return arr;
-  }, [filteredCourses, sortBy]);
+  }, [filteredCourses, sortBy, searchTerm]);
 
   useEffect(() => {
     setPage(1);
@@ -329,40 +425,83 @@ export default function CourseCatalog() {
       <h1>Course Catalog</h1>
 
       {role === 'registrar' && (
-        <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <button
-            onClick={handleScrapeClick}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 6,
-              border: 'none',
-              background: '#1976d2',
-              color: '#fff',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-            }}
-          >
-            Import/Refresh from SBU Catalog
-          </button>
-          <button
-            onClick={handleDeleteClick}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 6,
-              border: 'none',
-              background: '#d32f2f',
-              color: '#fff',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-            }}
-          >
-            Delete All Courses
-          </button>
-          {(scrapeStatus || deleteStatus) && (
-            <span style={{ fontSize: 13, color: '#555' }}>
-              {scrapeStatus || deleteStatus}
-            </span>
-          )}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ fontSize: 13, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                Term:
+              </label>
+              <input
+                type="text"
+                value={scrapeTerm}
+                onChange={(e) => setScrapeTerm(e.target.value)}
+                placeholder="Fall2025"
+                style={{
+                  padding: '6px 10px',
+                  border: '1px solid #ddd',
+                  borderRadius: 4,
+                  fontSize: 13,
+                  width: 120,
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ fontSize: 13, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                Subjects:
+              </label>
+              <input
+                type="text"
+                value={scrapeSubjects}
+                onChange={(e) => setScrapeSubjects(e.target.value)}
+                placeholder="BIO,CSE"
+                style={{
+                  padding: '6px 10px',
+                  border: '1px solid #ddd',
+                  borderRadius: 4,
+                  fontSize: 13,
+                  width: 200,
+                }}
+              />
+              <span style={{ fontSize: 11, color: '#666' }}>
+                (comma-separated, e.g., BIO,CSE,PSY)
+              </span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <button
+              onClick={handleScrapeClick}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 6,
+                border: 'none',
+                background: '#1976d2',
+                color: '#fff',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+              }}
+            >
+              Import/Refresh from SBU Catalog
+            </button>
+            <button
+              onClick={handleDeleteClick}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 6,
+                border: 'none',
+                background: '#d32f2f',
+                color: '#fff',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+              }}
+            >
+              Delete All Courses
+            </button>
+            {(scrapeStatus || deleteStatus) && (
+              <span style={{ fontSize: 13, color: '#555' }}>
+                {scrapeStatus || deleteStatus}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
@@ -479,7 +618,9 @@ export default function CourseCatalog() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start' }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-                  <h3 style={{ margin: 0, fontSize: 18, color: '#333' }}>{course.name}</h3>
+                  <h3 style={{ margin: 0, fontSize: 18, color: '#333' }}>
+                    {searchTerm ? highlightText(course.name, searchTerm) : course.name}
+                  </h3>
                   <span
                     style={{
                       padding: '2px 8px',
@@ -493,12 +634,12 @@ export default function CourseCatalog() {
                     {course.credits} credits
                   </span>
                   <span style={{ fontSize: 13, color: '#555' }}>
-                    <strong>{course.id}</strong>
+                    <strong>{searchTerm ? highlightText(course.id, searchTerm) : course.id}</strong>
                   </span>
                 </div>
 
                 <p style={{ margin: '0 0 12px 0', color: '#666', lineHeight: 1.5 }}>
-                  {course.description}
+                  {searchTerm ? highlightText(course.description, searchTerm) : course.description}
                 </p>
 
                 <div
@@ -514,15 +655,58 @@ export default function CourseCatalog() {
                   </div>
                   <div>
                     <strong>SBCs:</strong>{' '}
-                    {course.sbcs.length > 0 ? course.sbcs.join(', ') : 'None'}
+                    {course.sbcs.length > 0 ? (
+                      searchTerm ? (
+                        course.sbcs.map((sbc, idx) => (
+                          <span key={idx}>
+                            {highlightText(sbc, searchTerm)}
+                            {idx < course.sbcs.length - 1 ? ', ' : ''}
+                          </span>
+                        ))
+                      ) : (
+                        course.sbcs.join(', ')
+                      )
+                    ) : (
+                      'None'
+                    )}
                   </div>
                   <div>
                     <strong>Corequisites:</strong>{' '}
-                    {course.corequisites.length > 0 ? course.corequisites.join(', ') : 'None'}
+                    {course.corequisites.length > 0 ? (
+                      searchTerm ? (
+                        course.corequisites.map((coreq, idx) => (
+                          <span key={idx}>
+                            {highlightText(coreq, searchTerm)}
+                            {idx < course.corequisites.length - 1 ? ', ' : ''}
+                          </span>
+                        ))
+                      ) : (
+                        course.corequisites.join(', ')
+                      )
+                    ) : (
+                      'None'
+                    )}
                   </div>
                   <div>
                     <strong>Prerequisites:</strong>{' '}
-                    {course.prerequisites.length > 0 ? course.prerequisites.join(', ') : 'None'}
+                    {course.prerequisites.length > 0 ? (
+                      searchTerm ? (
+                        course.prereqText ? (
+                          highlightText(course.prereqText, searchTerm)
+                        ) : (
+                          course.prerequisites.map((prereq, idx) => (
+                            <span key={idx}>
+                              {highlightText(prereq, searchTerm)}
+                              {idx < course.prerequisites.length - 1 ? ', ' : ''}
+                            </span>
+                          ))
+                        )
+                      ) : (
+                        course.prerequisites.join(', ')
+                      )
+                    ) : (
+                      'None'
+                    )}
                   </div>
                 </div>
               </div>
