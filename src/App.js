@@ -15,6 +15,8 @@ import UserManage from './pages/UserManage.jsx';
 import DeclareMajorMinor from './pages/DeclareMajor.jsx';
 import Plan from './pages/Plan.jsx';
 import ClassManage from './pages/ClassManage.jsx';
+import WaiversHolds from './pages/WaiversHolds.jsx';
+import AuditLog from './pages/AuditLog.jsx';
 
 
 export default function App() {
@@ -36,6 +38,8 @@ export default function App() {
           <Route path="declare" element={<DeclareMajorMinor />} />
           <Route path="plan" element={<Plan />} />
           <Route path="classManage" element={<ClassManage />} />
+          <Route path="waiversHolds" element={<WaiversHolds />} />
+          <Route path="auditLog" element={<AuditLog />} />
         </Route>
       </Route>
 

@@ -25,6 +25,8 @@ import rostersGradingRoutes from "./routes/rostersGradingRoutes.js";
 import classManageRoutes from "./routes/classManageRoutes.js";
 import registrationScheduleRoutes from './routes/registrationScheduleRoutes.js';
 import studentProgramRoutes from './routes/studentProgramRoutes.js';
+import waiversHoldsRoutes from './routes/waiversHoldsRoutes.js';
+import auditLogRoutes from './routes/auditLogRoutes.js';
 import authUser from "./middleware/authUser.js";
 
 
@@ -107,6 +109,8 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use("/api/class-manage", classManageRoutes);
 app.use('/api/registration', registrationScheduleRoutes);
 app.use('/api/student-programs', studentProgramRoutes);
+app.use('/api/waivers-holds', waiversHoldsRoutes);
+app.use('/api/audit-log', auditLogRoutes);
 app.use("/api/auth", authRoutes);
 
 
