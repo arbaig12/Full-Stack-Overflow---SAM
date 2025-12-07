@@ -8,7 +8,10 @@
     "start": "node index.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "coverage": "vitest run --coverage"
+    "coverage": "vitest run --coverage",
+    "setup:registration-tables": "node database/setupRegistrationTables.js",
+    "migrate": "node database/migrations/migrate.js migrate",
+    "migrate:status": "node database/migrations/migrate.js status"
   },
   "vitest": {
     "coverage": {
