@@ -19,6 +19,7 @@ import WaiversHolds from './pages/WaiversHolds.jsx';
 import AuditLog from './pages/AuditLog.jsx';
 import AcademicCalendar from './pages/AcademicCalendar.jsx';
 import DegreeRequirements from './pages/DegreeRequirements.jsx';
+import MajorMinorRequests from './pages/MajorMinorRequests.jsx';
 
 
 export default function App() {
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="auditLog" element={<AuditLog />} />
           <Route path="academicCalendar" element={<AcademicCalendar />} />
           <Route path="degreeRequirements" element={<DegreeRequirements />} />
+          <Route path="majorMinorRequests" element={<MajorMinorRequests />} />
         </Route>
       </Route>
 

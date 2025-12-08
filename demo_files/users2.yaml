@@ -1,38 +1,55 @@
+registrars:
+- SBU_ID: 100765432
+  first_name: Rob
+  last_name: Rogers
+  email: rob.rogers@stonybrook.edu
+  password: password
+- SBU_ID: 100654321
+  first_name: Ralph
+  last_name: Randall
+  email: ralph.randall@stonybrook.edu
+  password: password
 academic_advisors:
 - SBU_ID: 100000001
   first_name: AMS
   last_name: Advisor
   email: AMS.Advisor@stonybrook.edu
+  password: password
   level: department
   academic_unit: [AMS]
 - SBU_ID: 100000021
   first_name: AMS
   last_name: Advisor2
   email: AMS.Advisor2@stonybrook.edu
+  password: password
   level: department
   academic_unit: [AMS]
 - SBU_ID: 100000002
   first_name: CEAS
   last_name: Advisor
   email: CEAS.Advisor@stonybrook.edu
+  password: password
   level: college
   academic_unit: [CEAS]
 - SBU_ID: 100000003
   first_name: CSE
   last_name: Advisor
   email: CSE.Advisor@stonybrook.edu
+  password: password
   level: department
   academic_unit: [CSE]
 - SBU_ID: 100000014
   first_name: CSE
   last_name: Advisor2
   email: CSE.Advisor2@stonybrook.edu
+  password: password
   level: department
   academic_unit: [CSE]
 - SBU_ID: 100000013
   first_name: SBU
   last_name: Advisor
   email: SBU.Advisor@stonybrook.edu
+  password: password
   level: university
   academic_unit: [SBU]
 instructors:
@@ -40,31 +57,38 @@ instructors:
   first_name: Scott
   last_name: Stoller
   email: scott.stoller@stonybrook.edu
+  password: password
 - SBU_ID: 100000005
   first_name: Niranjan
   last_name: Balasubramanian
   email: Niranjan.Balasubramanian@stonybrook.edu
+  password: password
 - SBU_ID: 100000016
   first_name: Robert
   last_name: Alessi
   email: Robert.Alessi@stonybrook.edu
+  password: password
 - SBU_ID: 100000017
   first_name: Steven
   last_name: Stern
   email: Steven.Stern@stonybrook.edu
+  password: password
 - SBU_ID: 100000018
   first_name: Wenhan
   last_name: Gao
   email: Wanhan.Gao@stonybrook.edu
+  password: password
 - SBU_ID: 100000019
   first_name: Yi
   last_name: Liu
   email: Yi.Liu@stonybrook.edu
+  password: password
 students:
 - SBU_ID: 100000026
   first_name: AMS_cse_pol
   last_name: Two
   email: AMScsepol.Two@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2022 }
   direct_admit: AMS
   AOI: null
@@ -106,6 +130,7 @@ students:
   first_name: AMS_cse_pol
   last_name: Three
   email: AMScsepol.Three@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2022 }
   direct_admit: AMS
   AOI: null
@@ -157,6 +182,7 @@ students:
   first_name: AMS_cse_pol
   last_name: Four
   email: AMScsepol.Four@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2022 }
   direct_admit: AMS
   AOI: null
@@ -220,6 +246,7 @@ students:
   first_name: AMS_cse_pol
   last_name: Conc
   email: AMScsepol.Conc@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2022 }
   direct_admit: AMS
   AOI: null
@@ -283,6 +310,7 @@ students:
   first_name: BIO
   last_name: Two
   email: BIO.Two@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2022}
   AOI: BIO
   majors: [BIO]
@@ -307,6 +335,7 @@ students:
   first_name: BIO
   last_name: Three
   email: BIO.Three@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2022}
   AOI: BIO
   majors: [BIO]
@@ -335,6 +364,7 @@ students:
   first_name: BIO
   last_name: Four
   email: BIO.Four@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2022}
   AOI: BIO
   majors: [BIO]
@@ -383,6 +413,7 @@ students:
   first_name: BIO
   last_name: Calc
   email: BIO.Calc@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2022}
   direct_admit: null
   AOI: BIO
@@ -438,6 +469,7 @@ students:
   first_name: CSE_AMS
   last_name: Two
   email: CSEAMS.Two@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2024 }
   direct_admit: CSE
   AOI: null
@@ -486,6 +518,7 @@ students:
   first_name: CSE_AMS
   last_name: Three
   email: CSEAMS.Three@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2024 }
   direct_admit: CSE
   AOI: null
@@ -543,6 +576,7 @@ students:
   first_name: CSE_AMS
   last_name: Four
   email: CSEAMS.Four@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2024 }
   direct_admit: CSE
   AOI: null
@@ -610,6 +644,7 @@ students:
   first_name: CSE_AMS
   last_name: Transfer
   email: CSEAMS.Transfer@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2024 }
   direct_admit: CSE
   AOI: null
@@ -677,6 +712,7 @@ students:
   first_name: ECO_ams
   last_name: Zero
   email: ECOams.Zero@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2025}
   AOI: ECO
   majors: [ECO]
@@ -692,6 +728,7 @@ students:
   first_name: ECO_AMS
   last_name: Two
   email: ECOams.Two@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2022}
   direct_admit: null
   AOI: ECO
@@ -733,6 +770,7 @@ students:
   first_name: ECO_AMS
   last_name: Three
   email: ECO_AMS.Three@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2022}
   direct_admit: null
   AOI: ECO
@@ -783,6 +821,7 @@ students:
   first_name: ECO_ams
   last_name: Four
   email: ECOams.Four@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2022}
   direct_admit: null
   AOI: ECO
@@ -842,6 +881,7 @@ students:
   first_name: ECO_ams
   last_name: Writing
   email: ECOams.Writing@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2022}
   direct_admit: null
   AOI: ECO
@@ -906,6 +946,7 @@ students:
   first_name: POL
   last_name: Two
   email: POL.Two@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2022 }
   direct_admit: POL
   AOI: null
@@ -949,6 +990,7 @@ students:
   first_name: POL
   last_name: Three
   email: POL.Three@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2022 }
   direct_admit: POL
   AOI: null
@@ -1002,6 +1044,7 @@ students:
   first_name: POL
   last_name: Four
   email: POL.Four@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2022 }
   direct_admit: POL
   AOI: null
@@ -1066,6 +1109,7 @@ students:
   first_name: POL
   last_name: Grade
   email: POL.Grade@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2022 }
   direct_admit: POL
   AOI: null
@@ -1130,6 +1174,7 @@ students:
   first_name: PSY_bio
   last_name: Zero
   email: PSYbio.Zero@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2025}
   AOI: PSY
   majors: [PSY]
@@ -1145,6 +1190,7 @@ students:
   first_name: PSY_bio
   last_name: Two
   email: PSYbio.Two@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2022}
   AOI: PSY
   majors: [PSY]
@@ -1175,6 +1221,7 @@ students:
   first_name: PSY_bio
   last_name: Three
   email: PSYbio.Three@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2022}
   AOI: PSY
   majors: [PSY]
@@ -1213,6 +1260,7 @@ students:
   first_name: PSY_bio
   last_name: Four
   email: PSYbio.Four@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2022}
   AOI: PSY
   majors: [PSY]
@@ -1264,6 +1312,7 @@ students:
   first_name: PSY_bio
   last_name: OneUpper
   email: PSYbio.OneUpper@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2022}
   AOI: PSY
   majors: [PSY]

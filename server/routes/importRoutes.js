@@ -476,7 +476,7 @@ router.post("/users", upload.single("file"), async (req, res) => {
       students = [],
     } = parsed;
 
-    const results = { inserted: 0, skipped: 0, warnings: [] };
+    const results = { inserted: 0, skipped: 0, updated: 0, warnings: [] };
 
     // Helper function to check if a transfer course is a placement test
     function isPlacementTest(transferCourse) {
@@ -492,7 +492,7 @@ router.post("/users", upload.single("file"), async (req, res) => {
     }
 
     async function insertUser(obj, role) {
-      const { SBU_ID, first_name, last_name, email } = obj;
+      const { SBU_ID, first_name, last_name, email, password } = obj;
 
       if (!SBU_ID || !email || !first_name || !last_name) {
         results.skipped++;
@@ -525,14 +525,38 @@ router.post("/users", upload.single("file"), async (req, res) => {
 
       if (check.rows.length > 0) {
         const existing = check.rows[0];
-        // If SBU_ID matches, skip (user already exists)
+        // If SBU_ID matches, update password if provided
         if (String(existing.sbu_id) === String(SBU_ID)) {
+          // Update password if provided and different from current
+          if (password) {
+            try {
+              await req.db.query(
+                `UPDATE users SET password_hash = $1 WHERE user_id = $2`,
+                [password, existing.user_id]
+              );
+              results.updated++;
+            } catch (updateErr) {
+              results.warnings.push(`Failed to update password for user ${SBU_ID}: ${updateErr.message}`);
+            }
+          }
           results.skipped++;
           results.warnings.push(`User already exists: SBU_ID=${SBU_ID}`);
           return existing.user_id;
         }
         // If email matches but SBU_ID is different, skip with warning
         if (existing.email && existing.email.toLowerCase() === email.toLowerCase()) {
+          // Update password if provided
+          if (password) {
+            try {
+              await req.db.query(
+                `UPDATE users SET password_hash = $1 WHERE user_id = $2`,
+                [password, existing.user_id]
+              );
+              results.updated++;
+            } catch (updateErr) {
+              results.warnings.push(`Failed to update password for user ${email}: ${updateErr.message}`);
+            }
+          }
           results.skipped++;
           results.warnings.push(`User with email ${email} already exists with different SBU_ID (existing: ${existing.sbu_id}, new: ${SBU_ID})`);
           return existing.user_id;
@@ -541,10 +565,10 @@ router.post("/users", upload.single("file"), async (req, res) => {
 
       try {
         const r = await req.db.query(
-          `INSERT INTO users (sbu_id, first_name, last_name, email, role)
-           VALUES ($1, $2, $3, $4, $5)
+          `INSERT INTO users (sbu_id, first_name, last_name, email, role, password_hash)
+           VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING user_id`,
-          [SBU_ID, first_name, last_name, email, role]
+          [SBU_ID, first_name, last_name, email, role, password || null]
         );
 
         results.inserted++;
@@ -554,11 +578,22 @@ router.post("/users", upload.single("file"), async (req, res) => {
         if (insertErr.code === '23505') { // Unique violation
           results.skipped++;
           results.warnings.push(`User already exists (duplicate constraint): SBU_ID=${SBU_ID}, email=${email}`);
-          // Try to get the existing user
+          // Try to get the existing user and update password if provided
           const existingCheck = await req.db.query(
             `SELECT user_id FROM users WHERE sbu_id = $1 OR email = $2 LIMIT 1`,
             [SBU_ID, email]
           );
+          if (existingCheck.rows.length > 0 && password) {
+            try {
+              await req.db.query(
+                `UPDATE users SET password_hash = $1 WHERE user_id = $2`,
+                [password, existingCheck.rows[0].user_id]
+              );
+              results.updated++;
+            } catch (updateErr) {
+              results.warnings.push(`Failed to update password for existing user: ${updateErr.message}`);
+            }
+          }
           return existingCheck.rows[0]?.user_id || null;
         }
         throw insertErr;
@@ -576,6 +611,7 @@ router.post("/users", upload.single("file"), async (req, res) => {
       summary: {
         inserted: results.inserted,
         skipped: results.skipped,
+        updated: results.updated,
         warnings: results.warnings,
         counts: {
           registrars: registrars.length,

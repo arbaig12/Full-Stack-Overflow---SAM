@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function DeclareMajorMinor() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
@@ -11,9 +13,12 @@ export default function DeclareMajorMinor() {
 
   const [majors, setMajors] = useState([]); // current declared majors
   const [minors, setMinors] = useState([]); // current declared minors
+  const [pendingRequests, setPendingRequests] = useState([]); // pending requests
 
   const [selectedMajorId, setSelectedMajorId] = useState('');
   const [selectedMinorId, setSelectedMinorId] = useState('');
+  const [effectiveTermMajor, setEffectiveTermMajor] = useState(''); // e.g., "Fall 2025"
+  const [effectiveTermMinor, setEffectiveTermMinor] = useState(''); // e.g., "Fall 2025"
 
   // Load initial data from backend
   useEffect(() => {
@@ -28,7 +33,13 @@ export default function DeclareMajorMinor() {
         });
 
         if (!res.ok) {
-          throw new Error(`Failed to load program data (HTTP ${res.status})`);
+          const errorData = await res.json().catch(() => ({}));
+          if (res.status === 401) {
+            // Redirect to login if not authenticated
+            navigate('/login', { replace: true });
+            return;
+          }
+          throw new Error(errorData.error || `Failed to load program data (HTTP ${res.status})`);
         }
 
         const data = await res.json();
@@ -41,9 +52,12 @@ export default function DeclareMajorMinor() {
         setAvailableMinors(data.availableMinors || []);
         setMajors(data.majors || []);
         setMinors(data.minors || []);
+        setPendingRequests(data.pendingRequests || []);
 
         setSelectedMajorId('');
         setSelectedMinorId('');
+        setEffectiveTermMajor('');
+        setEffectiveTermMinor('');
       } catch (e) {
         console.error(e);
         setError(e.message || 'Failed to load program data.');
@@ -87,21 +101,26 @@ export default function DeclareMajorMinor() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ programId: Number(selectedMajorId) }),
+        body: JSON.stringify({ 
+          programId: Number(selectedMajorId),
+          effectiveTerm: effectiveTermMajor || undefined
+        }),
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || data.ok === false) {
         throw new Error(
-          data.error || 'Failed to add major. You may already have the max of 2.'
+          data.error || 'Failed to submit major request. You may already have the max of 2.'
         );
       }
 
       setMajors(data.majors || []);
       setMinors(data.minors || []);
+      setPendingRequests(data.pendingRequests || []);
       setSelectedMajorId('');
-      setMessage('Major added successfully.');
+      setEffectiveTermMajor('');
+      setMessage(data.message || 'Major request submitted successfully. Waiting for advisor approval.');
     } catch (e) {
       console.error(e);
       setError(e.message || 'Failed to add major.');
@@ -125,21 +144,26 @@ export default function DeclareMajorMinor() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ programId: Number(selectedMinorId) }),
+        body: JSON.stringify({ 
+          programId: Number(selectedMinorId),
+          effectiveTerm: effectiveTermMinor || undefined
+        }),
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || data.ok === false) {
         throw new Error(
-          data.error || 'Failed to add minor. You may already have the max of 3.'
+          data.error || 'Failed to submit minor request. You may already have the max of 3.'
         );
       }
 
       setMajors(data.majors || []);
       setMinors(data.minors || []);
+      setPendingRequests(data.pendingRequests || []);
       setSelectedMinorId('');
-      setMessage('Minor added successfully.');
+      setEffectiveTermMinor('');
+      setMessage(data.message || 'Minor request submitted successfully. Waiting for advisor approval.');
     } catch (e) {
       console.error(e);
       setError(e.message || 'Failed to add minor.');
@@ -171,7 +195,8 @@ export default function DeclareMajorMinor() {
 
       setMajors(data.majors || []);
       setMinors(data.minors || []);
-      setMessage('Program dropped successfully.');
+      setPendingRequests(data.pendingRequests || []);
+      setMessage(data.message || 'Drop request submitted successfully. Waiting for advisor approval.');
     } catch (e) {
       console.error(e);
       setError(e.message || 'Failed to drop program.');
@@ -185,6 +210,7 @@ export default function DeclareMajorMinor() {
       <h1>Declare Your Major / Minor</h1>
       <p style={{ color: '#555', marginBottom: 16 }}>
         You may declare up to <strong>2 majors</strong> and <strong>3 minors</strong>.
+        Requests require advisor approval.
       </p>
 
       {loading && <p>Loading program information...</p>}
@@ -207,6 +233,47 @@ export default function DeclareMajorMinor() {
 
       {!loading && (
         <>
+          {/* PENDING REQUESTS */}
+          {pendingRequests.length > 0 && (
+            <div
+              style={{
+                padding: 16,
+                marginBottom: 24,
+                borderRadius: 8,
+                background: '#fff3cd',
+                border: '1px solid #ffc107',
+              }}
+            >
+              <h2 style={{ marginTop: 0 }}>Pending Requests</h2>
+              <ul style={{ listStyle: 'none', paddingLeft: 0 }}>
+                {pendingRequests.map((req) => (
+                  <li
+                    key={req.requestId}
+                    style={{
+                      padding: 8,
+                      marginBottom: 8,
+                      background: '#fff',
+                      borderRadius: 4,
+                      border: '1px solid #ffc107',
+                    }}
+                  >
+                    <strong>
+                      {req.requestType === 'DECLARE' ? 'Declare' : 'Drop'}: {req.programName}
+                    </strong>
+                    {req.effectiveTerm && (
+                      <span style={{ color: '#666', marginLeft: 8 }}>
+                        (Effective: {req.effectiveTerm.semester} {req.effectiveTerm.year})
+                      </span>
+                    )}
+                    <span style={{ color: '#666', marginLeft: 8, fontSize: 12 }}>
+                      - Waiting for advisor approval
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* CURRENT PROGRAMS */}
           <div
             style={{
@@ -362,6 +429,19 @@ export default function DeclareMajorMinor() {
                       </option>
                     ))}
                   </select>
+                  <input
+                    type="text"
+                    placeholder="Effective Term (e.g., Fall 2025) - Optional"
+                    value={effectiveTermMajor}
+                    onChange={(e) => setEffectiveTermMajor(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: 8,
+                      marginBottom: 10,
+                      borderRadius: 6,
+                      border: '1px solid #ccc',
+                    }}
+                  />
                   <button
                     onClick={handleAddMajor}
                     disabled={!canAddMajor || actionLoading}
@@ -419,6 +499,19 @@ export default function DeclareMajorMinor() {
                       </option>
                     ))}
                   </select>
+                  <input
+                    type="text"
+                    placeholder="Effective Term (e.g., Fall 2025) - Optional"
+                    value={effectiveTermMinor}
+                    onChange={(e) => setEffectiveTermMinor(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: 8,
+                      marginBottom: 10,
+                      borderRadius: 6,
+                      border: '1px solid #ccc',
+                    }}
+                  />
                   <button
                     onClick={handleAddMinor}
                     disabled={!canAddMinor || actionLoading}

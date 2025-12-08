@@ -123,6 +123,7 @@ export default function AppLayout() {
             ) : role === 'advisor' ? (
               <>
                 <NavItem to="/app" end>Dashboard</NavItem>
+                <NavItem to="/app/majorMinorRequests">Major/Minor Requests</NavItem>
                 <NavItem to="/app/rosters">Rosters & Grading</NavItem>
                 <NavItem to="/app/userManage">User Management</NavItem>
                 <NavItem to="/app/academicCalendar">Academic Calendar</NavItem>
