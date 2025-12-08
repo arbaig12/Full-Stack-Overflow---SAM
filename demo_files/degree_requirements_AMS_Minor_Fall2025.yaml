@@ -1,0 +1,23 @@
+subject: AMS
+degree_type: MIN
+type: minor
+effective_term:
+  semester: Fall
+  year: 2025
+
+admission_requirements:
+  min_gpa: 2.5
+  required_courses: []
+
+degree_requirements:
+  required_courses:
+    - AMS151
+    - AMS161
+    - AMS210
+
+  electives:
+    min_courses: 2
+    from_subject: AMS
+    min_level: 300
+    exclude_courses: []
+

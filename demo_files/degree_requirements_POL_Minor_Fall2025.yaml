@@ -1,0 +1,22 @@
+subject: POL
+degree_type: MIN
+type: minor
+effective_term:
+  semester: Fall
+  year: 2025
+
+admission_requirements:
+  min_gpa: 2.0
+  required_courses: []
+
+degree_requirements:
+  required_courses:
+    - POL101
+    - POL102
+
+  electives:
+    min_courses: 3
+    from_subject: POL
+    min_level: 200
+    exclude_courses: []
+

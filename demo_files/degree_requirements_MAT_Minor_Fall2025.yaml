@@ -1,0 +1,23 @@
+subject: MAT
+degree_type: MIN
+type: minor
+effective_term:
+  semester: Fall
+  year: 2025
+
+admission_requirements:
+  min_gpa: 2.5
+  required_courses: []
+
+degree_requirements:
+  required_courses:
+    - MAT125
+    - MAT126
+    - MAT211
+
+  electives:
+    min_courses: 2
+    from_subject: MAT
+    min_level: 300
+    exclude_courses: []
+
