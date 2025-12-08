@@ -1,5 +1,4 @@
 import express from "express";
-import pkg from "pg";
 import { OAuth2Client } from "google-auth-library";
 
 const router = express.Router();
@@ -20,9 +19,8 @@ router.post("/google", async (req, res) => {
     const given = payload.given_name;
     const family = payload.family_name;
 
-    // STEP 2: find or create user
     const { rows: existing } = await db.query(
-      `SELECT user_id FROM users WHERE email = $1`,
+      `SELECT user_id FROM users WHERE LOWER(email) = LOWER($1)`,
       [email]
     );
 
@@ -39,86 +37,93 @@ router.post("/google", async (req, res) => {
       userId = existing[0].user_id;
     }
 
-    // STEP 3: save into session
-    req.session.user = { user_id: userId, email };
+    const { rows: userRows } = await db.query(
+      `SELECT user_id, first_name, last_name, email, role
+       FROM users
+       WHERE user_id = $1`,
+      [userId]
+    );
+
+    const user = userRows[0] || { user_id: userId, email, role: null, first_name: given, last_name: family };
+
+    req.session.user = { user_id: user.user_id, email: user.email };
 
     req.session.save(() => {
-      return res.json({ ok: true });
+      return res.json({
+        ok: true,
+        user: {
+          userId: user.user_id,
+          email: user.email,
+          name: `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.email,
+          role: user.role || null,
+        },
+      });
     });
-
   } catch (err) {
     console.error("Google login failed:", err);
-    res.status(500).json({ error: "Google authentication failed" });
+    return res.status(500).json({ ok: false, error: "Google authentication failed" });
   }
 });
 
-/**
- * POST /api/auth/password
- * Password-based authentication bypass endpoint (for testing/demo only)
- * Only works when ENABLE_AUTH_BYPASS environment variable is set to 'true'
- */
 router.post("/password", async (req, res) => {
   const db = req.db;
   const { email, password } = req.body;
 
-  // Check if bypass authentication is enabled
-  if (process.env.ENABLE_AUTH_BYPASS !== 'true') {
-    return res.status(403).json({ 
-      error: "Password authentication is disabled. Please use Google authentication." 
+  if (process.env.ENABLE_AUTH_BYPASS !== "true") {
+    return res.status(403).json({
+      ok: false,
+      error: "Password authentication is disabled. Please use Google authentication.",
     });
   }
 
   if (!email || !password) {
-    return res.status(400).json({ error: "Email and password are required" });
+    return res.status(400).json({ ok: false, error: "Email and password are required" });
   }
 
   try {
-    // Find user by email
     const { rows: users } = await db.query(
-      `SELECT user_id, email, password_hash, first_name, last_name
-       FROM users 
+      `SELECT user_id, email, password_hash, first_name, last_name, role
+       FROM users
        WHERE LOWER(email) = LOWER($1)`,
       [email]
     );
 
     if (users.length === 0) {
-      return res.status(401).json({ error: "Invalid email or password" });
+      return res.status(401).json({ ok: false, error: "Invalid email or password" });
     }
 
     const user = users[0];
 
-    // Check if user has a password set
     if (!user.password_hash) {
-      return res.status(401).json({ 
-        error: "Password not set for this user. Please contact administrator." 
+      return res.status(401).json({
+        ok: false,
+        error: "Password not set for this user. Please contact administrator.",
       });
     }
 
-    // For demo/testing: simple plain text comparison
-    // In production, this would use bcrypt.compare()
     if (user.password_hash !== password) {
-      return res.status(401).json({ error: "Invalid email or password" });
+      return res.status(401).json({ ok: false, error: "Invalid email or password" });
     }
 
-    // Set session
-    req.session.user = { 
-      user_id: user.user_id, 
-      email: user.email 
+    req.session.user = {
+      user_id: user.user_id,
+      email: user.email,
     };
 
     req.session.save(() => {
-      return res.json({ 
-        ok: true, 
+      return res.json({
+        ok: true,
         user: {
+          userId: user.user_id,
           email: user.email,
-          name: `${user.first_name} ${user.last_name}`
-        }
+          name: `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.email,
+          role: user.role || null,
+        },
       });
     });
-
   } catch (err) {
     console.error("Password login failed:", err);
-    res.status(500).json({ error: "Authentication failed" });
+    return res.status(500).json({ ok: false, error: "Authentication failed" });
   }
 });
 

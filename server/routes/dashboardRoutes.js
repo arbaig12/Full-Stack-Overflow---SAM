@@ -58,8 +58,8 @@ async function getStudentDashboard(db, userId) {
         e.class_id,
         e.status,
         e.grade,
-        e.enrolled_at AS added_at,
-        e.enrolled_at AS updated_at,
+        e.enrolled_at,
+        e.updated_at,
 
         c.subject,
         c.course_num,
@@ -74,21 +74,17 @@ async function getStudentDashboard(db, userId) {
       JOIN courses c ON c.course_id = cs.course_id
       JOIN terms t ON t.term_id = cs.term_id
       WHERE e.student_id = $1
-      ORDER BY e.enrolled_at DESC
+      ORDER BY e.enrolled_at DESC NULLS LAST, e.updated_at DESC NULLS LAST
       LIMIT 50;
       `,
       [userId]
     );
 
     // "Currently enrolled" courses (status = 'registered')
-    const enrolledCourses = enrollments.filter(
-      (e) => e.status === 'registered'
-    ).length;
+    const enrolledCourses = enrollments.filter((e) => e.status === 'registered').length;
 
     // Completed credits (status = 'completed')
-    const completedEnrollments = enrollments.filter(
-      (e) => e.status === 'completed'
-    );
+    const completedEnrollments = enrollments.filter((e) => e.status === 'completed');
 
     const totalCompletedCredits = completedEnrollments.reduce((sum, e) => {
       const cr = Number(e.credits || e.course_credits || 0);
@@ -99,10 +95,7 @@ async function getStudentDashboard(db, userId) {
 
     // Simple: assume 120 credits to graduate
     const assumedCreditsToGrad = 120;
-    const creditsToGraduate = Math.max(
-      0,
-      assumedCreditsToGrad - totalCompletedCredits
-    );
+    const creditsToGraduate = Math.max(0, assumedCreditsToGrad - totalCompletedCredits);
 
     // Recent activity: last 5 enrollments / grade changes
     const recentActivity = enrollments.slice(0, 5).map((e) => {
@@ -118,7 +111,7 @@ async function getStudentDashboard(db, userId) {
       return {
         type,
         message,
-        time: e.added_at || e.updated_at,
+        time: e.enrolled_at || e.updated_at,
       };
     });
 
@@ -168,20 +161,15 @@ async function getInstructorDashboard(db, userId) {
     );
 
     const teachingCourses = sections.length;
-    const totalStudents = sections.reduce(
-      (sum, s) => sum + Number(s.enrolled_students || 0),
-      0
-    );
-    const pendingGrades = sections.reduce(
-      (sum, s) => sum + Number(s.pending_grades || 0),
-      0
-    );
+    const totalStudents = sections.reduce((sum, s) => sum + Number(s.enrolled_students || 0), 0);
+    const pendingGrades = sections.reduce((sum, s) => sum + Number(s.pending_grades || 0), 0);
 
     // Recent activity: latest enrollments / grades in these sections
     const { rows: recent } = await client.query(
       `
       SELECT
-        e.enrolled_at AS added_at,
+        e.enrolled_at,
+        e.updated_at,
         e.status,
         e.grade,
         u.first_name,
@@ -195,7 +183,7 @@ async function getInstructorDashboard(db, userId) {
       JOIN class_sections cs ON cs.class_id = e.class_id
       JOIN courses c ON c.course_id = cs.course_id
       WHERE cs.instructor_id = $1
-      ORDER BY e.enrolled_at DESC
+      ORDER BY e.enrolled_at DESC NULLS LAST, e.updated_at DESC NULLS LAST
       LIMIT 10;
       `,
       [userId]
@@ -214,7 +202,7 @@ async function getInstructorDashboard(db, userId) {
       return {
         type,
         message,
-        time: r.added_at,
+        time: r.enrolled_at || r.updated_at,
       };
     });
 
@@ -236,8 +224,7 @@ async function getInstructorDashboard(db, userId) {
  * ADVISOR DASHBOARD
  * NOTE: no advisor→advisee linking table yet, so these are placeholders.
  */
-async function getAdvisorDashboard(db, userId) {
-  // TODO: when you add advisor_advisees table, query it here using db.
+async function getAdvisorDashboard(_db, _userId) {
   return {
     role: 'advisor',
     stats: {
@@ -256,13 +243,10 @@ async function getAdvisorDashboard(db, userId) {
 async function getRegistrarDashboard(db) {
   const client = await db.connect();
   try {
-    const [{ rows: studentCountRows }, { rows: courseCountRows }] =
-      await Promise.all([
-        client.query(
-          `SELECT COUNT(*)::int AS cnt FROM users WHERE role = 'Student';`
-        ),
-        client.query(`SELECT COUNT(*)::int AS cnt FROM courses;`),
-      ]);
+    const [{ rows: studentCountRows }, { rows: courseCountRows }] = await Promise.all([
+      client.query(`SELECT COUNT(*)::int AS cnt FROM users WHERE role = 'Student';`),
+      client.query(`SELECT COUNT(*)::int AS cnt FROM courses;`),
+    ]);
 
     const totalStudents = studentCountRows[0]?.cnt || 0;
     const activeCourses = courseCountRows[0]?.cnt || 0;
@@ -284,24 +268,14 @@ async function getRegistrarDashboard(db) {
 
 /**
  * Main route: GET /api/dashboard
- * Assumes:
- *   - req.db   = Postgres pool (set in index.js)
- *   - req.user = { userId, role } (from auth or a temporary stub)
  */
 router.get('/', async (req, res) => {
   try {
     const db = req.db;
     const { userId, role } = req.user || {};
 
-    if (!db) {
-      return res
-        .status(500)
-        .json({ error: 'Database pool not available on request' });
-    }
-
-    if (!userId || !role) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
+    if (!db) return res.status(500).json({ error: 'Database pool not available on request' });
+    if (!userId || !role) return res.status(401).json({ error: 'Not authenticated' });
 
     let data;
 

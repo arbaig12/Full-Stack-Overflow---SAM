@@ -687,358 +687,151 @@ router.post("/users", upload.single("file"), async (req, res) => {
     /**
      * Import student majors and minors into student_programs table
      */
-    
     /**
-     * Get or create a term row and return term_id.
-     * Normalizes semester name (capitalize first letter, lowercase rest).
-     */
-    async function getOrCreateTerm(db, semester, year) {
-      // Normalize semester: capitalize first letter, lowercase rest (e.g., "Fall", "Spring")
-      const normalizedSemester = String(semester).trim().charAt(0).toUpperCase() + 
-                                 String(semester).trim().slice(1).toLowerCase();
-      
-      console.log(`[import] getOrCreateTerm: Looking up term - original="${semester}", normalized="${normalizedSemester}", year=${year}`);
-      
-      // First try case-insensitive lookup
-      const existing = await db.query(
-        `SELECT term_id FROM terms WHERE LOWER(semester::text) = LOWER($1) AND year = $2 LIMIT 1`,
-        [normalizedSemester, year]
-      );
-      
-      if (existing.rows.length > 0) {
-        console.log(`[import] getOrCreateTerm: Found existing term_id=${existing.rows[0].term_id} for ${normalizedSemester} ${year}`);
-        return existing.rows[0].term_id;
-      }
-      
-      // Term doesn't exist, create it
-      console.log(`[import] getOrCreateTerm: Creating new term: ${normalizedSemester} ${year}`);
-      const inserted = await db.query(
-        `INSERT INTO terms (semester, year)
-         VALUES ($1, $2)
-         RETURNING term_id`,
-        [normalizedSemester, year]
-      );
-      
-      console.log(`[import] getOrCreateTerm: Created term_id=${inserted.rows[0].term_id} for ${normalizedSemester} ${year}`);
-      return inserted.rows[0].term_id;
-    }
-    
-    /**
-     * Import student classes from YAML into enrollments table
+     * Import student class enrollments from YAML classes array
      */
     async function importStudentClasses(db, userId, studentObj, results) {
       try {
         const { classes = [] } = studentObj;
+        
         if (!Array.isArray(classes) || classes.length === 0) {
-          console.log(`[import] Student ${studentObj.SBU_ID}: No classes to import`);
           return; // No classes to import
         }
 
-        console.log(`[import] Student ${studentObj.SBU_ID}: Processing ${classes.length} classes`);
-        let importedCount = 0;
-        let skippedCount = 0;
-
         for (const classEntry of classes) {
-          const { class_id: yamlClassId, department, course_num, section, semester, year, credits, GPNC, grade } = classEntry;
-
-          console.log(`[import] Student ${studentObj.SBU_ID}: Processing class - class_id=${yamlClassId}, ${department} ${course_num}-${section}, ${semester} ${year}`);
-
-          if (!yamlClassId || !department || !course_num || !section || !semester || !year) {
-            skippedCount++;
-            const missingFields = [];
-            if (!yamlClassId) missingFields.push('class_id');
-            if (!department) missingFields.push('department');
-            if (!course_num) missingFields.push('course_num');
-            if (!section) missingFields.push('section');
-            if (!semester) missingFields.push('semester');
-            if (!year) missingFields.push('year');
-            console.log(`[import] Student ${studentObj.SBU_ID}: SKIP - Missing required fields: ${missingFields.join(', ')}`);
+          const { class_id, department, course_num, section, semester, year, credits, GPNC, grade } = classEntry;
+          
+          if (!class_id && (!department || !course_num || !section || !semester || !year)) {
             results.warnings.push(
-              `Student ${studentObj.SBU_ID}: Skipping class entry with missing required fields (${missingFields.join(', ')}): ${JSON.stringify(classEntry)}`
+              `Student ${studentObj.SBU_ID}: Skipping class entry with insufficient data: ${JSON.stringify(classEntry)}`
             );
             continue;
           }
 
-          // Get or create the term_id (auto-create if missing)
-          console.log(`[import] Student ${studentObj.SBU_ID}: Looking up/creating term: ${semester} ${year}`);
-          const termId = await getOrCreateTerm(db, semester, year);
-          console.log(`[import] Student ${studentObj.SBU_ID}: Term ID: ${termId} for ${semester} ${year}`);
-
-          // Find the course_id
-          console.log(`[import] Student ${studentObj.SBU_ID}: Looking up course: ${department} ${course_num}`);
-          const courseRes = await db.query(
-            `SELECT course_id FROM courses WHERE UPPER(subject) = UPPER($1) AND course_num = $2 LIMIT 1`,
-            [department, course_num]
+          // Find the term
+          const termRes = await db.query(
+            `SELECT term_id FROM terms WHERE semester = $1 AND year = $2`,
+            [semester, year]
           );
 
-          if (courseRes.rows.length === 0) {
-            skippedCount++;
-            // Check if course exists with different case or similar
-            const similarCourses = await db.query(
-              `SELECT course_id, subject, course_num FROM courses WHERE UPPER(subject) LIKE UPPER($1) OR course_num = $2 LIMIT 5`,
-              [`%${department}%`, course_num]
-            );
-            console.log(`[import] Student ${studentObj.SBU_ID}: SKIP - Course not found for ${department} ${course_num}`);
-            if (similarCourses.rows.length > 0) {
-              console.log(`[import] Student ${studentObj.SBU_ID}: Similar courses found: ${JSON.stringify(similarCourses.rows.map(r => `${r.subject} ${r.course_num}`))}`);
-            }
+          if (termRes.rows.length === 0) {
             results.warnings.push(
-              `Student ${studentObj.SBU_ID}: Course not found for ${department} ${course_num}, skipping`
+              `Student ${studentObj.SBU_ID}: Term not found for ${semester} ${year}. Skipping class.`
             );
             continue;
           }
 
-          const courseId = courseRes.rows[0].course_id;
-          console.log(`[import] Student ${studentObj.SBU_ID}: Found course_id: ${courseId} for ${department} ${course_num}`);
+          const termId = termRes.rows[0].term_id;
+          let classSectionId = null;
 
-          // Find the class_section by class_id (the YAML class_id should match class_sections.class_id)
-          // If not found, try to find by course_id, term_id, and section_num
-          console.log(`[import] Student ${studentObj.SBU_ID}: Looking up class section by class_id: ${yamlClassId}`);
-          let classSectionRes = await db.query(
-            `SELECT class_id FROM class_sections WHERE class_id = $1 LIMIT 1`,
-            [yamlClassId]
-          );
-
-          if (classSectionRes.rows.length === 0) {
-            // Try to find by course, term, and section
-            // Convert section to string to handle both numeric and string formats
-            const sectionStr = String(section).trim();
-            console.log(`[import] Student ${studentObj.SBU_ID}: Class section not found by class_id=${yamlClassId}, trying by course_id=${courseId}, term_id=${termId}, section_num="${sectionStr}"`);
-            classSectionRes = await db.query(
-              `SELECT class_id FROM class_sections 
-               WHERE course_id = $1 AND term_id = $2 AND section_num = $3 LIMIT 1`,
-              [courseId, termId, sectionStr]
+          // Try to find class_section by class_id first
+          if (class_id) {
+            const classRes = await db.query(
+              `SELECT class_id, course_id FROM class_sections WHERE class_id = $1 AND term_id = $2`,
+              [class_id, termId]
             );
             
-            // If still not found, check what sections exist for this course/term
-            if (classSectionRes.rows.length === 0) {
-              const existingSections = await db.query(
-                `SELECT class_id, section_num FROM class_sections 
-                 WHERE course_id = $1 AND term_id = $2 LIMIT 10`,
-                [courseId, termId]
-              );
-              if (existingSections.rows.length > 0) {
-                console.log(`[import] Student ${studentObj.SBU_ID}: Available sections for ${department} ${course_num} ${semester} ${year}: ${existingSections.rows.map(r => r.section_num).join(', ')}`);
-              } else {
-                console.log(`[import] Student ${studentObj.SBU_ID}: No sections exist for course_id=${courseId}, term_id=${termId}`);
-              }
+            if (classRes.rows.length > 0) {
+              classSectionId = classRes.rows[0].class_id;
             }
           }
 
-          if (classSectionRes.rows.length === 0) {
-            // Class section doesn't exist - create a stub section
-            const sectionStr = String(section).trim();
-            console.log(`[import] Student ${studentObj.SBU_ID}: Creating stub class section for ${department} ${course_num}-${sectionStr} ${semester} ${year}`);
-            
-            try {
-              // Create stub section with minimal data
-              // Use default capacity of 30, all other fields null/empty
-              // If section already exists (created by another student's import), just get its class_id
-              const createSectionRes = await db.query(
-                `INSERT INTO class_sections 
-                 (course_id, term_id, section_num, capacity, room_id, instructor_id, meeting_days, meeting_times, location_text, requires_dept_permission, notes)
-                 VALUES ($1, $2, $3, $4, NULL, NULL, NULL, NULL, NULL, FALSE, NULL)
-                 ON CONFLICT (course_id, term_id, section_num) 
-                 DO UPDATE SET course_id = class_sections.course_id
-                 RETURNING class_id`,
-                [courseId, termId, sectionStr, 30] // Default capacity of 30
-              );
-              
-              const newClassId = createSectionRes.rows[0].class_id;
-              
-              // Check if this was a new insert or an existing row (by checking if capacity was set to 30)
-              const checkRes = await db.query(
-                `SELECT class_id, capacity FROM class_sections WHERE class_id = $1`,
-                [newClassId]
-              );
-              
-              if (checkRes.rows.length > 0 && checkRes.rows[0].capacity === 30) {
-                console.log(`[import] Student ${studentObj.SBU_ID}: Created new stub class section with class_id=${newClassId} for ${department} ${course_num}-${sectionStr}`);
-                results.warnings.push(
-                  `Student ${studentObj.SBU_ID}: Auto-created stub class section for ${department} ${course_num}-${sectionStr} ${semester} ${year} (class_id=${newClassId})`
-                );
-              } else {
-                console.log(`[import] Student ${studentObj.SBU_ID}: Using existing class section with class_id=${newClassId} for ${department} ${course_num}-${sectionStr}`);
-              }
-              
-              classSectionRes = { rows: [{ class_id: newClassId }] };
-            } catch (createErr) {
-              // If creation fails, try to get existing section one more time
-              console.error(`[import] Student ${studentObj.SBU_ID}: Failed to create stub section: ${createErr.message}, trying to find existing...`);
-              const retryRes = await db.query(
-                `SELECT class_id FROM class_sections 
-                 WHERE course_id = $1 AND term_id = $2 AND section_num = $3 LIMIT 1`,
-                [courseId, termId, sectionStr]
-              );
-              
-              if (retryRes.rows.length > 0) {
-                console.log(`[import] Student ${studentObj.SBU_ID}: Found existing section after conflict, using class_id=${retryRes.rows[0].class_id}`);
-                classSectionRes = retryRes;
-              } else {
-                // If still not found, skip this class
-                skippedCount++;
-                console.error(`[import] Student ${studentObj.SBU_ID}: Could not create or find class section, skipping`);
-                results.warnings.push(
-                  `Student ${studentObj.SBU_ID}: Failed to create class section for ${department} ${course_num}-${section} ${semester} ${year}: ${createErr.message}, skipping`
-                );
-                continue;
-              }
+          // If not found by class_id, try to find by course and section
+          if (!classSectionId && department && course_num && section) {
+            const sectionRes = await db.query(
+              `SELECT cs.class_id, cs.course_id
+               FROM class_sections cs
+               JOIN courses c ON c.course_id = cs.course_id
+               WHERE c.subject = $1 
+                 AND c.course_num = $2 
+                 AND cs.section_num = $3
+                 AND cs.term_id = $4`,
+              [department, course_num, section, termId]
+            );
+
+            if (sectionRes.rows.length > 0) {
+              classSectionId = sectionRes.rows[0].class_id;
             }
           }
 
-          const classId = classSectionRes.rows[0].class_id;
-          console.log(`[import] Student ${studentObj.SBU_ID}: Using class_id: ${classId} for section ${section}`);
+          if (!classSectionId) {
+            results.warnings.push(
+              `Student ${studentObj.SBU_ID}: Class section not found for class_id=${class_id || 'N/A'}, ${department} ${course_num} section ${section} in ${semester} ${year}. Skipping.`
+            );
+            continue;
+          }
+
+          // Get course credits if not provided in YAML
+          let enrollmentCredits = credits;
+          if (!enrollmentCredits) {
+            const courseRes = await db.query(
+              `SELECT c.credits 
+               FROM class_sections cs
+               JOIN courses c ON c.course_id = cs.course_id
+               WHERE cs.class_id = $1`,
+              [classSectionId]
+            );
+            if (courseRes.rows.length > 0) {
+              enrollmentCredits = courseRes.rows[0].credits;
+            }
+          }
 
           // Determine enrollment status
-          // If grade is null, status is 'registered' (current/future term)
-          // If grade exists, status is 'completed'
-          const status = grade ? 'completed' : 'registered';
-
-          // Determine GPNC value (convert to boolean, default to false)
-          // GPNC column is BOOLEAN type, so we must provide a boolean value
-          // If GPNC is provided and truthy, set to true, otherwise false
-          const gpncValue = GPNC ? true : false;
-
-          console.log(`[import] Student ${studentObj.SBU_ID}: Preparing enrollment - status=${status}, grade=${grade || 'null'}, gpnc=${gpncValue}, credits=${credits || 'null'}`);
+          // If grade exists and is not null, status should be 'completed'
+          // Otherwise, status should be 'registered'
+          const enrollmentStatus = (grade && grade !== null && grade.toUpperCase() !== 'NULL') 
+            ? 'completed' 
+            : 'registered';
 
           // Check if enrollment already exists
+          // Note: enrollments table may use composite key (student_id, class_id) instead of enrollment_id
           const existingEnrollment = await db.query(
-            `SELECT student_id, class_id FROM enrollments WHERE student_id = $1 AND class_id = $2 LIMIT 1`,
-            [userId, classId]
+            `SELECT student_id, class_id FROM enrollments 
+             WHERE student_id = $1 AND class_id = $2`,
+            [userId, classSectionId]
           );
 
           if (existingEnrollment.rows.length > 0) {
             // Update existing enrollment
-            console.log(`[import] Student ${studentObj.SBU_ID}: Updating existing enrollment for class_id=${classId}`);
             await db.query(
               `UPDATE enrollments 
-               SET status = $1, grade = $2, gpnc = $3, credits = $4, updated_at = NOW()
+               SET status = $1, 
+                   grade = $2, 
+                   gpnc = $3, 
+                   credits = $4,
+                   updated_at = NOW()
                WHERE student_id = $5 AND class_id = $6`,
-              [status, grade || null, gpncValue, credits || null, userId, classId]
+              [
+                enrollmentStatus,
+                grade && grade !== null && grade.toUpperCase() !== 'NULL' ? grade : null,
+                GPNC || false,
+                enrollmentCredits || 0,
+                userId,
+                classSectionId
+              ]
             );
           } else {
             // Insert new enrollment
-            console.log(`[import] Student ${studentObj.SBU_ID}: Inserting new enrollment for class_id=${classId}`);
             await db.query(
-              `INSERT INTO enrollments (student_id, class_id, status, grade, gpnc, credits, enrolled_at, updated_at)
-               VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())`,
-              [userId, classId, status, grade || null, gpncValue, credits || null]
+              `INSERT INTO enrollments 
+               (student_id, class_id, status, grade, gpnc, credits, enrolled_at)
+               VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+              [
+                userId,
+                classSectionId,
+                enrollmentStatus,
+                grade && grade !== null && grade.toUpperCase() !== 'NULL' ? grade : null,
+                GPNC || false,
+                enrollmentCredits || 0
+              ]
             );
           }
-
-          importedCount++;
-          console.log(`[import] Student ${studentObj.SBU_ID}: SUCCESS - Imported class ${department} ${course_num}-${section} (class_id=${classId})`);
-        }
-
-        if (importedCount > 0 || skippedCount > 0) {
-          console.log(`[import] Student ${studentObj.SBU_ID}: Imported ${importedCount} classes, skipped ${skippedCount}`);
         }
       } catch (err) {
         results.warnings.push(
           `Failed to import classes for student ${studentObj.SBU_ID}: ${err.message}`
         );
         console.error(`[import] Error importing classes for student ${studentObj.SBU_ID}:`, err);
-      }
-    }
-
-    /**
-     * Import student metadata (university_entry, transfer_courses) into students table
-     */
-    async function importStudentMetadata(db, userId, studentObj, results) {
-      try {
-        // Ensure student record exists
-        const studentCheck = await db.query(
-          `SELECT 1 FROM students WHERE user_id = $1`,
-          [userId]
-        );
-
-        if (studentCheck.rows.length === 0) {
-          await db.query(
-            `INSERT INTO students (user_id) VALUES ($1)`,
-            [userId]
-          );
-        }
-
-        // Prepare update fields
-        const updates = [];
-        const values = [];
-        let paramIndex = 1;
-
-        // Import university_entry
-        if (studentObj.university_entry) {
-          const universityEntry = studentObj.university_entry;
-          // Check if the column exists first
-          try {
-            await db.query(
-              `UPDATE students 
-               SET university_entry = $1::jsonb 
-               WHERE user_id = $2`,
-              [JSON.stringify(universityEntry), userId]
-            );
-          } catch (err) {
-            // Column might not exist, try ALTER TABLE
-            if (err.message.includes('column') && err.message.includes('does not exist')) {
-              try {
-                await db.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS university_entry JSONB`);
-                await db.query(
-                  `UPDATE students 
-                   SET university_entry = $1::jsonb 
-                   WHERE user_id = $2`,
-                  [JSON.stringify(universityEntry), userId]
-                );
-              } catch (alterErr) {
-                results.warnings.push(
-                  `Student ${studentObj.SBU_ID}: Could not add university_entry column: ${alterErr.message}`
-                );
-              }
-            } else {
-              results.warnings.push(
-                `Student ${studentObj.SBU_ID}: Could not update university_entry: ${err.message}`
-              );
-            }
-          }
-        }
-
-        // Import transfer_courses (filter out placement tests)
-        if (studentObj.transfer_courses) {
-          const filtered = filterTransferCourses(studentObj.transfer_courses);
-          if (filtered.length > 0) {
-            try {
-              await db.query(
-                `UPDATE students 
-                 SET transfer_courses = $1::jsonb 
-                 WHERE user_id = $2`,
-                [JSON.stringify(filtered), userId]
-              );
-            } catch (err) {
-              // Column might not exist, try ALTER TABLE
-              if (err.message.includes('column') && err.message.includes('does not exist')) {
-                try {
-                  await db.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS transfer_courses JSONB`);
-                  await db.query(
-                    `UPDATE students 
-                     SET transfer_courses = $1::jsonb 
-                     WHERE user_id = $2`,
-                    [JSON.stringify(filtered), userId]
-                  );
-                } catch (alterErr) {
-                  results.warnings.push(
-                    `Student ${studentObj.SBU_ID}: Could not add transfer_courses column: ${alterErr.message}`
-                  );
-                }
-              } else {
-                results.warnings.push(
-                  `Student ${studentObj.SBU_ID}: Could not update transfer_courses: ${err.message}`
-                );
-              }
-            }
-          }
-        }
-      } catch (err) {
-        results.warnings.push(
-          `Failed to import metadata for student ${studentObj.SBU_ID}: ${err.message}`
-        );
-        console.error(`[import] Error importing metadata for student ${studentObj.SBU_ID}:`, err);
       }
     }
 
@@ -1051,10 +844,45 @@ router.post("/users", upload.single("file"), async (req, res) => {
         );
 
         if (studentCheck.rows.length === 0) {
+          // Insert new student record
+          // Note: university_entry and transfer_courses columns may not exist in all database schemas
+          // Only insert basic user_id for now
           await db.query(
             `INSERT INTO students (user_id) VALUES ($1)`,
             [userId]
           );
+          
+          // Try to update with optional fields if columns exist
+          try {
+            if (studentObj.university_entry) {
+              const universityEntryJson = typeof studentObj.university_entry === 'string' 
+                ? studentObj.university_entry 
+                : JSON.stringify(studentObj.university_entry);
+              await db.query(
+                `UPDATE students SET university_entry = $1::jsonb WHERE user_id = $2`,
+                [universityEntryJson, userId]
+              );
+            }
+            
+            if (studentObj.transfer_courses && Array.isArray(studentObj.transfer_courses)) {
+              const filtered = filterTransferCourses(studentObj.transfer_courses);
+              if (filtered.length > 0) {
+                const transferCoursesJson = JSON.stringify(filtered);
+                await db.query(
+                  `UPDATE students SET transfer_courses = $1::jsonb WHERE user_id = $2`,
+                  [transferCoursesJson, userId]
+                );
+              }
+            }
+          } catch (optionalFieldErr) {
+            // Columns don't exist, that's okay - just log a warning
+            if (optionalFieldErr.message.includes('university_entry') || 
+                optionalFieldErr.message.includes('transfer_courses')) {
+              // Silently ignore - these are optional fields
+            } else {
+              throw optionalFieldErr;
+            }
+          }
         }
 
         const { majors = [], minors = [], degrees = [] } = studentObj;
@@ -1234,13 +1062,12 @@ router.post("/users", upload.single("file"), async (req, res) => {
     for (const a of academic_advisors) await insertUser(a, "Advisor");
     for (const i of instructors) await insertUser(i, "Instructor");
     
-    // Import students and their majors/minors, classes, and metadata
+    // Import students and their majors/minors and classes
     for (const s of students) {
       const userId = await insertUser(s, "Student");
       if (userId) {
         await importStudentPrograms(req.db, userId, s, results);
         await importStudentClasses(req.db, userId, s, results);
-        await importStudentMetadata(req.db, userId, s, results);
       }
     }
 

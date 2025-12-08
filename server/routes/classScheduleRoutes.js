@@ -182,7 +182,7 @@ function extractInstructorNameFromText(locationText) {
  */
 router.get('/sections', async (req, res) => {
   try {
-    const { term_id, subject, course_num, instructor_id, sbc, days } = req.query;
+    const { term_id, subject, course_num, instructor_id, sbc, days, search } = req.query;
 
     if (!term_id) {
       return res.status(400).json({ 
@@ -191,12 +191,64 @@ router.get('/sections', async (req, res) => {
       });
     }
 
+    // Check if class_section_instructors table exists
+    const tableCheck = await req.db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'class_section_instructors'
+      ) AS table_exists
+    `);
+    const hasJunctionTable = tableCheck.rows[0]?.table_exists === true;
+
     // Trim and normalize filter values
     const subjectFilter = subject ? String(subject).trim() : '';
     const courseNumFilter = course_num ? String(course_num).trim() : '';
     const daysFilter = days ? String(days).trim() : '';
+    const searchFilter = search ? String(search).trim() : '';
 
-    let sql = `
+    let sql = hasJunctionTable ? `
+      SELECT
+        cs.class_id,
+        cs.section_num,
+        cs.capacity,
+        cs.location_text,
+        cs.requires_dept_permission,
+        cs.notes,
+        cs.term_id,
+        cs.course_id,
+        cs.instructor_id,
+        c.subject,
+        c.course_num,
+        c.title,
+        c.credits,
+        c.description,
+        COALESCE(c.sbc, '') AS sbc,
+        COALESCE(cs.meeting_days, '') AS meeting_days,
+        COALESCE(cs.meeting_times, '') AS meeting_times,
+        r.building,
+        r.room,
+        COUNT(e.student_id) FILTER (WHERE e.status = 'registered') AS enrolled_count,
+        -- Aggregate all instructors for this section
+        COALESCE(
+          JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'id', u_instr.user_id,
+              'name', u_instr.first_name || ' ' || u_instr.last_name,
+              'email', u_instr.email
+            )
+            ORDER BY u_instr.last_name, u_instr.first_name
+          ) FILTER (WHERE u_instr.user_id IS NOT NULL),
+          '[]'::json
+        ) AS instructors
+      FROM class_sections cs
+      JOIN courses c ON c.course_id = cs.course_id
+      LEFT JOIN class_section_instructors csi ON csi.class_id = cs.class_id
+      LEFT JOIN users u_instr ON u_instr.user_id = csi.instructor_id
+      LEFT JOIN rooms r ON r.room_id = cs.room_id
+      LEFT JOIN enrollments e ON e.class_id = cs.class_id
+      WHERE cs.term_id = $1
+    ` : `
       SELECT
         cs.class_id,
         cs.section_num,
@@ -273,12 +325,23 @@ router.get('/sections', async (req, res) => {
       }
     }
 
+    // Search filter - searches in course title and description
+    if (searchFilter) {
+      paramIndex++;
+      params.push(`%${searchFilter.toLowerCase()}%`);
+      sql += ` AND (
+        LOWER(c.title) LIKE $${paramIndex} OR
+        LOWER(COALESCE(c.description, '')) LIKE $${paramIndex} OR
+        LOWER(c.subject || c.course_num) LIKE $${paramIndex}
+      )`;
+    }
+
     sql += `
       GROUP BY cs.class_id, cs.section_num, cs.capacity, cs.location_text,
                cs.requires_dept_permission, cs.notes, cs.term_id, cs.course_id,
                cs.instructor_id, c.subject, c.course_num, c.title, c.credits,
                c.description, c.sbc, cs.meeting_days, cs.meeting_times,
-               u.first_name, u.last_name, u.email, r.building, r.room
+               r.building, r.room
       ORDER BY c.subject, c.course_num, cs.section_num
     `;
 
@@ -290,50 +353,74 @@ router.get('/sections', async (req, res) => {
 
     console.log(`[schedule] Query returned ${result.rows.length} rows`);
 
-    const sections = result.rows.map(row => ({
-      classId: row.class_id,
-      sectionNumber: row.section_num,
-      courseId: row.course_id,
-      subject: row.subject,
-      courseNum: row.course_num,
-      courseCode: `${row.subject}${row.course_num}`,
-      title: row.title,
-      credits: parseFloat(row.credits),
-      description: row.description,
-      sbc: row.sbc || '',
-      meetingDays: row.meeting_days || '',
-      meetingTimes: row.meeting_times || '',
-      instructor: row.instructor_id ? {
-        id: row.instructor_id,
-        name: row.instructor_name,
-        email: row.instructor_email
-      } : (() => {
-        // If no instructor_id, try to extract instructor name from location_text
-        const extractedName = extractInstructorNameFromText(row.location_text);
-        return extractedName ? { id: null, name: extractedName, email: null } : null;
-      })(),
-      // Prefer building+room over location_text (location_text may contain instructor names from old imports)
-      location: (() => {
-        if (row.building && row.room) {
-          return `${row.building} ${row.room}`;
-        }
-        // Fallback to location_text, but clean it if it looks like it contains an instructor name
-        if (row.location_text) {
-          const { building, room } = extractBuildingRoomFromText(row.location_text);
-          if (building && room) {
-            return `${building} ${room}`;
+    const sections = result.rows.map(row => {
+      // Parse instructors from JSON array (if junction table exists)
+      let instructors = [];
+      if (row.instructors !== undefined) {
+        try {
+          if (typeof row.instructors === 'string') {
+            instructors = JSON.parse(row.instructors);
+          } else if (Array.isArray(row.instructors)) {
+            instructors = row.instructors;
           }
-          return row.location_text;
+        } catch (e) {
+          console.warn(`[schedule] Failed to parse instructors for class_id=${row.class_id}:`, e);
         }
-        return null;
-      })(),
-      capacity: row.capacity,
-      enrolled: parseInt(row.enrolled_count) || 0,
-      available: row.capacity - (parseInt(row.enrolled_count) || 0),
-      requiresPermission: row.requires_dept_permission,
-      notes: row.notes,
-      termId: row.term_id
-    }));
+      } else {
+        // Fallback: use old single instructor format
+        if (row.instructor_id && row.instructor_name) {
+          instructors = [{
+            id: row.instructor_id,
+            name: row.instructor_name,
+            email: row.instructor_email || null
+          }];
+        } else {
+          // Try to extract instructor name from location_text
+          const extractedName = extractInstructorNameFromText(row.location_text);
+          if (extractedName) {
+            instructors = [{ id: null, name: extractedName, email: null }];
+          }
+        }
+      }
+
+      return {
+        classId: row.class_id,
+        sectionNumber: row.section_num,
+        courseId: row.course_id,
+        subject: row.subject,
+        courseNum: row.course_num,
+        courseCode: `${row.subject}${row.course_num}`,
+        title: row.title,
+        credits: parseFloat(row.credits),
+        description: row.description || '',
+        sbc: row.sbc || '',
+        meetingDays: row.meeting_days || '',
+        meetingTimes: row.meeting_times || '',
+        instructors: instructors,
+        instructor: instructors.length > 0 ? instructors[0] : null, // Keep for backward compatibility
+        // Prefer building+room over location_text (location_text may contain instructor names from old imports)
+        location: (() => {
+          if (row.building && row.room) {
+            return `${row.building} ${row.room}`;
+          }
+          // Fallback to location_text, but clean it if it looks like it contains an instructor name
+          if (row.location_text) {
+            const { building, room } = extractBuildingRoomFromText(row.location_text);
+            if (building && room) {
+              return `${building} ${room}`;
+            }
+            return row.location_text;
+          }
+          return null;
+        })(),
+        capacity: row.capacity,
+        enrolled: parseInt(row.enrolled_count) || 0,
+        available: row.capacity - (parseInt(row.enrolled_count) || 0),
+        requiresPermission: row.requires_dept_permission,
+        notes: row.notes,
+        termId: row.term_id
+      };
+    });
 
     if (sections.length > 0) {
       console.log(`[schedule] Returning ${sections.length} sections. Sample: ${sections[0].courseCode}-${sections[0].sectionNumber}`);
@@ -365,7 +452,66 @@ router.get('/sections/:class_id', async (req, res) => {
   try {
     const { class_id } = req.params;
 
-    const sql = `
+    // Check if class_section_instructors table exists
+    const tableCheck = await req.db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'class_section_instructors'
+      ) AS table_exists
+    `);
+    const hasJunctionTable = tableCheck.rows[0]?.table_exists === true;
+
+    const sql = hasJunctionTable ? `
+      SELECT
+        cs.class_id,
+        cs.section_num,
+        cs.capacity,
+        cs.location_text,
+        cs.requires_dept_permission,
+        cs.notes,
+        cs.term_id,
+        cs.course_id,
+        cs.instructor_id,
+        c.subject,
+        c.course_num,
+        c.title,
+        c.credits,
+        c.description,
+        COALESCE(c.sbc, '') AS sbc,
+        COALESCE(cs.meeting_days, '') AS meeting_days,
+        COALESCE(cs.meeting_times, '') AS meeting_times,
+        r.building,
+        r.room,
+        t.semester::text AS semester,
+        t.year,
+        COUNT(e.student_id) FILTER (WHERE e.status = 'registered') AS enrolled_count,
+        -- Aggregate all instructors for this section
+        COALESCE(
+          JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'id', u_instr.user_id,
+              'name', u_instr.first_name || ' ' || u_instr.last_name,
+              'email', u_instr.email
+            )
+            ORDER BY u_instr.last_name, u_instr.first_name
+          ) FILTER (WHERE u_instr.user_id IS NOT NULL),
+          '[]'::json
+        ) AS instructors
+      FROM class_sections cs
+      JOIN courses c ON c.course_id = cs.course_id
+      JOIN terms t ON t.term_id = cs.term_id
+      LEFT JOIN class_section_instructors csi ON csi.class_id = cs.class_id
+      LEFT JOIN users u_instr ON u_instr.user_id = csi.instructor_id
+      LEFT JOIN rooms r ON r.room_id = cs.room_id
+      LEFT JOIN enrollments e ON e.class_id = cs.class_id
+      WHERE cs.class_id = $1
+      GROUP BY cs.class_id, cs.section_num, cs.capacity, cs.location_text,
+               cs.requires_dept_permission, cs.notes, cs.term_id, cs.course_id,
+               cs.instructor_id, c.subject, c.course_num, c.title, c.credits,
+               c.description, c.sbc, cs.meeting_days, cs.meeting_times,
+               r.building, r.room, t.semester, t.year
+    ` : `
       SELECT
         cs.class_id,
         cs.section_num,
@@ -416,6 +562,35 @@ router.get('/sections/:class_id', async (req, res) => {
     }
 
     const row = result.rows[0];
+    
+    // Parse instructors from JSON array (if junction table exists)
+    let instructors = [];
+    if (row.instructors !== undefined) {
+      try {
+        if (typeof row.instructors === 'string') {
+          instructors = JSON.parse(row.instructors);
+        } else if (Array.isArray(row.instructors)) {
+          instructors = row.instructors;
+        }
+      } catch (e) {
+        console.warn(`[schedule] Failed to parse instructors for class_id=${row.class_id}:`, e);
+      }
+    } else {
+      // Fallback: use old single instructor format
+      if (row.instructor_id && row.instructor_name) {
+        instructors = [{
+          id: row.instructor_id,
+          name: row.instructor_name,
+          email: row.instructor_email || null
+        }];
+      } else {
+        const extractedName = extractInstructorNameFromText(row.location_text);
+        if (extractedName) {
+          instructors = [{ id: null, name: extractedName, email: null }];
+        }
+      }
+    }
+
     const section = {
       classId: row.class_id,
       sectionNumber: row.section_num,
@@ -425,19 +600,12 @@ router.get('/sections/:class_id', async (req, res) => {
       courseCode: `${row.subject}${row.course_num}`,
       title: row.title,
       credits: parseFloat(row.credits),
-      description: row.description,
+      description: row.description || '',
       sbc: row.sbc || '',
       meetingDays: row.meeting_days || '',
       meetingTimes: row.meeting_times || '',
-      instructor: row.instructor_id ? {
-        id: row.instructor_id,
-        name: row.instructor_name,
-        email: row.instructor_email
-      } : (() => {
-        // If no instructor_id, try to extract instructor name from location_text
-        const extractedName = extractInstructorNameFromText(row.location_text);
-        return extractedName ? { id: null, name: extractedName, email: null } : null;
-      })(),
+      instructors: instructors,
+      instructor: instructors.length > 0 ? instructors[0] : null, // Keep for backward compatibility
       // Prefer building+room over location_text (location_text may contain instructor names from old imports)
       location: (() => {
         if (row.building && row.room) {

@@ -57,7 +57,7 @@ router.get('/registrars', async (req, res) => {
 /**
  * GET /search
  * Search users by:
- *   - name prefix
+ *   - name (searches first_name and last_name, supports last name specifically)
  *   - role
  *   - (If student) optional major/minor
  *
@@ -71,20 +71,52 @@ router.get('/search', async (req, res) => {
 
     let params = [];
     let where = [];
+    let baseSql = '';
 
+    // Name search: supports searching by first name, last name, or both
+    // If name contains a space, treat as "first last", otherwise search both
     if (name) {
-      params.push(`${name.toLowerCase()}%`);
-      where.push(
-        `(LOWER(first_name) LIKE $${params.length} OR LOWER(last_name) LIKE $${params.length})`
-      );
+      const nameLower = name.toLowerCase().trim();
+      if (nameLower.includes(' ')) {
+        // If space found, split and search first and last name separately
+        const parts = nameLower.split(/\s+/);
+        if (parts.length >= 2) {
+          params.push(`${parts[0]}%`);
+          params.push(`${parts[parts.length - 1]}%`);
+          where.push(
+            `(LOWER(first_name) LIKE $${params.length - 1} AND LOWER(last_name) LIKE $${params.length})`
+          );
+        } else {
+          // Single word with space, search both fields
+          params.push(`${nameLower}%`);
+          where.push(
+            `(LOWER(first_name) LIKE $${params.length} OR LOWER(last_name) LIKE $${params.length})`
+          );
+        }
+      } else {
+        // Single word: search both first and last name
+        params.push(`${nameLower}%`);
+        where.push(
+          `(LOWER(first_name) LIKE $${params.length} OR LOWER(last_name) LIKE $${params.length})`
+        );
+      }
     }
 
-    if (role) {
+    // Handle major/minor search for students
+    // When both are specified, find students who have BOTH a major matching major AND a minor matching minor
+    const isStudentMajorMinorSearch = 
+      role &&
+      role.toLowerCase() === 'student' &&
+      (major || minor);
+
+    // Add role filter only if not doing student major/minor search (which already filters by student role)
+    if (role && !isStudentMajorMinorSearch) {
       params.push(role);
-      where.push(`LOWER(role::text) = LOWER($${params.length})`);
+      where.push(`LOWER(u.role::text) = LOWER($${params.length})`);
     }
 
-    let baseSql = `
+    // Initialize baseSql - default to basic user query
+    baseSql = `
       SELECT
         u.user_id,
         u.sbu_id,
@@ -95,17 +127,119 @@ router.get('/search', async (req, res) => {
       FROM users u
     `;
 
-    let useProgramJoin = false;
+    // Handle major/minor search for students
+    if (isStudentMajorMinorSearch) {
+      // Extract subject from program code (format: "SUBJECT-DEGREE" or "SUBJECT-Minor")
+      // Also check department code as fallback
+      if (major && minor) {
+        // Both major and minor: use subqueries to find students with both
+        params.push(major.toUpperCase());
+        params.push(minor.toUpperCase());
+        
+        const majorSubjectParam = params.length - 1;
+        const minorSubjectParam = params.length;
 
-    if (
-      role &&
-      role.toLowerCase() === 'student' &&
-      (major || minor)
-    ) {
-      useProgramJoin = true;
-
+        baseSql = `
+          SELECT DISTINCT
+            u.user_id,
+            u.sbu_id,
+            u.first_name,
+            u.last_name,
+            u.email,
+            u.role::text AS role
+          FROM users u
+          JOIN students s ON s.user_id = u.user_id
+          WHERE LOWER(u.role::text) = 'student'
+            AND EXISTS (
+              -- Student has a MAJOR program matching the major subject
+              SELECT 1
+              FROM student_programs sp_major
+              JOIN programs p_major ON p_major.program_id = sp_major.program_id
+              LEFT JOIN departments d_major ON d_major.department_id = p_major.department_id
+              WHERE sp_major.student_id = s.user_id
+                AND p_major.type = 'MAJOR'
+                AND (
+                  SPLIT_PART(p_major.code, '-', 1) = $${majorSubjectParam}
+                  OR d_major.code = $${majorSubjectParam}
+                )
+            )
+            AND EXISTS (
+              -- Student has a MINOR program matching the minor subject
+              SELECT 1
+              FROM student_programs sp_minor
+              JOIN programs p_minor ON p_minor.program_id = sp_minor.program_id
+              LEFT JOIN departments d_minor ON d_minor.department_id = p_minor.department_id
+              WHERE sp_minor.student_id = s.user_id
+                AND p_minor.type = 'MINOR'
+                AND (
+                  SPLIT_PART(p_minor.code, '-', 1) = $${minorSubjectParam}
+                  OR d_minor.code = $${minorSubjectParam}
+                )
+            )
+        `;
+      } else if (major) {
+        // Only major specified
+        params.push(major.toUpperCase());
+        baseSql = `
+          SELECT DISTINCT
+            u.user_id,
+            u.sbu_id,
+            u.first_name,
+            u.last_name,
+            u.email,
+            u.role::text AS role
+          FROM users u
+          JOIN students s ON s.user_id = u.user_id
+          JOIN student_programs sp ON sp.student_id = s.user_id
+          JOIN programs p ON p.program_id = sp.program_id
+          LEFT JOIN departments d ON d.department_id = p.department_id
+          WHERE LOWER(u.role::text) = 'student'
+            AND p.type = 'MAJOR'
+            AND (
+              SPLIT_PART(p.code, '-', 1) = $${params.length}
+              OR d.code = $${params.length}
+            )
+        `;
+      } else if (minor) {
+        // Only minor specified
+        params.push(minor.toUpperCase());
+        baseSql = `
+          SELECT DISTINCT
+            u.user_id,
+            u.sbu_id,
+            u.first_name,
+            u.last_name,
+            u.email,
+            u.role::text AS role
+          FROM users u
+          JOIN students s ON s.user_id = u.user_id
+          JOIN student_programs sp ON sp.student_id = s.user_id
+          JOIN programs p ON p.program_id = sp.program_id
+          LEFT JOIN departments d ON d.department_id = p.department_id
+          WHERE LOWER(u.role::text) = 'student'
+            AND p.type = 'MINOR'
+            AND (
+              SPLIT_PART(p.code, '-', 1) = $${params.length}
+              OR d.code = $${params.length}
+            )
+        `;
+      } else {
+        // No major/minor, just role filter
+        baseSql = `
+          SELECT
+            u.user_id,
+            u.sbu_id,
+            u.first_name,
+            u.last_name,
+            u.email,
+            u.role::text AS role
+          FROM users u
+        `;
+      }
+    } else {
+      // No major/minor search needed
       baseSql = `
-        SELECT DISTINCT
+        SELECT
           u.user_id,
           u.sbu_id,
           u.first_name,
@@ -113,29 +247,28 @@ router.get('/search', async (req, res) => {
           u.email,
           u.role::text AS role
         FROM users u
-        JOIN students s ON s.user_id = u.user_id
-        LEFT JOIN student_programs sp ON sp.student_id = s.user_id
-        LEFT JOIN programs p ON p.program_id = sp.program_id
       `;
-
-      if (major) {
-        params.push(major.toUpperCase());
-        where.push(`p.subject = $${params.length}`);
-      }
-
-      if (minor) {
-        params.push(minor.toUpperCase());
-        where.push(`p.subject = $${params.length}`);
-      }
     }
 
+    // Add WHERE clause conditions
     if (where.length > 0) {
-      baseSql += ` WHERE ` + where.join(' AND ');
+      // If baseSql already has WHERE (from major/minor logic), use AND
+      if (baseSql.includes('WHERE')) {
+        baseSql += ` AND ` + where.join(' AND ');
+      } else {
+        baseSql += ` WHERE ` + where.join(' AND ');
+      }
     }
 
     baseSql += `
       ORDER BY u.last_name, u.first_name
     `;
+
+    // Safety check: ensure baseSql is defined
+    if (!baseSql || baseSql.trim() === '') {
+      console.error('[users] /search: baseSql is empty or undefined', { name, role, major, minor, isStudentMajorMinorSearch });
+      return res.status(500).json({ ok: false, error: 'Search query construction failed' });
+    }
 
     const result = await req.db.query(baseSql, params);
 

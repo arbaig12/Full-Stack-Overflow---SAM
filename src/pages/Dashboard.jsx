@@ -3,7 +3,7 @@ import { useAuth } from '../auth/AuthContext';
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [role, setRole] = useState(() => localStorage.getItem('role') || 'student');
+  const [role, setRole] = useState(null); // Will be set from API response
   const [currentDate, setCurrentDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
@@ -64,6 +64,10 @@ export default function Dashboard() {
           throw new Error('Failed to load dashboard');
         }
         const data = await res.json();
+        // Use role from API response (backend determines role from authenticated user)
+        if (data.role) {
+          setRole(data.role);
+        }
         setStats(data.stats || {});
         setRecentActivity(data.recentActivity || []);
       } catch (err) {
@@ -73,7 +77,7 @@ export default function Dashboard() {
       }
     }
     fetchDashboard();
-  }, [role]); // when you wire real roles, this might come from user instead
+  }, []); // Only fetch once on mount
 
   // Quick actions & labels still live in the frontend
   const quickActionsByRole = {
@@ -174,25 +178,18 @@ export default function Dashboard() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ color: '#666', fontSize: 14 }}>Role:</span>
-          <select
-            value={role}
-            onChange={(e) => {
-              setRole(e.target.value);
-              localStorage.setItem('role', e.target.value);
-            }}
-            style={{
-              padding: '6px 12px',
-              border: '1px solid #ddd',
-              borderRadius: 6,
-              fontSize: 14,
-              background: '#fff'
-            }}
-          >
-            <option value="student">Student</option>
-            <option value="instructor">Instructor</option>
-            <option value="advisor">Advisor</option>
-            <option value="registrar">Registrar</option>
-          </select>
+          <span style={{
+            padding: '6px 12px',
+            border: '1px solid #ddd',
+            borderRadius: 6,
+            fontSize: 14,
+            background: '#f5f5f5',
+            color: '#333',
+            fontWeight: '500',
+            textTransform: 'capitalize'
+          }}>
+            {role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Loading...'}
+          </span>
         </div>
       </div>
 

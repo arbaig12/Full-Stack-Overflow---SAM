@@ -7,20 +7,33 @@ export default function MajorMinorRequests() {
   const [message, setMessage] = useState('');
   const [requests, setRequests] = useState([]);
   const [denialReason, setDenialReason] = useState({}); // requestId -> reason
+  const [userRole, setUserRole] = useState(null); // Actual role from backend
+
+  // Fetch user role from backend on mount
+  useEffect(() => {
+    async function fetchUserRole() {
+      try {
+        const res = await fetch('/api/dashboard', {
+          credentials: 'include'
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.role) {
+            setUserRole(data.role.toLowerCase());
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching user role:', err);
+      }
+    }
+    fetchUserRole();
+  }, []);
 
   useEffect(() => {
-    loadRequests();
-    
-    // Listen for storage changes (when role is changed in another tab/window)
-    const handleStorageChange = (e) => {
-      if (e.key === 'role') {
-        loadRequests();
-      }
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+    if (userRole !== null) {
+      loadRequests();
+    }
+  }, [userRole]);
 
   async function loadRequests() {
     try {
@@ -28,21 +41,15 @@ export default function MajorMinorRequests() {
       setError('');
       setMessage('');
 
-      // Get the selected role from localStorage (set by navbar toggle)
-      const selectedRole = localStorage.getItem('role') || 'student';
-
-      // Check if user has selected advisor role
-      if (selectedRole.toLowerCase() !== 'advisor') {
-        setError(`Please switch your role to "Advisor" using the role selector in the top navigation bar. Current role: ${selectedRole}`);
+      // Check if user has advisor role (from backend)
+      if (!userRole || userRole !== 'advisor') {
+        setError(`Only advisors can view pending requests. Your role: ${userRole || 'unknown'}`);
         setLoading(false);
         return;
       }
 
       const res = await fetch('/api/major-minor-requests/pending', {
         credentials: 'include',
-        headers: {
-          'X-Role-Override': selectedRole, // Send selected role to backend
-        },
       });
 
       const data = await res.json().catch(() => ({}));
@@ -73,14 +80,10 @@ export default function MajorMinorRequests() {
       setError('');
       setMessage('');
 
-      // Get the selected role from localStorage (set by navbar toggle)
-      const selectedRole = localStorage.getItem('role') || 'student';
-
       const res = await fetch(`/api/major-minor-requests/${requestId}/approve`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'X-Role-Override': selectedRole, // Send selected role to backend
         },
         credentials: 'include',
       });
@@ -110,14 +113,10 @@ export default function MajorMinorRequests() {
       setError('');
       setMessage('');
 
-      // Get the selected role from localStorage (set by navbar toggle)
-      const selectedRole = localStorage.getItem('role') || 'student';
-
       const res = await fetch(`/api/major-minor-requests/${requestId}/deny`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'X-Role-Override': selectedRole, // Send selected role to backend
         },
         credentials: 'include',
         body: JSON.stringify({ denialReason: reason || undefined }),
@@ -140,8 +139,14 @@ export default function MajorMinorRequests() {
     }
   };
 
-  // Get current role for display
-  const currentRole = localStorage.getItem('role') || 'student';
+  // Show loading state while fetching role
+  if (userRole === null) {
+    return (
+      <div style={{ padding: 20, maxWidth: 1000, margin: '0 auto' }}>
+        <p>Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: 20, maxWidth: 1000, margin: '0 auto' }}>
@@ -167,21 +172,6 @@ export default function MajorMinorRequests() {
           {loading ? 'Loading...' : 'Refresh'}
         </button>
       </div>
-      {currentRole.toLowerCase() !== 'advisor' && (
-        <div
-          style={{
-            padding: 12,
-            marginBottom: 16,
-            borderRadius: 6,
-            background: '#fff3cd',
-            color: '#856404',
-            border: '1px solid #ffc107',
-            fontSize: 14,
-          }}
-        >
-          <strong>⚠️ Action Required:</strong> Please switch your role to <strong>Advisor</strong> using the role selector in the top navigation bar to view and manage requests. Current role: <strong>{currentRole}</strong>. After switching, click the Refresh button.
-        </div>
-      )}
 
       {(error || message) && (
         <div

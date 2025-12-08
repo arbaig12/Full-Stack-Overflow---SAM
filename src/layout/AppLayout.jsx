@@ -1,16 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
 export default function AppLayout() {
   const [open, setOpen] = useState(true);
+  const [role, setRole] = useState(null); // Will be set from API response
 
-  //delete if functionality not needed
-  const [role, setRole] = useState(() => localStorage.getItem('role') || 'registrar');
-  const handleRoleChange = (newRole) => {
-    setRole(newRole);
-    localStorage.setItem('role', newRole);
-  };
+  // Fetch user role from backend
+  useEffect(() => {
+    async function fetchUserRole() {
+      try {
+        const res = await fetch('/api/dashboard', {
+          credentials: 'include'
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.role) {
+            setRole(data.role);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching user role:', err);
+      }
+    }
+    fetchUserRole();
+  }, []);
 
   const { user, signout } = useAuth();
   const loc = useLocation();
@@ -69,22 +83,19 @@ export default function AppLayout() {
                 style={{ width: 28, height: 28, borderRadius: '50%' }}
               />
 
-              {/* Role selector */}
-              <select
-                value={role}
-                onChange={e => handleRoleChange(e.target.value)}
-                style={{
-                  fontSize: 16,
-                  padding: '2px 6px',
-                  borderRadius: 4,
-                  border: '1px solid #ccc',
-                }}
-              >
-                <option value="student">Student</option>
-                <option value="advisor">Advisor</option>
-                <option value="instructor">instructor</option>
-                <option value="registrar">registrar</option>
-              </select>
+              {/* Role display (read-only) */}
+              <span style={{
+                fontSize: 16,
+                padding: '2px 6px',
+                borderRadius: 4,
+                border: '1px solid #ccc',
+                background: '#f5f5f5',
+                color: '#333',
+                fontWeight: '500',
+                textTransform: 'capitalize'
+              }}>
+                {role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Loading...'}
+              </span>
 
               <span style={{ fontSize: 20 }}>{user.profile?.name}</span>
               <button onClick={signout} style={pillBtn}>Sign out</button>
@@ -117,8 +128,6 @@ export default function AppLayout() {
                 <NavItem to="/app/plan">Schedule Planning</NavItem>
                 <NavItem to="/app/academicCalendar">Academic Calendar</NavItem>
                 <NavItem to="/app/studentProfile">Student Profile</NavItem>
-                <NavItem to="/app/waiversHolds">Waivers & Holds</NavItem>
-                <NavItem to="/app/auditLog">Audit Log</NavItem>
               </>
             ) : role === 'advisor' ? (
               <>
@@ -142,7 +151,6 @@ export default function AppLayout() {
                 <NavItem to="/app" end>Dashboard</NavItem>
                 <NavItem to="/app/catalog">Course Catalog</NavItem>
                 <NavItem to="/app/classManage">Manage Class Sections</NavItem>
-                <NavItem to="/app/degree">Degree Progress</NavItem>
                 <NavItem to="/app/degreeRequirements">Degree Requirements</NavItem>
                 <NavItem to="/app/rosters">Rosters & Grading</NavItem>
                 <NavItem to="/app/userManage">User Management</NavItem>
