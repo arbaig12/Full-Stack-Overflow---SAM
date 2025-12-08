@@ -1005,20 +1005,94 @@ router.post('/enroll', async (req, res) => {
         [classId, studentId]
       );
 
+      const eRow = waitlistRes.rows[0];
+
+      const metaRes = await client.query(
+        `
+      SELECT
+        cs.class_id,
+        cs.term_id,
+        cs.section_num,
+        cs.capacity,
+        cs.location_text,
+        cs.meeting_days,
+        cs.meeting_times,
+
+        c.subject,
+        c.course_num,
+        c.title AS course_title,
+        c.credits,
+
+        t.semester,
+        t.year,
+
+        r.building,
+        r.room,
+
+        u.first_name AS instructor_first_name,
+        u.last_name  AS instructor_last_name
+      FROM class_sections cs
+      JOIN courses c ON c.course_id = cs.course_id
+      JOIN terms t   ON t.term_id = cs.term_id
+      LEFT JOIN rooms r ON r.room_id = cs.room_id
+      LEFT JOIN users u ON u.user_id = cs.instructor_id
+      WHERE cs.class_id = $1
+    `,
+        [classId]
+      );
+
+      const row = metaRes.rows[0] ?? secRow;
+
       await client.query('COMMIT');
+
+      const termLabel = `${row.semester} ${row.year}`;
+      const instructorName =
+        row.instructor_first_name || row.instructor_last_name
+          ? `${row.instructor_first_name ?? ''} ${row.instructor_last_name ?? ''}`.trim()
+          : null;
+
+      const scheduleText = buildScheduleText(row);
+      const roomLabel = row.building && row.room ? `${row.building} ${row.room}` : '';
 
       return res.json({
         ok: true,
         waitlisted: true,
         message: 'Class is full. Added to waitlist.',
         enrollment: {
-          enrollmentId: waitlistRes.rows[0].class_id,
-          classId: waitlistRes.rows[0].class_id,
+          enrollmentId: eRow.class_id,
+          classId: eRow.class_id,
+          termId: row.term_id,
+          termLabel,
+          sectionNum: row.section_num,
+          courseCode: `${row.subject} ${row.course_num}`,
+          courseTitle: row.course_title,
+          credits: Number(row.credits),
+          instructorName,
+          meetingDays: row.meeting_days,
+          meetingTimes: row.meeting_times,
+          scheduleText,
+          roomLabel,
           status: 'waitlisted',
-          grade: waitlistRes.rows[0].grade,
-          gpnc: waitlistRes.rows[0].gpnc,
-          enrollmentCredits: waitlistRes.rows[0].credits != null ? Number(waitlistRes.rows[0].credits) : null,
-          enrolledAt: waitlistRes.rows[0].enrolled_at,
+          grade: eRow.grade,
+          gpnc: eRow.gpnc,
+          enrollmentCredits: eRow.credits != null ? Number(eRow.credits) : null,
+          enrolledAt: eRow.enrolled_at,
+        },
+        updatedSection: {
+          classId: row.class_id,
+          termId: row.term_id,
+          termLabel,
+          sectionNum: row.section_num,
+          capacity: row.capacity,
+          enrolledCount: registeredCount,
+          courseCode: `${row.subject} ${row.course_num}`,
+          courseTitle: row.course_title,
+          credits: Number(row.credits),
+          instructorName,
+          meetingDays: row.meeting_days,
+          meetingTimes: row.meeting_times,
+          scheduleText,
+          roomLabel,
         },
       });
     }
