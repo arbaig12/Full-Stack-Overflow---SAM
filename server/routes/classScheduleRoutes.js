@@ -14,6 +14,155 @@ import { Router } from 'express';
 const router = Router();
 
 /**
+ * Helper function to extract building and room from location text
+ * (used to clean location_text that may contain instructor names)
+ * Examples: "HUMANITIES 1006Ryan Kaufman" -> {building: "HUMANITIES", room: "1006"}
+ *           "FREY HALL 317 Scott Stoller" -> {building: "FREY HALL", room: "317"}
+ */
+function extractBuildingRoomFromText(locationText) {
+  if (!locationText) return { building: null, room: null };
+  let s = String(locationText).trim();
+  if (!s) return { building: null, room: null };
+
+  // Handle special case: "TBATBA" followed by instructor name - no real location
+  if (/^TBATBA/i.test(s)) {
+    return { building: null, room: null };
+  }
+
+  // Remove "TBA" if it's at the start or end
+  s = s.replace(/^TBA\s+/i, '').replace(/\s+TBA$/i, '').trim();
+  if (!s || s.toUpperCase() === 'TBA') return { building: null, room: null };
+
+  // Remove "TBA" if it's concatenated at the end (e.g., "4530TBA" -> "4530")
+  s = s.replace(/TBA$/i, '').trim();
+  if (!s) return { building: null, room: null };
+
+  // Split by spaces first
+  const tokens = s.split(/\s+/).filter(Boolean);
+  if (tokens.length < 2) return { building: null, room: null };
+  
+  // Look for room number pattern: alphanumeric with digits, 1-8 chars
+  // Room can be concatenated with instructor (e.g., "1006Ryan", "143Hyun-Kyung", "S235SMichael") or separate
+  for (let idx = 1; idx < tokens.length; idx++) {
+    let tok = tokens[idx];
+    
+    // Remove "TBA" if concatenated at end of token
+    tok = tok.replace(/TBA$/i, '');
+    if (!tok) continue;
+    
+    // Check if this token contains a room number (has digits)
+    if (/\d/.test(tok)) {
+      // Pattern 1: Room concatenated with instructor name
+      // Match: room number (alphanumeric with digits) followed by capital letter + lowercase (name start)
+      // Examples: "1006Ryan", "143Hyun", "S235SMichael", "001William", "CENTR103Alan"
+      const concatMatch = tok.match(/^([A-Z0-9]*\d+[A-Z0-9]*?)([A-Z][a-z].*)$/);
+      if (concatMatch) {
+        let room = concatMatch[1];
+        // If room ends with a single letter and next part is instructor name, remove trailing letter
+        // (e.g., "S235S" + "Michael" -> room should be "S235", not "S235S")
+        if (/[A-Z]$/.test(room) && room.length > 1 && concatMatch[2]) {
+          const withoutLast = room.slice(0, -1);
+          if (/\d/.test(withoutLast) && withoutLast.length >= 1) {
+            room = withoutLast;
+          }
+        }
+        // Verify room has digits and is reasonable length (1-8 chars)
+        if (/\d/.test(room) && room.length >= 1 && room.length <= 8) {
+          return {
+            building: tokens.slice(0, idx).join(" ").trim(),
+            room: room
+          };
+        }
+      }
+      
+      // Pattern 2: Room is a standalone token (e.g., "1006", "317", "001", "S235")
+      // Must be alphanumeric, 1-8 chars, contains digits
+      // Remove trailing single letter if it looks suspicious (e.g., "S235S" -> "S235")
+      let cleanTok = tok;
+      if (/[A-Z]$/.test(cleanTok) && cleanTok.length > 4 && /\d/.test(cleanTok)) {
+        const withoutLast = cleanTok.slice(0, -1);
+        if (/\d/.test(withoutLast) && withoutLast.length >= 1 && withoutLast.length <= 8) {
+          cleanTok = withoutLast;
+        }
+      }
+      if (/^[A-Z0-9]{1,8}$/i.test(cleanTok) && cleanTok.length <= 8) {
+        return {
+          building: tokens.slice(0, idx).join(" ").trim(),
+          room: cleanTok
+        };
+      }
+    }
+  }
+  
+  return { building: null, room: null };
+}
+
+/**
+ * Helper function to extract instructor name from location text
+ * (used when instructor_id is NULL but location_text may contain instructor name)
+ * Examples: "TBATBAEsther Arkin" -> "Esther Arkin"
+ *           "HUMANITIES 1006 Ryan Kaufman" -> "Ryan Kaufman"
+ *           "FREY HALL 317 Scott Stoller" -> "Scott Stoller"
+ */
+function extractInstructorNameFromText(locationText) {
+  if (!locationText) return null;
+  let s = String(locationText).trim();
+  if (!s) return null;
+
+  // Handle special case: "TBATBA" followed by instructor name (e.g., "TBATBAEsther Arkin")
+  const tbaTbaMatch = s.match(/^TBATBA([A-Z][a-z].*)$/i);
+  if (tbaTbaMatch) {
+    const name = tbaTbaMatch[1].trim();
+    if (name.length > 2 && /[A-Z][a-z]/.test(name)) {
+      return name;
+    }
+  }
+
+  // Remove "TBA" if it's at the start or end
+  s = s.replace(/^TBA\s+/i, '').replace(/\s+TBA$/i, '').trim();
+  if (!s || s.toUpperCase() === 'TBA') return null;
+
+  // Pattern: building + room + instructor name
+  // Instructor name typically starts with capital letter followed by lowercase
+  // Examples: "HUMANITIES 1006 Ryan Kaufman", "FREY HALL 317 Scott Stoller"
+  const tokens = s.split(/\s+/).filter(Boolean);
+  
+  // Find room number (has digits)
+  for (let idx = 1; idx < tokens.length; idx++) {
+    let tok = tokens[idx];
+    
+    // Remove "TBA" if concatenated at end
+    tok = tok.replace(/TBA$/i, '');
+    if (!tok) continue;
+    
+    if (/\d/.test(tok)) {
+      // Check if room is concatenated with instructor (e.g., "1006Ryan", "4530TBAEsther")
+      const concatMatch = tok.match(/^([A-Z0-9]*\d+[A-Z0-9]*)([A-Z][a-z].*)$/);
+      if (concatMatch && concatMatch[2]) {
+        // Instructor name starts in same token
+        const remainingTokens = tokens.slice(idx + 1);
+        const fullName = [concatMatch[2], ...remainingTokens].join(" ").trim();
+        if (fullName.length > 2 && /[A-Z][a-z]/.test(fullName)) {
+          return fullName;
+        }
+      }
+      // Room is separate, instructor is in remaining tokens
+      const instructorTokens = tokens.slice(idx + 1);
+      if (instructorTokens.length > 0) {
+        const instructorName = instructorTokens.join(" ").trim();
+        // Verify it looks like a name (has capital letter + lowercase)
+        if (/[A-Z][a-z]/.test(instructorName) && instructorName.length > 2) {
+          return instructorName;
+        }
+      }
+      break;
+    }
+  }
+  
+  return null;
+}
+
+/**
  * GET /sections
  * Get all course sections for a given term.
  * Supports filtering by SBC and days-of-week per Section 3.3 requirements.
@@ -122,7 +271,13 @@ router.get('/sections', async (req, res) => {
       ORDER BY c.subject, c.course_num, cs.section_num
     `;
 
+    console.log(`[schedule] GET /sections - term_id=${term_id}, subject=${subject || 'any'}, course_num=${course_num || 'any'}, days=${days || 'any'}`);
+    console.log(`[schedule] SQL: ${sql.substring(0, 200)}...`);
+    console.log(`[schedule] Params:`, params);
+
     const result = await req.db.query(sql, params);
+
+    console.log(`[schedule] Query returned ${result.rows.length} rows`);
 
     const sections = result.rows.map(row => ({
       classId: row.class_id,
@@ -141,8 +296,26 @@ router.get('/sections', async (req, res) => {
         id: row.instructor_id,
         name: row.instructor_name,
         email: row.instructor_email
-      } : null,
-      location: row.location_text || (row.building && row.room ? `${row.building} ${row.room}` : null),
+      } : (() => {
+        // If no instructor_id, try to extract instructor name from location_text
+        const extractedName = extractInstructorNameFromText(row.location_text);
+        return extractedName ? { id: null, name: extractedName, email: null } : null;
+      })(),
+      // Prefer building+room over location_text (location_text may contain instructor names from old imports)
+      location: (() => {
+        if (row.building && row.room) {
+          return `${row.building} ${row.room}`;
+        }
+        // Fallback to location_text, but clean it if it looks like it contains an instructor name
+        if (row.location_text) {
+          const { building, room } = extractBuildingRoomFromText(row.location_text);
+          if (building && room) {
+            return `${building} ${room}`;
+          }
+          return row.location_text;
+        }
+        return null;
+      })(),
       capacity: row.capacity,
       enrolled: parseInt(row.enrolled_count) || 0,
       available: row.capacity - (parseInt(row.enrolled_count) || 0),
@@ -150,6 +323,12 @@ router.get('/sections', async (req, res) => {
       notes: row.notes,
       termId: row.term_id
     }));
+
+    if (sections.length > 0) {
+      console.log(`[schedule] Returning ${sections.length} sections. Sample: ${sections[0].courseCode}-${sections[0].sectionNumber}`);
+    } else {
+      console.log(`[schedule] No sections found matching criteria`);
+    }
 
     return res.json({ 
       ok: true, 
@@ -243,8 +422,26 @@ router.get('/sections/:class_id', async (req, res) => {
         id: row.instructor_id,
         name: row.instructor_name,
         email: row.instructor_email
-      } : null,
-      location: row.location_text || (row.building && row.room ? `${row.building} ${row.room}` : null),
+      } : (() => {
+        // If no instructor_id, try to extract instructor name from location_text
+        const extractedName = extractInstructorNameFromText(row.location_text);
+        return extractedName ? { id: null, name: extractedName, email: null } : null;
+      })(),
+      // Prefer building+room over location_text (location_text may contain instructor names from old imports)
+      location: (() => {
+        if (row.building && row.room) {
+          return `${row.building} ${row.room}`;
+        }
+        // Fallback to location_text, but clean it if it looks like it contains an instructor name
+        if (row.location_text) {
+          const { building, room } = extractBuildingRoomFromText(row.location_text);
+          if (building && room) {
+            return `${building} ${room}`;
+          }
+          return row.location_text;
+        }
+        return null;
+      })(),
       capacity: row.capacity,
       enrolled: parseInt(row.enrolled_count) || 0,
       available: row.capacity - (parseInt(row.enrolled_count) || 0),
