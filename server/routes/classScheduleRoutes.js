@@ -191,6 +191,11 @@ router.get('/sections', async (req, res) => {
       });
     }
 
+    // Trim and normalize filter values
+    const subjectFilter = subject ? String(subject).trim() : '';
+    const courseNumFilter = course_num ? String(course_num).trim() : '';
+    const daysFilter = days ? String(days).trim() : '';
+
     let sql = `
       SELECT
         cs.class_id,
@@ -226,16 +231,16 @@ router.get('/sections', async (req, res) => {
     const params = [term_id];
     let paramIndex = 1;
 
-    if (subject) {
+    if (subjectFilter) {
       paramIndex++;
       sql += ` AND c.subject = $${paramIndex}`;
-      params.push(subject.toUpperCase());
+      params.push(subjectFilter.toUpperCase());
     }
 
-    if (course_num) {
+    if (courseNumFilter) {
       paramIndex++;
       sql += ` AND c.course_num = $${paramIndex}`;
-      params.push(course_num);
+      params.push(courseNumFilter);
     }
 
     if (instructor_id) {
@@ -246,20 +251,26 @@ router.get('/sections', async (req, res) => {
 
     // SBC filter (Section 3.3 requirement)
     if (sbc) {
-      paramIndex++;
-      sql += ` AND UPPER(COALESCE(c.sbc, '')) LIKE $${paramIndex}`;
-      params.push(`%${sbc.toUpperCase()}%`);
+      const sbcFilter = String(sbc).trim();
+      if (sbcFilter) {
+        paramIndex++;
+        sql += ` AND UPPER(COALESCE(c.sbc, '')) LIKE $${paramIndex}`;
+        params.push(`%${sbcFilter.toUpperCase()}%`);
+      }
     }
 
     // Days-of-week filter (Section 3.3 requirement)
-    if (days) {
-      const dayList = days.split(',').map(d => d.trim().toUpperCase());
-      const dayConditions = dayList.map((day, idx) => {
-        paramIndex++;
-        params.push(`%${day}%`);
-        return `UPPER(COALESCE(cs.meeting_days, '')) LIKE $${paramIndex}`;
-      });
-      sql += ` AND (${dayConditions.join(' OR ')})`;
+    // Filter for classes that meet on ALL specified days (AND logic)
+    if (daysFilter) {
+      const dayList = daysFilter.split(',').map(d => d.trim().toUpperCase()).filter(d => d);
+      if (dayList.length > 0) {
+        const dayConditions = dayList.map((day) => {
+          paramIndex++;
+          params.push(`%${day}%`);
+          return `UPPER(COALESCE(cs.meeting_days, '')) LIKE $${paramIndex}`;
+        });
+        sql += ` AND (${dayConditions.join(' AND ')})`;
+      }
     }
 
     sql += `
@@ -271,7 +282,7 @@ router.get('/sections', async (req, res) => {
       ORDER BY c.subject, c.course_num, cs.section_num
     `;
 
-    console.log(`[schedule] GET /sections - term_id=${term_id}, subject=${subject || 'any'}, course_num=${course_num || 'any'}, days=${days || 'any'}`);
+    console.log(`[schedule] GET /sections - term_id=${term_id}, subject=${subjectFilter || 'any'}, course_num=${courseNumFilter || 'any'}, days=${daysFilter || 'any'}`);
     console.log(`[schedule] SQL: ${sql.substring(0, 200)}...`);
     console.log(`[schedule] Params:`, params);
 

@@ -39,6 +39,9 @@ export default function ClassManage() {
   // RIGHT: filters + search + pagination
   const [filterTermId, setFilterTermId] = useState('ALL');
   const [sectionsSearch, setSectionsSearch] = useState('');
+  const [filterSubject, setFilterSubject] = useState('');
+  const [filterCourseNum, setFilterCourseNum] = useState('');
+  const [filterDays, setFilterDays] = useState({ M: false, T: false, W: false, R: false, F: false });
   const [sectionsPage, setSectionsPage] = useState(1);
   const SECTIONS_PAGE_SIZE = 100;
 
@@ -181,7 +184,36 @@ export default function ClassManage() {
   const parseMeetingTimes = (meetingTimesStr) => {
     const val = (meetingTimesStr || '').trim();
     const parts = val.split('-');
-    if (parts.length === 2) return { start: parts[0], end: parts[1] };
+    if (parts.length === 2) {
+      const convertTo24Hour = (timeStr) => {
+        const trimmed = timeStr.trim();
+        // Check if it's already in 24-hour format (HH:MM)
+        if (/^\d{1,2}:\d{2}$/.test(trimmed)) {
+          return trimmed;
+        }
+        // Try to parse 12-hour format (e.g., "3:30pm", "4:50pm")
+        const match = trimmed.match(/^(\d{1,2}):(\d{2})\s*(am|pm)?$/i);
+        if (match) {
+          let hours = parseInt(match[1], 10);
+          const minutes = match[2];
+          const period = (match[3] || '').toLowerCase();
+          
+          if (period === 'pm' && hours !== 12) {
+            hours += 12;
+          } else if (period === 'am' && hours === 12) {
+            hours = 0;
+          }
+          
+          return `${String(hours).padStart(2, '0')}:${minutes}`;
+        }
+        return trimmed; // Return as-is if we can't parse it
+      };
+      
+      return {
+        start: convertTo24Hour(parts[0]),
+        end: convertTo24Hour(parts[1]),
+      };
+    }
     return { start: '', end: '' };
   };
 
@@ -432,54 +464,92 @@ export default function ClassManage() {
     });
   }
 
-  // RIGHT list computed (term filter + search)
+  // Helper to check if meeting days contain all selected days
+  const meetingDaysContainsAll = (meetingDaysStr, selectedDays) => {
+    const selectedDayKeys = Object.keys(selectedDays).filter(key => selectedDays[key]);
+    if (selectedDayKeys.length === 0) return true; // No filter selected
+    
+    const meetingDaysUpper = (meetingDaysStr || '').toUpperCase();
+    return selectedDayKeys.every(day => meetingDaysUpper.includes(day));
+  };
+
+  // RIGHT list computed (term filter + search + subject + course num + days)
   const filteredSections = useMemo(() => {
-    const termFiltered =
-      String(filterTermId) === 'ALL'
-        ? sections
-        : sections.filter((s) => String(s.termId) === String(filterTermId));
+    let filtered = sections;
 
+    // Term filter
+    if (String(filterTermId) !== 'ALL') {
+      filtered = filtered.filter((s) => String(s.termId) === String(filterTermId));
+    }
+
+    // Subject filter (substring match like search bar)
+    if (filterSubject.trim()) {
+      const subjectUpper = filterSubject.trim().toUpperCase();
+      filtered = filtered.filter((s) => {
+        const sectionSubject = String(s.subject || '').toUpperCase();
+        return sectionSubject.includes(subjectUpper);
+      });
+    }
+
+    // Course number filter (substring match like search bar)
+    if (filterCourseNum.trim()) {
+      const courseNumStr = filterCourseNum.trim();
+      filtered = filtered.filter((s) => {
+        const sectionCourseNum = String(s.courseNum || '');
+        return sectionCourseNum.includes(courseNumStr);
+      });
+    }
+
+    // Days filter (must contain ALL selected days)
+    const selectedDays = Object.keys(filterDays).filter(day => filterDays[day]);
+    if (selectedDays.length > 0) {
+      filtered = filtered.filter((s) => meetingDaysContainsAll(s.meetingDays, filterDays));
+    }
+
+    // Text search filter
     const q = sectionsSearch.trim().toLowerCase();
-    if (!q) return termFiltered;
+    if (q) {
+      const normalize = (v) => String(v ?? '').toLowerCase();
+      const normalizeNoSpace = (v) => normalize(v).replace(/\s+/g, '');
 
-    const normalize = (v) => String(v ?? '').toLowerCase();
-    const normalizeNoSpace = (v) => normalize(v).replace(/\s+/g, '');
+      filtered = filtered.filter((s) => {
+        const haystack = [
+          s.term,
+          s.courseCode,
+          s.courseTitle,
+          s.sectionNum,
+          s.meetingDays,
+          s.meetingTimes,
+          s.room,
+          s.instructorName,
+          String(s.classId),
+        ]
+          .map(normalize)
+          .join(' | ');
 
-    return termFiltered.filter((s) => {
-      const haystack = [
-        s.term,
-        s.courseCode,
-        s.courseTitle,
-        s.sectionNum,
-        s.meetingDays,
-        s.meetingTimes,
-        s.room,
-        s.instructorName,
-        String(s.classId),
-      ]
-        .map(normalize)
-        .join(' | ');
+        const compactHaystack = [
+          s.courseCode,
+          s.courseTitle,
+          s.term,
+          s.room,
+          s.instructorName,
+          s.sectionNum,
+        ]
+          .map(normalizeNoSpace)
+          .join('|');
 
-      const compactHaystack = [
-        s.courseCode,
-        s.courseTitle,
-        s.term,
-        s.room,
-        s.instructorName,
-        s.sectionNum,
-      ]
-        .map(normalizeNoSpace)
-        .join('|');
+        const compactQ = q.replace(/\s+/g, '');
+        return haystack.includes(q) || compactHaystack.includes(compactQ);
+      });
+    }
 
-      const compactQ = q.replace(/\s+/g, '');
-      return haystack.includes(q) || compactHaystack.includes(compactQ);
-    });
-  }, [sections, filterTermId, sectionsSearch]);
+    return filtered;
+  }, [sections, filterTermId, sectionsSearch, filterSubject, filterCourseNum, filterDays]);
 
   // reset to page 1 when filtering/searching changes
   useEffect(() => {
     setSectionsPage(1);
-  }, [filterTermId, sectionsSearch, sections.length]);
+  }, [filterTermId, sectionsSearch, filterSubject, filterCourseNum, filterDays, sections.length]);
 
   const totalPages = Math.max(1, Math.ceil(filteredSections.length / SECTIONS_PAGE_SIZE));
   const safePage = Math.min(Math.max(1, sectionsPage), totalPages);
@@ -616,8 +686,50 @@ export default function ClassManage() {
     setEditStartTime(start);
     setEditEndTime(end);
 
-    setEditRoomId(s.roomId ? String(s.roomId) : '');
-    setEditInstructorId(s.instructorId ? String(s.instructorId) : '');
+    // Find room ID - use existing roomId, or try to match by room string
+    let foundRoomId = s.roomId ? String(s.roomId) : '';
+    if (!foundRoomId && s.room) {
+      const normalizeRoom = (str) => String(str || '').trim().toUpperCase().replace(/\s+/g, ' ');
+      const sectionRoom = normalizeRoom(s.room);
+      
+      const roomMatch = rooms.find((r) => {
+        const roomStr = normalizeRoom(`${r.building} ${r.room}`);
+        return roomStr === sectionRoom;
+      });
+      
+      if (roomMatch) {
+        foundRoomId = String(roomMatch.roomId);
+        console.log(`[Edit] Matched room: "${s.room}" -> roomId=${foundRoomId}`);
+      } else {
+        console.log(`[Edit] Could not match room: "${s.room}". Available rooms:`, rooms.map(r => `${r.building} ${r.room}`));
+      }
+    } else if (foundRoomId) {
+      console.log(`[Edit] Using existing roomId: ${foundRoomId}`);
+    }
+    setEditRoomId(foundRoomId);
+
+    // Find instructor ID - use existing instructorId, or try to match by instructor name
+    let foundInstructorId = s.instructorId ? String(s.instructorId) : '';
+    if (!foundInstructorId && s.instructorName) {
+      const normalizeName = (str) => String(str || '').trim().toUpperCase();
+      const sectionInstructor = normalizeName(s.instructorName);
+      
+      const instructorMatch = instructors.find((i) => {
+        const instructorStr = normalizeName(`${i.firstName} ${i.lastName}`);
+        return instructorStr === sectionInstructor;
+      });
+      
+      if (instructorMatch) {
+        foundInstructorId = String(instructorMatch.userId);
+        console.log(`[Edit] Matched instructor: "${s.instructorName}" -> userId=${foundInstructorId}`);
+      } else {
+        console.log(`[Edit] Could not match instructor: "${s.instructorName}". Available instructors:`, instructors.map(i => `${i.firstName} ${i.lastName}`));
+      }
+    } else if (foundInstructorId) {
+      console.log(`[Edit] Using existing instructorId: ${foundInstructorId}`);
+    }
+    setEditInstructorId(foundInstructorId);
+
     setEditRequiresPermission(!!s.requiresPermission);
     setEditNotes(String(s.notes ?? ''));
 
@@ -1056,58 +1168,173 @@ export default function ClassManage() {
             </span>
           </div>
 
-          {/* Term filter + Search */}
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-            <label style={{ fontSize: 13, color: '#555', fontWeight: 600 }}>Filter Term:</label>
-            <select
-              value={filterTermId}
-              onChange={(e) => setFilterTermId(e.target.value)}
-              style={{ padding: '6px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13, minWidth: 220 }}
-            >
-              <option value="ALL">All terms</option>
-              {terms.map((t) => (
-                <option key={t.termId} value={t.termId}>
-                  {t.semester} {t.year}
-                </option>
-              ))}
-            </select>
+          {/* Filters Section */}
+          <div style={{ 
+            marginBottom: 16, 
+            padding: 16, 
+            background: '#f8f9fa', 
+            borderRadius: 8, 
+            border: '1px solid #e0e0e0' 
+          }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+              gap: 12, 
+              marginBottom: 12 
+            }}>
+              {/* Term Filter */}
+              <div>
+                <label style={{ display: 'block', marginBottom: 4, fontSize: 12, fontWeight: 600, color: '#555' }}>
+                  Term
+                </label>
+                <select
+                  value={filterTermId}
+                  onChange={(e) => setFilterTermId(e.target.value)}
+                  style={{ 
+                    width: '100%',
+                    padding: '8px 10px', 
+                    border: '1px solid #ddd', 
+                    borderRadius: 6, 
+                    fontSize: 13 
+                  }}
+                >
+                  <option value="ALL">All terms</option>
+                  {terms.map((t) => (
+                    <option key={t.termId} value={t.termId}>
+                      {t.semester} {t.year}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {/* Subject Filter */}
+              <div>
+                <label style={{ display: 'block', marginBottom: 4, fontSize: 12, fontWeight: 600, color: '#555' }}>
+                  Subject
+                </label>
+                <input
+                  type="text"
+                  value={filterSubject}
+                  onChange={(e) => setFilterSubject(e.target.value.toUpperCase())}
+                  placeholder="e.g., CSE"
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    border: '1px solid #ddd',
+                    borderRadius: 6,
+                    fontSize: 13,
+                  }}
+                />
+              </div>
+
+              {/* Course Number Filter */}
+              <div>
+                <label style={{ display: 'block', marginBottom: 4, fontSize: 12, fontWeight: 600, color: '#555' }}>
+                  Course Number
+                </label>
+                <input
+                  type="text"
+                  value={filterCourseNum}
+                  onChange={(e) => setFilterCourseNum(e.target.value)}
+                  placeholder="e.g., 416"
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    border: '1px solid #ddd',
+                    borderRadius: 6,
+                    fontSize: 13,
+                  }}
+                />
+              </div>
+
+              {/* Days Filter */}
+              <div>
+                <label style={{ display: 'block', marginBottom: 4, fontSize: 12, fontWeight: 600, color: '#555' }}>
+                  Days of Week
+                </label>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {[
+                    { key: 'M', label: 'Mon' },
+                    { key: 'T', label: 'Tue' },
+                    { key: 'W', label: 'Wed' },
+                    { key: 'R', label: 'Thu' },
+                    { key: 'F', label: 'Fri' },
+                  ].map(({ key, label }) => (
+                    <label
+                      key={key}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        cursor: 'pointer',
+                        padding: '4px 8px',
+                        border: `1px solid ${filterDays[key] ? '#1976d2' : '#ddd'}`,
+                        borderRadius: 4,
+                        background: filterDays[key] ? '#e3f2fd' : 'white',
+                        fontSize: 12,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filterDays[key]}
+                        onChange={(e) =>
+                          setFilterDays((prev) => ({ ...prev, [key]: e.target.checked }))
+                        }
+                        style={{ cursor: 'pointer' }}
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Search Bar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input
                 type="text"
                 value={sectionsSearch}
                 onChange={(e) => setSectionsSearch(e.target.value)}
-                placeholder="Search (course, title, sec, instructor, room...)"
+                placeholder="Search by course code, title, section, instructor, room..."
                 style={{
-                  padding: '6px 10px',
+                  flex: 1,
+                  padding: '8px 12px',
                   border: '1px solid #ddd',
                   borderRadius: 6,
                   fontSize: 13,
-                  minWidth: 280,
                 }}
               />
-              {sectionsSearch.trim() && (
+              {(sectionsSearch.trim() || filterSubject.trim() || filterCourseNum.trim() || Object.values(filterDays).some(v => v)) && (
                 <button
                   type="button"
-                  onClick={() => setSectionsSearch('')}
+                  onClick={() => {
+                    setSectionsSearch('');
+                    setFilterSubject('');
+                    setFilterCourseNum('');
+                    setFilterDays({ M: false, T: false, W: false, R: false, F: false });
+                  }}
                   style={{
-                    padding: '6px 10px',
+                    padding: '8px 14px',
                     borderRadius: 6,
                     border: '1px solid #ddd',
                     background: '#fff',
                     cursor: 'pointer',
                     fontSize: 12,
+                    fontWeight: 600,
+                    color: '#666',
                   }}
-                  title="Clear search"
+                  title="Clear all filters"
                 >
-                  Clear
+                  Clear All
                 </button>
               )}
             </div>
 
-            <span style={{ fontSize: 12, color: '#777' }}>
-              Showing {filteredSections.length === 0 ? 0 : startIdx + 1}-{endIdx} of {filteredSections.length}
-            </span>
+            {/* Results Count */}
+            <div style={{ marginTop: 8, fontSize: 12, color: '#777' }}>
+              Showing <strong>{filteredSections.length === 0 ? 0 : startIdx + 1}-{endIdx}</strong> of{' '}
+              <strong>{filteredSections.length}</strong> section{filteredSections.length !== 1 ? 's' : ''}
+            </div>
           </div>
 
           {filteredSections.length === 0 ? (

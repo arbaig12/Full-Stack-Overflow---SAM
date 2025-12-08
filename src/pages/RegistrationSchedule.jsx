@@ -159,9 +159,17 @@ export default function RegistrationSchedule() {
     loadRegistrationData();
   }, []);
 
+  // Create a stable string representation of selected days for dependency tracking
+  const filterDaysKey = useMemo(() => {
+    return Object.keys(filterDays)
+      .filter(day => filterDays[day])
+      .sort()
+      .join(',');
+  }, [filterDays]);
+
   useEffect(() => {
     setPage(1);
-  }, [selectedTermId, searchTerm, filterSubject, filterCourseNum, filterDays, activeTab]);
+  }, [selectedTermId, searchTerm, filterSubject, filterCourseNum, filterDaysKey, activeTab]);
 
   // Load sections with filters when filters or term changes
   useEffect(() => {
@@ -177,18 +185,37 @@ export default function RegistrationSchedule() {
 
         // Build query params
         const params = new URLSearchParams({ term_id: selectedTermId });
-        if (filterSubject) params.append('subject', filterSubject.toUpperCase());
-        if (filterCourseNum) params.append('course_num', filterCourseNum);
+        
+        // Subject filter - trim and only add if not empty
+        const subjectTrimmed = filterSubject.trim();
+        if (subjectTrimmed) {
+          params.append('subject', subjectTrimmed.toUpperCase());
+        }
+        
+        // Course number filter - trim and only add if not empty
+        const courseNumTrimmed = filterCourseNum.trim();
+        if (courseNumTrimmed) {
+          params.append('course_num', courseNumTrimmed);
+        }
         
         // Build days filter (e.g., "M,W" for Monday and Wednesday)
         // Backend stores days as "MW", "TR", etc., so we send single letters
         const selectedDays = Object.keys(filterDays).filter(day => filterDays[day]);
-        if (selectedDays.length > 0) {
-          const daysStr = selectedDays.join(',');
+        const daysStr = selectedDays.length > 0 ? selectedDays.join(',') : '';
+        if (daysStr) {
           params.append('days', daysStr);
         }
+        
+        const apiUrl = `/api/schedule/sections?${params.toString()}`;
+        console.log('[RegistrationSchedule] Loading sections with filters:', {
+          term_id: selectedTermId,
+          subject: subjectTrimmed || 'none',
+          course_num: courseNumTrimmed || 'none',
+          days: daysStr || 'none',
+          url: apiUrl
+        });
 
-        const res = await fetch(`/api/schedule/sections?${params.toString()}`, {
+        const res = await fetch(apiUrl, {
           credentials: "include",
         });
 
@@ -200,6 +227,8 @@ export default function RegistrationSchedule() {
         if (data.ok === false) {
           throw new Error(data.error || "Failed to load sections.");
         }
+
+        console.log('[RegistrationSchedule] Received sections:', data.sections?.length || 0, 'sections');
 
         // Transform sections to match the format expected by the component
         const transformedSections = (data.sections || []).map(sec => ({
@@ -233,7 +262,7 @@ export default function RegistrationSchedule() {
     if (activeTab === "register") {
       loadSectionsWithFilters();
     }
-  }, [selectedTermId, filterSubject, filterCourseNum, filterDays, activeTab]);
+  }, [selectedTermId, filterSubject, filterCourseNum, filterDaysKey, activeTab]);
 
   const getTermLabel = (termId) => {
     const t = terms.find((term) => String(term.termId) === String(termId));
@@ -610,111 +639,178 @@ export default function RegistrationSchedule() {
 
       {activeTab === "register" && (
         <div>
-          <h2>Available Sections for {termLabel || "selected term"}</h2>
+          <h2 style={{ marginBottom: 20 }}>Available Sections for {termLabel || "selected term"}</h2>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-              gap: 16,
-              marginBottom: 24,
-            }}
-          >
-            <div>
-              <label style={{ display: "block", marginBottom: 4, fontWeight: "bold", fontSize: 14 }}>
-                Search by course code or title
-              </label>
-              <input
-                type="text"
-                placeholder="e.g., CSE 416..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid #ddd",
-                  borderRadius: 6,
-                  fontSize: 14,
-                }}
-              />
-            </div>
+          {/* Filters Section */}
+          <div style={{ 
+            marginBottom: 24, 
+            padding: 20, 
+            background: '#f8f9fa', 
+            borderRadius: 8, 
+            border: '1px solid #e0e0e0',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+          }}>
+            <div style={{ 
+              display: "grid", 
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", 
+              gap: 16, 
+              marginBottom: 16 
+            }}>
+              <div>
+                <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: '#555' }}>
+                  Search by Course Code or Title
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., CSE 416..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    border: "1px solid #ddd",
+                    borderRadius: 6,
+                    fontSize: 14,
+                    transition: 'border-color 0.2s',
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#1976d2'}
+                  onBlur={(e) => e.target.style.borderColor = '#ddd'}
+                />
+              </div>
 
-            <div>
-              <label style={{ display: "block", marginBottom: 4, fontWeight: "bold", fontSize: 14 }}>
-                Subject
-              </label>
-              <input
-                type="text"
-                placeholder="e.g., CSE"
-                value={filterSubject}
-                onChange={(e) => setFilterSubject(e.target.value.toUpperCase())}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid #ddd",
-                  borderRadius: 6,
-                  fontSize: 14,
-                }}
-              />
-            </div>
+              <div>
+                <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: '#555' }}>
+                  Subject
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., CSE"
+                  value={filterSubject}
+                  onChange={(e) => setFilterSubject(e.target.value.toUpperCase())}
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    border: "1px solid #ddd",
+                    borderRadius: 6,
+                    fontSize: 14,
+                    transition: 'border-color 0.2s',
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#1976d2'}
+                  onBlur={(e) => e.target.style.borderColor = '#ddd'}
+                />
+              </div>
 
-            <div>
-              <label style={{ display: "block", marginBottom: 4, fontWeight: "bold", fontSize: 14 }}>
-                Course Number
-              </label>
-              <input
-                type="text"
-                placeholder="e.g., 416"
-                value={filterCourseNum}
-                onChange={(e) => setFilterCourseNum(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid #ddd",
-                  borderRadius: 6,
-                  fontSize: 14,
-                }}
-              />
-            </div>
+              <div>
+                <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: '#555' }}>
+                  Course Number
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., 416"
+                  value={filterCourseNum}
+                  onChange={(e) => setFilterCourseNum(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    border: "1px solid #ddd",
+                    borderRadius: 6,
+                    fontSize: 14,
+                    transition: 'border-color 0.2s',
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#1976d2'}
+                  onBlur={(e) => e.target.style.borderColor = '#ddd'}
+                />
+              </div>
 
-            <div>
-              <label style={{ display: "block", marginBottom: 4, fontWeight: "bold", fontSize: 14 }}>
-                Days of Week
-              </label>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {[
-                  { key: "M", label: "Mon" },
-                  { key: "T", label: "Tue" },
-                  { key: "W", label: "Wed" },
-                  { key: "R", label: "Thu" },
-                  { key: "F", label: "Fri" },
-                ].map(({ key, label }) => (
-                  <label
-                    key={key}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 4,
-                      cursor: "pointer",
-                      padding: "4px 8px",
-                      border: `1px solid ${filterDays[key] ? "#1976d2" : "#ddd"}`,
-                      borderRadius: 4,
-                      background: filterDays[key] ? "#e3f2fd" : "white",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={filterDays[key]}
-                      onChange={(e) =>
-                        setFilterDays((prev) => ({ ...prev, [key]: e.target.checked }))
-                      }
-                      style={{ cursor: "pointer" }}
-                    />
-                    <span style={{ fontSize: 13 }}>{label}</span>
-                  </label>
-                ))}
+              <div>
+                <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: '#555' }}>
+                  Days of Week
+                </label>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {[
+                    { key: "M", label: "Mon" },
+                    { key: "T", label: "Tue" },
+                    { key: "W", label: "Wed" },
+                    { key: "R", label: "Thu" },
+                    { key: "F", label: "Fri" },
+                  ].map(({ key, label }) => (
+                    <label
+                      key={key}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        cursor: "pointer",
+                        padding: "6px 12px",
+                        border: `1px solid ${filterDays[key] ? "#1976d2" : "#ddd"}`,
+                        borderRadius: 6,
+                        background: filterDays[key] ? "#e3f2fd" : "white",
+                        transition: 'all 0.2s',
+                        fontWeight: filterDays[key] ? 600 : 400,
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!filterDays[key]) {
+                          e.currentTarget.style.borderColor = '#1976d2';
+                          e.currentTarget.style.background = '#f5f5f5';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!filterDays[key]) {
+                          e.currentTarget.style.borderColor = '#ddd';
+                          e.currentTarget.style.background = 'white';
+                        }
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filterDays[key]}
+                        onChange={(e) =>
+                          setFilterDays((prev) => ({ ...prev, [key]: e.target.checked }))
+                        }
+                        style={{ cursor: "pointer" }}
+                      />
+                      <span style={{ fontSize: 13 }}>{label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
+
+            {/* Clear Filters Button */}
+            {(searchTerm.trim() || filterSubject.trim() || filterCourseNum.trim() || Object.values(filterDays).some(v => v)) && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setFilterSubject('');
+                    setFilterCourseNum('');
+                    setFilterDays({ M: false, T: false, W: false, R: false, F: false });
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 6,
+                    border: '1px solid #ddd',
+                    background: '#fff',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#666',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.borderColor = '#1976d2';
+                    e.target.style.color = '#1976d2';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.borderColor = '#ddd';
+                    e.target.style.color = '#666';
+                  }}
+                >
+                  Clear All Filters
+                </button>
+              </div>
+            )}
           </div>
 
           <div style={{ display: "grid", gap: 16 }}>
@@ -745,14 +841,20 @@ export default function RegistrationSchedule() {
                           alignItems: "center",
                           gap: 12,
                           marginBottom: 8,
+                          flexWrap: "wrap",
                         }}
                       >
-                        <h3 style={{ margin: 0, fontSize: 18, color: "#333" }}>
-                          {sec.courseTitle} (Sec {sec.sectionNum})
-                        </h3>
+                        <div>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: "#1976d2", marginBottom: 2 }}>
+                            {sec.courseCode}-{sec.sectionNum}
+                          </div>
+                          <h3 style={{ margin: 0, fontSize: 18, color: "#333" }}>
+                            {sec.courseTitle}
+                          </h3>
+                        </div>
                         <span
                           style={{
-                            padding: "2px 8px",
+                            padding: "4px 10px",
                             borderRadius: 12,
                             fontSize: 12,
                             fontWeight: "bold",
@@ -768,24 +870,35 @@ export default function RegistrationSchedule() {
                         style={{
                           display: "grid",
                           gridTemplateColumns:
-                            "repeat(auto-fit, minmax(200px, 1fr))",
+                            "repeat(auto-fit, minmax(220px, 1fr))",
                           gap: 12,
                           fontSize: 14,
                           marginBottom: 12,
+                          padding: 12,
+                          background: "#f8f9fa",
+                          borderRadius: 6,
                         }}
                       >
                         <div>
-                          <strong>Instructor:</strong> {sec.instructorName || "TBA"}
+                          <strong style={{ color: "#555" }}>Instructor:</strong>{" "}
+                          <span style={{ color: "#333" }}>{sec.instructorName || "TBA"}</span>
                         </div>
                         <div>
-                          <strong>Schedule:</strong> {sec.scheduleText || "TBA"}
+                          <strong style={{ color: "#555" }}>Meeting Time:</strong>{" "}
+                          <span style={{ color: "#333" }}>{sec.scheduleText || "TBA"}</span>
                         </div>
                         <div>
-                          <strong>Room:</strong> {sec.roomLabel || "TBA"}
+                          <strong style={{ color: "#555" }}>Location:</strong>{" "}
+                          <span style={{ color: "#333" }}>{sec.roomLabel || "TBA"}</span>
+                        </div>
+                        <div>
+                          <strong style={{ color: "#555" }}>Capacity:</strong>{" "}
+                          <span style={{ color: "#333" }}>{sec.capacity || 0} seats</span>
                         </div>
                         {sec.sbc && (
-                          <div>
-                            <strong>SBCs:</strong> {sec.sbc}
+                          <div style={{ gridColumn: "1 / -1" }}>
+                            <strong style={{ color: "#555" }}>SBCs:</strong>{" "}
+                            <span style={{ color: "#333" }}>{sec.sbc}</span>
                           </div>
                         )}
                       </div>
