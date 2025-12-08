@@ -14,6 +14,7 @@ export default function ImportPage() {
   const [logs, setLogs] = useState({});
   const [terms, setTerms] = useState([]);
   const [scheduleTermId, setScheduleTermId] = useState('');
+  const [scheduleSubjects, setScheduleSubjects] = useState('');
 
   useEffect(() => {
     async function loadTerms() {
@@ -126,13 +127,13 @@ export default function ImportPage() {
     }
   };
 
-  const renderFileInput = (label, type, endpoint, accept, showTermSelect = false) => (
+  const renderFileInput = (label, type, endpoint, accept, showTermSelect = false, showSubjectSelect = false) => (
     <div style={{ marginBottom: 20 }}>
       <h3>{label}</h3>
       {showTermSelect && (
         <div style={{ marginBottom: 10 }}>
           <label style={{ display: 'block', marginBottom: 4, fontWeight: 'bold', fontSize: 14 }}>
-            Term (optional - will auto-detect from PDF if not specified):
+            Term <span style={{ fontWeight: 'normal', color: '#666' }}>(recommended - will auto-detect from PDF if not specified)</span>:
           </label>
           <select
             value={scheduleTermId}
@@ -152,6 +153,31 @@ export default function ImportPage() {
               </option>
             ))}
           </select>
+          {scheduleTermId && (
+            <p style={{ marginTop: 4, fontSize: 12, color: '#666' }}>
+              Selected: {terms.find(t => String(t.termId) === scheduleTermId)?.semester} {terms.find(t => String(t.termId) === scheduleTermId)?.year}
+            </p>
+          )}
+        </div>
+      )}
+      {showSubjectSelect && (
+        <div style={{ marginBottom: 10 }}>
+          <label style={{ display: 'block', marginBottom: 4, fontWeight: 'bold', fontSize: 14 }}>
+            Subjects (optional - comma-separated, e.g., "BIO, CSE". Leave empty to import all subjects):
+          </label>
+          <input
+            type="text"
+            value={scheduleSubjects}
+            onChange={(e) => setScheduleSubjects(e.target.value)}
+            placeholder="BIO, CSE"
+            style={{
+              padding: '6px 10px',
+              border: '1px solid #ddd',
+              borderRadius: 4,
+              fontSize: 14,
+              minWidth: 200,
+            }}
+          />
         </div>
       )}
       <input
@@ -161,7 +187,13 @@ export default function ImportPage() {
       />
       <button
         onClick={() => {
-          const extraData = showTermSelect && scheduleTermId ? { term_id: scheduleTermId } : {};
+          const extraData = {};
+          if (showTermSelect && scheduleTermId) {
+            extraData.term_id = scheduleTermId;
+          }
+          if (showSubjectSelect && scheduleSubjects.trim()) {
+            extraData.subjects = scheduleSubjects.trim();
+          }
           handleUpload(type, endpoint, extraData);
         }}
         style={{
@@ -197,7 +229,7 @@ export default function ImportPage() {
 
       {renderFileInput('Import Users', 'users', 'api/import/users', '.yaml,.yml')}
       {renderFileInput('Import Course Catalog', 'catalog', 'api/import/catalog', '.yaml,.yml')}
-      {renderFileInput('Import Class Schedule', 'schedule', 'api/import/schedule', '.pdf', terms.length > 0)}
+      {renderFileInput('Import Class Schedule', 'schedule', 'api/import/schedule', '.pdf', terms.length > 0, true)}
       {renderFileInput('Import Academic Calendar', 'calendar', 'api/import/academic-calendar', '.yaml,.yml')}
       {renderFileInput('Import Degree Requirements', 'degreeReq', 'api/import/degree-requirements', '.yaml,.yml')}
       {renderFileInput('Import Rooms', 'rooms', 'api/import/rooms', '.yaml,.yml')}

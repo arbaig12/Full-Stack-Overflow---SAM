@@ -619,4 +619,49 @@ router.put('/sections/:classId', async (req, res) => {
   }
 });
 
+/**
+ * DELETE /api/class-manage/sections
+ * Delete all class sections from the database.
+ * WARNING: This is a destructive operation. Also deletes related enrollments.
+ */
+router.delete('/sections', async (req, res) => {
+  const db = req.db;
+  try {
+    await db.query('BEGIN');
+
+    // Get count before deletion for response
+    const countResult = await db.query('SELECT COUNT(*) as count FROM class_sections');
+    const count = parseInt(countResult.rows[0]?.count) || 0;
+
+    if (count === 0) {
+      await db.query('ROLLBACK');
+      return res.json({
+        ok: true,
+        message: 'No class sections to delete.',
+        deleted: 0,
+      });
+    }
+
+    // Delete enrollments first (foreign key constraint)
+    await db.query('DELETE FROM enrollments WHERE class_id IS NOT NULL');
+    console.log('[class-manage] DELETE /sections - Deleted related enrollments');
+
+    // Delete all class sections
+    await db.query('DELETE FROM class_sections');
+    console.log(`[class-manage] DELETE /sections - Deleted ${count} class sections`);
+
+    await db.query('COMMIT');
+
+    return res.json({
+      ok: true,
+      message: `Successfully deleted ${count} class section(s) and related enrollments.`,
+      deleted: count,
+    });
+  } catch (e) {
+    await db.query('ROLLBACK');
+    console.error('[class-manage] DELETE /sections failed:', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 export default router;

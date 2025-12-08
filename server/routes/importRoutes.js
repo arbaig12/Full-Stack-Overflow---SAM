@@ -833,9 +833,35 @@ router.post("/schedule", upload.single("file"), async (req, res) => {
       console.warn('[API] WARNING: No sections parsed but PDF has content. Check regex pattern.');
     }
 
+    // Filter by subjects if provided
+    let subjectsFilter = null;
+    const subjectsParam = req.body.subjects;
+    if (subjectsParam) {
+      // Handle both array and comma-separated string
+      if (Array.isArray(subjectsParam)) {
+        subjectsFilter = subjectsParam.map(s => String(s).trim().toUpperCase()).filter(s => s.length > 0);
+      } else if (typeof subjectsParam === 'string') {
+        subjectsFilter = subjectsParam.split(',').map(s => s.trim().toUpperCase()).filter(s => s.length > 0);
+      }
+      if (subjectsFilter.length > 0) {
+        console.log(`[API] Filtering import to subjects: ${subjectsFilter.join(', ')}`);
+      } else {
+        subjectsFilter = null;
+      }
+    }
+
+    // Apply subject filter if specified
+    let filteredSections = parsedSections;
+    if (subjectsFilter && subjectsFilter.length > 0) {
+      filteredSections = parsedSections.filter(sec => 
+        subjectsFilter.includes(sec.subject.toUpperCase())
+      );
+      console.log(`[API] Filtered from ${parsedSections.length} to ${filteredSections.length} sections for subjects: ${subjectsFilter.join(', ')}`);
+    }
+
     // Log first few parsed sections for debugging
-    if (parsedSections.length > 0) {
-      console.log(`[API] Sample parsed sections (first 3):`, parsedSections.slice(0, 3).map(s => ({
+    if (filteredSections.length > 0) {
+      console.log(`[API] Sample parsed sections (first 3):`, filteredSections.slice(0, 3).map(s => ({
         subject: s.subject,
         courseNum: s.courseNum,
         sectionNum: s.sectionNum,
@@ -850,7 +876,7 @@ router.post("/schedule", upload.single("file"), async (req, res) => {
     const warnings = [];
     const subjectCounts = {};
 
-    for (const sec of parsedSections) {
+    for (const sec of filteredSections) {
       const { subject, courseNum, sectionNum, meetingDays, meetingTimes, locationText, instructorName } = sec;
 
       // Track subjects being processed

@@ -69,6 +69,10 @@ export default function ClassManage() {
   const [capConfirmOpen, setCapConfirmOpen] = useState(false);
   const [capConfirmMessage, setCapConfirmMessage] = useState('');
   const [capConfirmPending, setCapConfirmPending] = useState(null);
+
+  // Delete all classes confirmation
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   // capConfirmPending = {
   //   mode: 'create' | 'edit',
   //   url: string,
@@ -193,44 +197,44 @@ export default function ClassManage() {
   };
 
   // Load init data
-  useEffect(() => {
-    async function loadInitialData() {
-      try {
-        setLoading(true);
-        setError('');
+  async function loadInitialData() {
+    try {
+      setLoading(true);
+      setError('');
 
-        const res = await fetch('/api/class-manage/init', { credentials: 'include' });
-        if (!res.ok) throw new Error('Failed to load registrar data.');
+      const res = await fetch('/api/class-manage/init', { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to load registrar data.');
 
-        const data = await res.json();
-        if (data.ok === false) throw new Error(data.error || 'Failed to load registrar data.');
+      const data = await res.json();
+      if (data.ok === false) throw new Error(data.error || 'Failed to load registrar data.');
 
-        const {
-          terms: termsData = [],
-          courses: coursesData = [],
-          instructors: instructorsData = [],
-          rooms: roomsData = [],
-          sections: sectionsData = [],
-        } = data;
+      const {
+        terms: termsData = [],
+        courses: coursesData = [],
+        instructors: instructorsData = [],
+        rooms: roomsData = [],
+        sections: sectionsData = [],
+      } = data;
 
-        setTerms(termsData);
-        setCourses(coursesData);
-        setInstructors(instructorsData);
-        setRooms(roomsData);
-        setSections(sectionsData);
+      setTerms(termsData);
+      setCourses(coursesData);
+      setInstructors(instructorsData);
+      setRooms(roomsData);
+      setSections(sectionsData);
 
-        if (termsData.length > 0) {
-          setSelectedTermId(String(termsData[0].termId));
-          setFilterTermId('ALL');
-        }
-      } catch (e) {
-        console.error(e);
-        setError(e.message || 'Failed to load registrar setup data.');
-      } finally {
-        setLoading(false);
+      if (termsData.length > 0) {
+        setSelectedTermId(String(termsData[0].termId));
+        setFilterTermId('ALL');
       }
+    } catch (e) {
+      console.error(e);
+      setError(e.message || 'Failed to load registrar setup data.');
+    } finally {
+      setLoading(false);
     }
+  }
 
+  useEffect(() => {
     loadInitialData();
   }, []);
 
@@ -348,6 +352,36 @@ export default function ClassManage() {
     setCapConfirmPending(null);
     setCapConfirmMessage('');
     // keep existing "no" behavior = do nothing, user can adjust capacity/room
+  }
+
+  async function handleDeleteAllClasses() {
+    setDeleting(true);
+    setError('');
+    setSuccessMsg('');
+
+    try {
+      const res = await fetch('/api/class-manage/sections', {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || 'Failed to delete all classes.');
+      }
+
+      setSuccessMsg(data.message || `Successfully deleted ${data.deleted || 0} class section(s).`);
+      setDeleteAllOpen(false);
+
+      // Reload the sections list
+      await loadInitialData();
+    } catch (e) {
+      console.error(e);
+      setError(e.message || 'Failed to delete all classes.');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   async function handleSaveSection(e) {
@@ -658,7 +692,26 @@ export default function ClassManage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Manage Class Sections</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <h1 style={{ margin: 0 }}>Manage Class Sections</h1>
+        <button
+          onClick={() => setDeleteAllOpen(true)}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#d32f2f',
+            color: 'white',
+            border: 'none',
+            borderRadius: 4,
+            cursor: 'pointer',
+            fontSize: 14,
+            fontWeight: 'bold',
+          }}
+          onMouseOver={(e) => e.target.style.backgroundColor = '#b71c1c'}
+          onMouseOut={(e) => e.target.style.backgroundColor = '#d32f2f'}
+        >
+          Delete All Classes
+        </button>
+      </div>
 
       <p style={{ color: '#555', maxWidth: 800, marginBottom: 20 }}>
         Use this page to create and maintain <strong>class sections</strong> that students can enroll in.
@@ -1431,6 +1484,18 @@ export default function ClassManage() {
         busy={saving || editSaving}
         onCancel={handleConfirmRoomCapacityNo}
         onConfirm={handleConfirmRoomCapacityYes}
+      />
+
+      {/* ✅ Delete all classes confirmation modal */}
+      <ConfirmModal
+        open={deleteAllOpen}
+        title="Delete All Class Sections"
+        message="Are you sure you want to delete ALL class sections? This will also delete all related enrollments. This action cannot be undone."
+        confirmText="Yes, delete all"
+        cancelText="Cancel"
+        onConfirm={handleDeleteAllClasses}
+        onCancel={() => setDeleteAllOpen(false)}
+        busy={deleting}
       />
     </div>
   );
