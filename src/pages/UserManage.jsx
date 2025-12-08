@@ -60,10 +60,15 @@ export default function UserManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
+  const [selectedMajor, setSelectedMajor] = useState('');
+  const [selectedMinor, setSelectedMinor] = useState('');
+  const [availableMajors, setAvailableMajors] = useState([]);
+  const [availableMinors, setAvailableMinors] = useState([]);
   const [editingUser, setEditingUser] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [searchLoading, setSearchLoading] = useState(false);
 
 
 //   useEffect(() => {
@@ -182,6 +187,7 @@ useEffect(() => {
       if (!ignore) {
         const merged = [...registrars, ...students, ...instructors, ...advisors];
         setUsers(merged);
+        setAllUsers(merged); // Also set allUsers for filtering
         
         // Only show error if no users were loaded at all
         if (merged.length === 0) {
@@ -205,11 +211,188 @@ useEffect(() => {
   return () => { ignore = true; };
 }, []);
 
-  // Filter users based on search and filters
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.id.includes(searchTerm);
+  // Load available majors and minors for dropdowns
+  useEffect(() => {
+    let ignore = false;
+
+    (async () => {
+      try {
+        const resp = await fetch('http://localhost:4000/api/programs/programs?is_active=true', {
+          credentials: 'include'
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const json = await resp.json();
+        if (!json.ok) throw new Error(json.error || 'Failed to load programs');
+
+        if (!ignore && json.programs) {
+          // Extract subject codes from program codes (format: "SUBJECT-DEGREE" or "SUBJECT-Minor")
+          // Also use department code as fallback
+          const majors = json.programs
+            .filter(p => p.type === 'major')
+            .map(p => {
+              // Try to extract subject from code (e.g., "AMS-BS" -> "AMS")
+              let code = '';
+              if (p.code) {
+                const parts = p.code.split('-');
+                code = parts[0] || '';
+              }
+              // Fallback to department code if code extraction fails
+              if (!code && p.department && p.department.code) {
+                code = p.department.code;
+              }
+              return {
+                code: code.toUpperCase(),
+                name: p.name,
+                fullCode: p.code
+              };
+            })
+            .filter(m => m.code); // Remove empty codes
+          
+          // Remove duplicates by code
+          const uniqueMajors = Array.from(new Map(majors.map(m => [m.code, m])).values());
+          
+          const minors = json.programs
+            .filter(p => p.type === 'minor')
+            .map(p => {
+              let code = '';
+              if (p.code) {
+                const parts = p.code.split('-');
+                code = parts[0] || '';
+              }
+              if (!code && p.department && p.department.code) {
+                code = p.department.code;
+              }
+              return {
+                code: code.toUpperCase(),
+                name: p.name,
+                fullCode: p.code
+              };
+            })
+            .filter(m => m.code);
+          
+          const uniqueMinors = Array.from(new Map(minors.map(m => [m.code, m])).values());
+
+          setAvailableMajors(uniqueMajors.sort((a, b) => a.code.localeCompare(b.code)));
+          setAvailableMinors(uniqueMinors.sort((a, b) => a.code.localeCompare(b.code)));
+          
+          console.log('Loaded majors:', uniqueMajors.length, 'minors:', uniqueMinors.length);
+        }
+      } catch (e) {
+        console.error('Failed to load programs:', e);
+        setMessage(`Warning: Could not load major/minor options: ${e.message}`);
+      }
+    })();
+
+    return () => { ignore = true; };
+  }, []);
+
+  // Store original loaded users separately
+  const [allUsers, setAllUsers] = useState([]);
+  const [searchResults, setSearchResults] = useState(null);
+
+  // Search users using API when major/minor filters are active or when searching by name with role filter
+  useEffect(() => {
+    // Use API search when:
+    // 1. Major or minor is selected (requires API)
+    // 2. Search term is provided and role is student (to support last name search)
+    const shouldUseApiSearch = 
+      (selectedMajor || selectedMinor) ||
+      (searchTerm && selectedRole === 'student');
+
+    if (!shouldUseApiSearch) {
+      // Clear search results and use all users for client-side filtering
+      setSearchResults(null);
+      setSearchLoading(false);
+      return;
+    }
+
+    let ignore = false;
+    setSearchLoading(true);
+
+    (async () => {
+      try {
+        const params = new URLSearchParams();
+        if (searchTerm) params.append('name', searchTerm);
+        // Always include role when major/minor are selected (they only apply to students)
+        if (selectedMajor || selectedMinor) {
+          params.append('role', 'student');
+        } else if (selectedRole !== 'All') {
+          params.append('role', selectedRole);
+        }
+        if (selectedMajor) params.append('major', selectedMajor);
+        if (selectedMinor) params.append('minor', selectedMinor);
+
+        const searchUrl = `http://localhost:4000/api/user-management/search?${params.toString()}`;
+        console.log('Searching users with URL:', searchUrl);
+
+        const resp = await fetch(searchUrl, {
+          credentials: 'include'
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const json = await resp.json();
+        if (!json.ok) throw new Error(json.error || 'Search failed');
+
+        console.log('Search results:', json.users?.length || 0, 'users found', json);
+
+        if (!ignore) {
+          // Map search results to match user format (add status, department, etc.)
+          const searchUsers = (json.users || []).map(u => {
+            // Try to find existing user data to preserve status, department, etc.
+            const existing = allUsers.find(existing => existing.id === u.id);
+            return {
+              ...u,
+              status: existing?.status || 'active',
+              department: existing?.department || null,
+              classStanding: existing?.classStanding || null,
+              courses: existing?.courses || null,
+              advisees: existing?.advisees || null,
+              lastLogin: existing?.lastLogin || null
+            };
+          });
+
+          console.log('Processed search users:', searchUsers.length, searchUsers);
+          setSearchResults(searchUsers.length > 0 ? searchUsers : []); // Set to empty array if no results
+          setSearchLoading(false);
+          
+          if (searchUsers.length === 0) {
+            setMessage(`No users found matching the search criteria.`);
+          }
+        }
+      } catch (e) {
+        if (!ignore) {
+          console.error('Search failed:', e);
+          setSearchLoading(false);
+          setSearchResults([]); // Set to empty array on error
+          setMessage(`Search failed: ${e.message}`);
+        }
+      }
+    })();
+
+    return () => { ignore = true; };
+  }, [searchTerm, selectedRole, selectedMajor, selectedMinor, allUsers]);
+
+  // Determine which user list to use
+  // If searchResults is an array (even if empty), use it. If null, use allUsers or users
+  const usersToFilter = Array.isArray(searchResults) ? searchResults : (allUsers.length > 0 ? allUsers : users);
+
+  // Filter users based on search and filters (client-side for non-API cases)
+  const filteredUsers = usersToFilter.filter(user => {
+    // If using API search, the results are already filtered by name, role, major, minor
+    const usingApiSearch = Array.isArray(searchResults);
+    
+    if (usingApiSearch) {
+      // Only apply status filter for API search results
+      // Also ensure role matches if it was set (though API should handle this)
+      const matchesStatus = selectedStatus === 'All' || user.status === selectedStatus;
+      const matchesRole = selectedRole === 'All' || user.role === selectedRole;
+      return matchesStatus && matchesRole;
+    }
+
+    // Client-side filtering for other cases
+    const matchesSearch = !searchTerm || 
+      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.id.includes(searchTerm);
     const matchesRole = selectedRole === 'All' || user.role === selectedRole;
     const matchesStatus = selectedStatus === 'All' || user.status === selectedStatus;
     
@@ -298,7 +481,7 @@ useEffect(() => {
       {/* Filters */}
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: '1fr 150px 150px', 
+        gridTemplateColumns: '1fr 150px 150px 150px 150px', 
         gap: 16, 
         marginBottom: 24,
         alignItems: 'end'
@@ -328,7 +511,14 @@ useEffect(() => {
           </label>
           <select
             value={selectedRole}
-            onChange={(e) => setSelectedRole(e.target.value)}
+            onChange={(e) => {
+              setSelectedRole(e.target.value);
+              // Clear major/minor when role changes away from student
+              if (e.target.value !== 'student') {
+                setSelectedMajor('');
+                setSelectedMinor('');
+              }
+            }}
             style={{
               width: '100%',
               padding: '8px 12px',
@@ -342,6 +532,60 @@ useEffect(() => {
             <option value="instructor">Instructor</option>
             <option value="advisor">Advisor</option>
             <option value="registrar">Registrar</option>
+          </select>
+        </div>
+        
+        <div>
+          <label style={{ display: 'block', marginBottom: 4, fontWeight: 'bold' }}>
+            Major
+          </label>
+          <select
+            value={selectedMajor}
+            onChange={(e) => setSelectedMajor(e.target.value)}
+            disabled={selectedRole !== 'student' && selectedRole !== 'All'}
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              border: '1px solid #ddd',
+              borderRadius: 6,
+              fontSize: 14,
+              backgroundColor: (selectedRole !== 'student' && selectedRole !== 'All') ? '#f5f5f5' : 'white',
+              cursor: (selectedRole !== 'student' && selectedRole !== 'All') ? 'not-allowed' : 'pointer'
+            }}
+          >
+            <option value="">All Majors</option>
+            {availableMajors.map(major => (
+              <option key={major.code} value={major.code}>
+                {major.code}
+              </option>
+            ))}
+          </select>
+        </div>
+        
+        <div>
+          <label style={{ display: 'block', marginBottom: 4, fontWeight: 'bold' }}>
+            Minor
+          </label>
+          <select
+            value={selectedMinor}
+            onChange={(e) => setSelectedMinor(e.target.value)}
+            disabled={selectedRole !== 'student' && selectedRole !== 'All'}
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              border: '1px solid #ddd',
+              borderRadius: 6,
+              fontSize: 14,
+              backgroundColor: (selectedRole !== 'student' && selectedRole !== 'All') ? '#f5f5f5' : 'white',
+              cursor: (selectedRole !== 'student' && selectedRole !== 'All') ? 'not-allowed' : 'pointer'
+            }}
+          >
+            <option value="">All Minors</option>
+            {availableMinors.map(minor => (
+              <option key={minor.code} value={minor.code}>
+                {minor.code}
+              </option>
+            ))}
           </select>
         </div>
         
@@ -382,19 +626,19 @@ useEffect(() => {
       )}
 
       {/* Loading Indicator */}
-      {loading && (
+      {(loading || searchLoading) && (
         <div style={{
           padding: 20,
           textAlign: 'center',
           color: '#666'
         }}>
-          Loading users...
+          {loading ? 'Loading users...' : 'Searching...'}
         </div>
       )}
 
       {/* Results count */}
       <p style={{ marginBottom: 16, color: '#666' }}>
-        Showing {filteredUsers.length} of {users.length} users
+        Showing {filteredUsers.length} of {usersToFilter.length} users
       </p>
 
       {/* User List */}

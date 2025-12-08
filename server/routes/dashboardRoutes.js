@@ -58,8 +58,8 @@ async function getStudentDashboard(db, userId) {
         e.class_id,
         e.status,
         e.grade,
-        e.enrolled_at AS added_at,
-        e.enrolled_at AS updated_at,
+        e.added_at,
+        e.updated_at,
 
         c.subject,
         c.course_num,
@@ -74,7 +74,7 @@ async function getStudentDashboard(db, userId) {
       JOIN courses c ON c.course_id = cs.course_id
       JOIN terms t ON t.term_id = cs.term_id
       WHERE e.student_id = $1
-      ORDER BY e.enrolled_at DESC
+      ORDER BY e.added_at DESC NULLS LAST, e.updated_at DESC NULLS LAST
       LIMIT 50;
       `,
       [userId]
@@ -181,7 +181,8 @@ async function getInstructorDashboard(db, userId) {
     const { rows: recent } = await client.query(
       `
       SELECT
-        e.enrolled_at AS added_at,
+        e.added_at,
+        e.updated_at,
         e.status,
         e.grade,
         u.first_name,
@@ -195,7 +196,7 @@ async function getInstructorDashboard(db, userId) {
       JOIN class_sections cs ON cs.class_id = e.class_id
       JOIN courses c ON c.course_id = cs.course_id
       WHERE cs.instructor_id = $1
-      ORDER BY e.enrolled_at DESC
+      ORDER BY e.added_at DESC NULLS LAST, e.updated_at DESC NULLS LAST
       LIMIT 10;
       `,
       [userId]

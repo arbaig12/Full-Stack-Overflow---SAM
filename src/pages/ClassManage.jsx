@@ -513,15 +513,21 @@ export default function ClassManage() {
       const normalizeNoSpace = (v) => normalize(v).replace(/\s+/g, '');
 
       filtered = filtered.filter((s) => {
+        // Get all instructor names (support both old single instructor and new multiple instructors)
+        const allInstructorNames = s.instructors && Array.isArray(s.instructors) && s.instructors.length > 0
+          ? s.instructors.map(inst => inst.name || `${inst.firstName || ''} ${inst.lastName || ''}`.trim()).filter(Boolean).join(' ')
+          : (s.instructorName || '');
+
         const haystack = [
           s.term,
           s.courseCode,
           s.courseTitle,
+          s.courseDescription || '', // Include course description in search
           s.sectionNum,
           s.meetingDays,
           s.meetingTimes,
           s.room,
-          s.instructorName,
+          allInstructorNames,
           String(s.classId),
         ]
           .map(normalize)
@@ -530,9 +536,10 @@ export default function ClassManage() {
         const compactHaystack = [
           s.courseCode,
           s.courseTitle,
+          s.courseDescription || '',
           s.term,
           s.room,
-          s.instructorName,
+          allInstructorNames,
           s.sectionNum,
         ]
           .map(normalizeNoSpace)
@@ -1372,7 +1379,13 @@ export default function ClassManage() {
                         </td>
                         <td style={{ padding: '4px 4px', borderBottom: '1px solid #f0f0f0' }}>{s.room || 'TBA'}</td>
                         <td style={{ padding: '4px 4px', borderBottom: '1px solid #f0f0f0' }}>
-                          {s.instructorName || 'TBA'}
+                          {(() => {
+                            // Display all instructors if available, otherwise fall back to instructorName
+                            if (s.instructors && Array.isArray(s.instructors) && s.instructors.length > 0) {
+                              return s.instructors.map(inst => inst.name || `${inst.firstName || ''} ${inst.lastName || ''}`.trim()).filter(Boolean).join(', ');
+                            }
+                            return s.instructorName || 'TBA';
+                          })()}
                         </td>
                         <td style={{ padding: '4px 4px', borderBottom: '1px solid #f0f0f0' }}>
                           {s.enrolled ?? 0}/{s.capacity ?? 0}

@@ -60,7 +60,7 @@ router.get("/", async (req, res) => {
     -------------------------------------- */
     const { rows: personalRows } = await db.query(
       `
-        SELECT user_id, first_name, last_name, email
+        SELECT user_id, sbu_id, first_name, last_name, email
         FROM users
         WHERE user_id = $1
       `,
@@ -72,15 +72,29 @@ router.get("/", async (req, res) => {
     /* -------------------------------------
          1b. MAJORS & MINORS WITH REQUIREMENT VERSIONS
     -------------------------------------- */
+    // Join student_programs -> programs -> degree_requirements
+    // Match degree_requirements by parsing program code (e.g., "CSE-BS" -> subject="CSE", degree_type="BS")
     const { rows: programRows } = await db.query(
       `
         SELECT 
-          dr.subject, 
-          dr.degree_type, 
-          dr.program_type,
+          COALESCE(dr.subject, SPLIT_PART(p.code, '-', 1)) as subject,
+          COALESCE(dr.degree_type, SPLIT_PART(p.code, '-', 2)) as degree_type,
+          CASE 
+            WHEN p.type = 'MAJOR' THEN 'major'
+            WHEN p.type = 'MINOR' THEN 'minor'
+            ELSE 'major'
+          END as program_type,
           dr.effective_term
         FROM student_programs sp
-        JOIN degree_requirements dr ON dr.id = sp.program_id
+        JOIN programs p ON p.program_id = sp.program_id
+        LEFT JOIN degree_requirements dr ON 
+          dr.subject = SPLIT_PART(p.code, '-', 1)
+          AND dr.degree_type = SPLIT_PART(p.code, '-', 2)
+          AND dr.program_type = CASE 
+            WHEN p.type = 'MAJOR' THEN 'major'
+            WHEN p.type = 'MINOR' THEN 'minor'
+            ELSE 'major'
+          END
         WHERE sp.student_id = $1
       `,
       [userId]
@@ -385,7 +399,7 @@ router.get("/", async (req, res) => {
     return res.json({
       personal: {
         name: `${personal.first_name} ${personal.last_name}`,
-        studentId: personal.user_id,
+        studentId: personal.sbu_id || personal.user_id,
         email: personal.email,
         classStanding,
         declaredMajors,
