@@ -1234,11 +1234,22 @@ router.post("/rooms", upload.single("file"), async (req, res) => {
   try {
     const filePath = req.file.path;
     const yamlText = fs.readFileSync(filePath, "utf8");
+    
+    // Debug: Log raw YAML text (first 500 chars) for troubleshooting
+    console.log("[API] Raw YAML text (first 500 chars):", yamlText.substring(0, 500));
+    
     const parsed = yaml.load(yamlText);
 
     try {
       fs.unlinkSync(filePath);
     } catch {}
+
+    // Debug: Log parsed object structure
+    console.log("[API] Parsed YAML type:", typeof parsed);
+    console.log("[API] Parsed YAML keys:", parsed && typeof parsed === "object" ? Object.keys(parsed) : "N/A");
+    console.log("[API] parsed.rooms type:", typeof parsed?.rooms);
+    console.log("[API] parsed.rooms value:", parsed?.rooms);
+    console.log("[API] parsed.rooms isArray:", Array.isArray(parsed?.rooms));
 
     if (!parsed || typeof parsed !== "object") {
       return res.status(400).json({
@@ -1247,11 +1258,23 @@ router.post("/rooms", upload.single("file"), async (req, res) => {
       });
     }
 
-    const rooms = parsed.rooms || [];
-    if (!Array.isArray(rooms) || rooms.length === 0) {
+    // Check if parsed.rooms exists but is not an array
+    if (parsed.rooms !== undefined && parsed.rooms !== null && !Array.isArray(parsed.rooms)) {
       return res.status(400).json({
         status: "error",
-        error: 'YAML must contain a non-empty "rooms" array.',
+        error: `YAML contains "rooms" but it is not an array. Found type: ${typeof parsed.rooms}, value: ${JSON.stringify(parsed.rooms).substring(0, 200)}`,
+      });
+    }
+
+    const rooms = parsed.rooms || [];
+    if (!Array.isArray(rooms) || rooms.length === 0) {
+      const availableKeys = Object.keys(parsed).join(", ");
+      const roomsType = typeof parsed.rooms;
+      const roomsValue = parsed.rooms === undefined ? "undefined" : parsed.rooms === null ? "null" : JSON.stringify(parsed.rooms).substring(0, 200);
+      
+      return res.status(400).json({
+        status: "error",
+        error: `YAML must contain a non-empty "rooms" array. Found keys: [${availableKeys}], parsed.rooms type: ${roomsType}, parsed.rooms value: ${roomsValue}`,
       });
     }
 
@@ -1496,7 +1519,6 @@ router.post("/schedule", upload.single("file"), async (req, res) => {
 
       subjectCounts[subject].found++;
       const courseId = courseRes.rows[0].course_id;
-      const capacity = 50;
 
       const normDays = normalizeMeetingDays(meetingDays);
       // Use building/room/instructorName already extracted by splitLocationTail during parsing
@@ -1505,19 +1527,13 @@ router.post("/schedule", upload.single("file"), async (req, res) => {
       const instructorNameFromSec = sec.instructorName || null;
 
       let roomId = null;
-      if (building && room) {
-        await db.query(
-          `
-          INSERT INTO rooms (building, room, capacity)
-          VALUES ($1, $2, $3)
-          ON CONFLICT (building, room) DO NOTHING
-          `,
-          [building, room, capacity]
-        );
+      let capacity = 50; // Default capacity if no room
 
-        const roomRes = await db.query(
+      if (building && room) {
+        // First, check if room already exists and get its capacity
+        const existingRoomRes = await db.query(
           `
-          SELECT room_id
+          SELECT room_id, capacity
           FROM rooms
           WHERE building = $1 AND room = $2
           LIMIT 1
@@ -1525,7 +1541,37 @@ router.post("/schedule", upload.single("file"), async (req, res) => {
           [building, room]
         );
 
-        roomId = roomRes.rows[0]?.room_id ?? null;
+        if (existingRoomRes.rows.length > 0) {
+          // Room exists - use its capacity
+          roomId = existingRoomRes.rows[0].room_id;
+          capacity = Number(existingRoomRes.rows[0].capacity) || 50;
+        } else {
+          // Room doesn't exist - insert with default capacity
+          await db.query(
+            `
+            INSERT INTO rooms (building, room, capacity)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (building, room) DO NOTHING
+            `,
+            [building, room, capacity]
+          );
+
+          // Get the room_id after insert
+          const roomRes = await db.query(
+            `
+            SELECT room_id, capacity
+            FROM rooms
+            WHERE building = $1 AND room = $2
+            LIMIT 1
+            `,
+            [building, room]
+          );
+
+          if (roomRes.rows.length > 0) {
+            roomId = roomRes.rows[0].room_id;
+            capacity = Number(roomRes.rows[0].capacity) || 50;
+          }
+        }
       }
 
       // Try to match instructor by name
@@ -1761,6 +1807,368 @@ router.post("/users/update-password", async (req, res) => {
     return res.status(500).json({
       status: "error",
       error: err.message || "Unexpected server error while updating password.",
+    });
+  }
+});
+
+/**
+ * GET /api/import/rooms/check-course/:subject/:courseNum
+ * Check all sections of a course for room linkage and capacity status
+ */
+router.get("/rooms/check-course/:subject/:courseNum", async (req, res) => {
+  try {
+    const { subject, courseNum } = req.params;
+    
+    const result = await req.db.query(
+      `
+      SELECT cs.class_id, cs.section_num, cs.capacity AS section_capacity, cs.location_text, cs.room_id,
+             r.building, r.room, r.capacity AS room_capacity,
+             c.subject, c.course_num, t.semester, t.year
+      FROM class_sections cs
+      JOIN courses c ON c.course_id = cs.course_id
+      JOIN terms t ON t.term_id = cs.term_id
+      LEFT JOIN rooms r ON cs.room_id = r.room_id
+      WHERE UPPER(c.subject) = UPPER($1) AND c.course_num = $2
+      ORDER BY t.year DESC, t.semester ASC, cs.section_num
+      `,
+      [subject, courseNum]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: `No sections found for ${subject} ${courseNum}` });
+    }
+
+    // For each section, find matching rooms
+    const sectionsWithMatches = await Promise.all(result.rows.map(async (row) => {
+      let matchingRooms = [];
+      if (row.location_text) {
+        const allRooms = await req.db.query(`SELECT room_id, building, room, capacity FROM rooms`);
+        for (const room of allRooms.rows) {
+          const buildingMatch = row.location_text.toUpperCase().includes(room.building.toUpperCase());
+          const roomMatch = row.location_text.includes(room.room);
+          if (buildingMatch && roomMatch) {
+            matchingRooms.push(room);
+          }
+        }
+      }
+      
+      return {
+        classId: row.class_id,
+        sectionNum: row.section_num,
+        term: `${row.semester} ${row.year}`,
+        sectionCapacity: row.section_capacity,
+        locationText: row.location_text,
+        currentRoom: row.room_id ? {
+          roomId: row.room_id,
+          building: row.building,
+          room: row.room,
+          capacity: row.room_capacity,
+        } : null,
+        matchingRooms: matchingRooms,
+        inSync: row.room_id ? row.section_capacity === row.room_capacity : false,
+      };
+    }));
+
+    return res.json({
+      course: `${subject} ${courseNum}`,
+      sections: sectionsWithMatches,
+    });
+  } catch (err) {
+    console.error("[CHECK COURSE ERROR]", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/import/rooms/check-section/:classId
+ * Check a specific class section's room linkage and capacity status
+ */
+router.get("/rooms/check-section/:classId", async (req, res) => {
+  try {
+    const classId = Number(req.params.classId);
+    if (!Number.isFinite(classId)) {
+      return res.status(400).json({ error: "Invalid classId" });
+    }
+
+    const result = await req.db.query(
+      `
+      SELECT cs.class_id, cs.capacity AS section_capacity, cs.location_text, cs.room_id,
+             r.building, r.room, r.capacity AS room_capacity,
+             c.subject, c.course_num
+      FROM class_sections cs
+      JOIN courses c ON c.course_id = cs.course_id
+      LEFT JOIN rooms r ON cs.room_id = r.room_id
+      WHERE cs.class_id = $1
+      `
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Class section not found" });
+    }
+
+    const row = result.rows[0];
+    
+    // Check if there's a room that matches location_text
+    let matchingRooms = [];
+    if (row.location_text) {
+      const roomMatches = await req.db.query(
+        `
+        SELECT room_id, building, room, capacity
+        FROM rooms
+        WHERE (
+          location_text = building || ' ' || room
+          OR location_text = building || room
+          OR location_text LIKE building || ' ' || room || '%'
+          OR location_text LIKE building || room || '%'
+          OR (location_text LIKE '%' || building || '%' AND location_text LIKE '%' || room || '%')
+        )
+        AND location_text = $1
+        `,
+        [row.location_text]
+      );
+      
+      // Also try matching by extracting building/room from location_text
+      const allRooms = await req.db.query(`SELECT room_id, building, room, capacity FROM rooms`);
+      for (const room of allRooms.rows) {
+        if (row.location_text.includes(room.building) && row.location_text.includes(room.room)) {
+          matchingRooms.push(room);
+        }
+      }
+    }
+
+    return res.json({
+      classId: row.class_id,
+      course: `${row.subject} ${row.course_num}`,
+      sectionCapacity: row.section_capacity,
+      locationText: row.location_text,
+      currentRoom: row.room_id ? {
+        roomId: row.room_id,
+        building: row.building,
+        room: row.room,
+        capacity: row.room_capacity,
+      } : null,
+      matchingRooms: matchingRooms.length > 0 ? matchingRooms : null,
+      inSync: row.room_id ? row.section_capacity === row.room_capacity : false,
+    });
+  } catch (err) {
+    console.error("[CHECK SECTION ERROR]", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/import/rooms/force-sync-hvy-engr-lab
+ * Force sync HVY ENGR LAB 201 sections (specific fix for AMS380)
+ */
+router.post("/rooms/force-sync-hvy-engr-lab", async (req, res) => {
+  try {
+    const db = req.db;
+    
+    // Find the HVY ENGR LAB 201 room
+    const roomRes = await db.query(
+      `SELECT room_id, building, room, capacity FROM rooms WHERE UPPER(building) LIKE '%HVY ENGR LAB%' AND room = '201' LIMIT 1`
+    );
+    
+    if (roomRes.rows.length === 0) {
+      return res.status(404).json({ error: "HVY ENGR LAB 201 room not found" });
+    }
+    
+    const room = roomRes.rows[0];
+    
+    // Find all sections with location_text containing "HVY ENGR LAB" and "201"
+    const sectionsRes = await db.query(
+      `
+      SELECT cs.class_id, cs.capacity, cs.location_text, cs.room_id, c.subject, c.course_num
+      FROM class_sections cs
+      JOIN courses c ON c.course_id = cs.course_id
+      WHERE cs.location_text LIKE '%HVY ENGR LAB%' AND cs.location_text LIKE '%201%'
+      `
+    );
+    
+    const updates = [];
+    for (const section of sectionsRes.rows) {
+      // Update room_id if not set or wrong
+      if (section.room_id !== room.room_id) {
+        await db.query(
+          `UPDATE class_sections SET room_id = $1 WHERE class_id = $2`,
+          [room.room_id, section.class_id]
+        );
+        updates.push({ classId: section.class_id, action: 'linked', oldRoomId: section.room_id });
+      }
+      
+      // Update capacity if different
+      if (section.capacity !== room.capacity) {
+        await db.query(
+          `UPDATE class_sections SET capacity = $1 WHERE class_id = $2`,
+          [room.capacity, section.class_id]
+        );
+        updates.push({ 
+          classId: section.class_id, 
+          course: `${section.subject} ${section.course_num}`,
+          action: 'capacity updated', 
+          oldCapacity: section.capacity, 
+          newCapacity: room.capacity 
+        });
+      }
+    }
+    
+    return res.json({
+      status: "success",
+      message: `Updated ${updates.length} section(s) for HVY ENGR LAB 201`,
+      room: { building: room.building, room: room.room, capacity: room.capacity },
+      updates,
+    });
+  } catch (err) {
+    console.error("[FORCE SYNC ERROR]", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/import/rooms/sync-capacities
+ * Utility endpoint to sync class section capacities with their room capacities.
+ * 1. Links class sections to rooms based on location_text if not already linked
+ * 2. Updates all class sections that have a room_id to use the room's capacity
+ */
+router.post("/rooms/sync-capacities", async (req, res) => {
+  console.log("[API] Syncing class section capacities with room capacities");
+
+  try {
+    const db = req.db;
+    
+    // Step 1: Link class sections to rooms based on location_text if not already linked
+    // Extract building and room from location_text and match with rooms table
+    // Handle formats like "HVY ENGR LAB201", "HVY ENGR LAB 201", "FREY HALL 317", etc.
+    // Also handle cases where location_text contains instructor names: "HVY ENGR LAB201Instructor Name"
+    const linkResult = await db.query(
+      `
+      UPDATE class_sections cs
+      SET room_id = r.room_id
+      FROM rooms r
+      WHERE cs.room_id IS NULL
+        AND cs.location_text IS NOT NULL
+        AND (
+          -- Exact match: "BUILDING ROOM"
+          cs.location_text = r.building || ' ' || r.room
+          -- Match: "BUILDINGROOM" (no space)
+          OR cs.location_text = r.building || r.room
+          -- Match: "BUILDING ROOM" with extra text (e.g., instructor name)
+          OR cs.location_text LIKE r.building || ' ' || r.room || '%'
+          -- Match: "BUILDINGROOM" with extra text (e.g., "HVY ENGR LAB201Instructor")
+          OR cs.location_text LIKE r.building || r.room || '%'
+          -- Match: building and room anywhere in text (more flexible)
+          OR (
+            cs.location_text LIKE '%' || r.building || '%' 
+            AND cs.location_text LIKE '%' || r.room || '%'
+            -- Ensure room number appears after building (to avoid false matches)
+            AND POSITION(r.room IN cs.location_text) > POSITION(r.building IN cs.location_text)
+          )
+        )
+      RETURNING cs.class_id, cs.location_text, r.building, r.room, r.room_id, r.capacity AS room_capacity
+      `
+    );
+
+    const linked = linkResult.rows.length;
+    if (linked > 0) {
+      console.log(`[API] Linked ${linked} class section(s) to rooms based on location_text`);
+      linkResult.rows.forEach(row => {
+        console.log(`[API]   - Class ID ${row.class_id}: "${row.location_text}" -> ${row.building} ${row.room} (room_id: ${row.room_id})`);
+      });
+    } else {
+      // Debug: Check if there are sections without room_id that might match
+      const unlinkedSections = await db.query(
+        `SELECT class_id, location_text FROM class_sections WHERE room_id IS NULL AND location_text IS NOT NULL LIMIT 5`
+      );
+      if (unlinkedSections.rows.length > 0) {
+        console.log(`[API] Found ${unlinkedSections.rows.length} section(s) without room_id (sample):`);
+        unlinkedSections.rows.forEach(row => {
+          console.log(`[API]   - Class ID ${row.class_id}: location_text="${row.location_text}"`);
+        });
+      }
+      
+      // Debug: Check for AMS380 specifically
+      const ams380Check = await db.query(
+        `
+        SELECT cs.class_id, cs.capacity, cs.location_text, cs.room_id, 
+               r.building, r.room, r.capacity AS room_capacity
+        FROM class_sections cs
+        LEFT JOIN rooms r ON cs.room_id = r.room_id
+        JOIN courses c ON c.course_id = cs.course_id
+        WHERE c.subject = 'AMS' AND c.course_num = '380'
+        LIMIT 10
+        `
+      );
+      if (ams380Check.rows.length > 0) {
+        console.log(`[API] AMS380 sections found:`);
+        ams380Check.rows.forEach(row => {
+          console.log(`[API]   - Class ID ${row.class_id}: capacity=${row.capacity}, room_id=${row.room_id}, location_text="${row.location_text}"`);
+          if (row.room_id) {
+            console.log(`[API]     Room: ${row.building} ${row.room}, capacity=${row.room_capacity}`);
+          }
+        });
+      }
+    }
+
+    // Step 2: Get all sections that need capacity updates (including newly linked ones)
+    // Also include sections that were just linked
+    const sectionsToUpdate = await db.query(
+      `
+      SELECT cs.class_id, cs.capacity AS old_capacity, r.capacity AS new_capacity, r.building, r.room
+      FROM class_sections cs
+      JOIN rooms r ON cs.room_id = r.room_id
+      WHERE cs.capacity != r.capacity
+      ORDER BY cs.class_id
+      `
+    );
+
+    if (sectionsToUpdate.rows.length === 0) {
+      return res.status(200).json({
+        status: "success",
+        message: linked > 0 
+          ? `Linked ${linked} class section(s) to rooms. All capacities are already in sync.`
+          : "All class section capacities are already in sync with room capacities.",
+        updated: 0,
+        linked,
+        updates: [],
+      });
+    }
+
+    // Step 3: Update all class sections that have a room_id to use the room's capacity
+    await db.query(
+      `
+      UPDATE class_sections cs
+      SET capacity = r.capacity
+      FROM rooms r
+      WHERE cs.room_id = r.room_id
+        AND cs.capacity != r.capacity
+      `
+    );
+
+    const result = sectionsToUpdate;
+
+    const updated = result.rows.length;
+    const updates = result.rows.map(row => ({
+      classId: row.class_id,
+      building: row.building,
+      room: row.room,
+      oldCapacity: row.old_capacity,
+      newCapacity: row.new_capacity,
+    }));
+
+    console.log(`[API] Updated ${updated} class sections with room capacities`);
+
+    return res.status(200).json({
+      status: "success",
+      message: `Linked ${linked} section(s) and synced ${updated} class section capacity(ies) with room capacity(ies).`,
+      updated,
+      linked,
+      updates,
+    });
+  } catch (err) {
+    console.error("[ROOM CAPACITY SYNC ERROR]", err);
+    return res.status(500).json({
+      status: "error",
+      error: err.message || "Unexpected server error during capacity sync.",
     });
   }
 });
