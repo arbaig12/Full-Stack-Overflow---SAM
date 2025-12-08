@@ -31,6 +31,80 @@ function parseCourseCodes(text) {
   return matches.map((m) => m.replace(/\s+/, ' ').toUpperCase());
 }
 
+/**
+ * Parses prerequisite text into requirement groups with OR and AND logic.
+ * Semicolons separate AND groups (all must be satisfied).
+ * "or" within a group means OR logic (at least one must be satisfied).
+ * 
+ * @param {string} prerequisitesText - The prerequisite text to parse
+ * @returns {Array} Array of requirement groups, each containing:
+ *   - minGrade: minimum grade required (e.g., "C", "B-") or null
+ *   - courseCodes: array of course codes in this OR group
+ */
+function parsePrerequisiteGroups(prerequisitesText) {
+  if (!prerequisitesText || prerequisitesText.trim() === '') return [];
+
+  // Split by semicolons to get AND groups (different requirement groups)
+  const andGroups = prerequisitesText.split(';').map(g => g.trim()).filter(g => g);
+
+  const requirementGroups = [];
+
+  for (const andGroup of andGroups) {
+    let groupText = andGroup;
+    let minGrade = null;
+
+    // Extract grade requirement (e.g., "C or higher:", "B- or higher:", "C or better:")
+    // Pattern: grade letter optionally followed by +/- followed by "or higher:" or "or better:"
+    const gradeMatch = groupText.match(/^([A-Z][+-]?)\s+or\s+(higher|better):\s*/i);
+    if (gradeMatch) {
+      const gradeStr = gradeMatch[1].toUpperCase();
+      // Normalize grade: "C" -> "C", "B-" -> "B-", "C+" -> "C+"
+      minGrade = gradeStr;
+      groupText = groupText.substring(gradeMatch[0].length).trim();
+    }
+
+    // Extract all course codes from the remaining text
+    const allCourseCodes = parseCourseCodes(groupText);
+    
+    // If no course codes found, skip this group
+    if (allCourseCodes.length === 0) continue;
+
+    // Check if there are OR conditions by looking for "or" between course codes
+    // We need to find "or" that is NOT part of "or higher" or "or better"
+    // Look for pattern: course code, then "or", then another course code
+    // Use a regex that matches "or" not followed by "higher" or "better"
+    const hasOrBetweenCourses = /\b([A-Z]{2,4}\s*\d{3})\s+or\s+(?!higher|better)([A-Z]{2,4}\s*\d{3})/i.test(groupText);
+    
+    // If there's an "or" between courses, it's an OR group (at least one must be satisfied)
+    // If there's no "or", treat each course as a separate requirement (all must be satisfied)
+    // For simplicity, we'll treat single courses as OR groups with one item
+    if (hasOrBetweenCourses) {
+      // OR group: at least one course must be satisfied
+      requirementGroups.push({
+        minGrade,
+        courseCodes: allCourseCodes,
+      });
+    } else if (allCourseCodes.length === 1) {
+      // Single course: must be satisfied
+      requirementGroups.push({
+        minGrade,
+        courseCodes: allCourseCodes,
+      });
+    } else {
+      // Multiple courses without "or": all must be satisfied
+      // Treat each as a separate requirement group (AND logic)
+      for (const courseCode of allCourseCodes) {
+        requirementGroups.push({
+          minGrade,
+          courseCodes: [courseCode],
+        });
+      }
+    }
+  }
+
+  return requirementGroups;
+}
+
 const gradePoints = {
   'A+': 4.0,
   A: 4.0,
@@ -153,19 +227,35 @@ async function checkRegistrationWindow(db, studentId, termId, classStanding, cum
     if (matchesStanding && matchesThreshold) {
       const startDate = new Date(window.registration_start_date);
       if (currentDate >= startDate) {
-        const calendarRes = await db.query(
+        // First get term info (semester and year) from terms table
+        const termRes = await db.query(
           `
-          SELECT late_registration_ends
-          FROM academic_calendar
+          SELECT semester, year
+          FROM terms
           WHERE term_id = $1
           LIMIT 1
         `,
           [termId]
         );
 
-        if (calendarRes.rows.length > 0 && calendarRes.rows[0].late_registration_ends) {
-          const endDate = new Date(calendarRes.rows[0].late_registration_ends);
-          if (currentDate > endDate) return { allowed: false, reason: 'Registration period has ended' };
+        if (termRes.rows.length > 0) {
+          const term = termRes.rows[0];
+          // Query academic_calendar using JSONB term matching
+          const calendarRes = await db.query(
+            `
+            SELECT late_registration_ends
+            FROM academic_calendar
+            WHERE lower(term->>'semester') = lower($1)
+              AND (term->>'year')::int = $2
+            LIMIT 1
+          `,
+            [term.semester, term.year]
+          );
+
+          if (calendarRes.rows.length > 0 && calendarRes.rows[0].late_registration_ends) {
+            const endDate = new Date(calendarRes.rows[0].late_registration_ends);
+            if (currentDate > endDate) return { allowed: false, reason: 'Registration period has ended' };
+          }
         }
 
         return { allowed: true };
@@ -262,15 +352,48 @@ async function checkPrerequisites(db, studentId, courseId, prerequisitesText) {
     if (!hasPermission) return { satisfied: false, reason: 'Department permission required' };
   }
 
-  const courseCodes = parseCourseCodes(prerequisitesText);
-  if (courseCodes.length === 0) return { satisfied: true };
+  // Parse prerequisite text into requirement groups
+  // Semicolons separate AND groups, "or" separates OR groups within each AND group
+  const requirementGroups = parsePrerequisiteGroups(prerequisitesText);
+  
+  if (requirementGroups.length === 0) return { satisfied: true };
 
-  for (const courseCode of courseCodes) {
-    const completed = await hasCompletedCourse(db, studentId, courseCode);
-    const waived = await hasPrerequisiteWaiver(db, studentId, courseId, courseCode);
-    if (!completed && !waived) return { satisfied: false, reason: `Prerequisite not satisfied: ${courseCode}` };
+  // Check each requirement group (AND logic - all groups must be satisfied)
+  for (const group of requirementGroups) {
+    const { minGrade, courseCodes } = group;
+    
+    // Within each group, check if at least one course is satisfied (OR logic)
+    let groupSatisfied = false;
+    let unsatisfiedCourses = [];
+    
+    for (const courseCode of courseCodes) {
+      // Check if course is completed with required grade (or waived)
+      const completed = await hasCompletedCourse(db, studentId, courseCode, minGrade || 'D');
+      const waived = await hasPrerequisiteWaiver(db, studentId, courseId, courseCode);
+      
+      if (completed || waived) {
+        groupSatisfied = true;
+        break; // At least one course in OR group is satisfied
+      } else {
+        unsatisfiedCourses.push(courseCode);
+      }
+    }
+    
+    // If no course in this OR group is satisfied, prerequisite check fails
+    if (!groupSatisfied) {
+      // Format error message based on whether there's a grade requirement
+      const gradeText = minGrade ? `${minGrade} or higher: ` : '';
+      const coursesText = courseCodes.length === 1 
+        ? courseCodes[0] 
+        : courseCodes.join(' or ');
+      return { 
+        satisfied: false, 
+        reason: `Prerequisite not satisfied: ${gradeText}${coursesText}` 
+      };
+    }
   }
 
+  // All requirement groups are satisfied
   return { satisfied: true };
 }
 
