@@ -491,47 +491,10 @@ router.post("/users", upload.single("file"), async (req, res) => {
       });
     }
 
-    // Delete all existing user data before re-importing
-    // This ensures a clean slate and prevents duplicate/conflicting data
-    console.log("[API] Deleting all existing user data...");
-    const db = req.db;
-    const client = await db.connect();
-    
-    try {
-      await client.query('BEGIN');
-      
-      // Delete in order to respect foreign key constraints
-      // Delete child tables first (tables that reference users)
-      await client.query('DELETE FROM capacity_overrides');
-      await client.query('DELETE FROM department_permissions');
-      await client.query('DELETE FROM prerequisite_waivers');
-      await client.query('DELETE FROM time_conflict_waivers');
-      await client.query('DELETE FROM registration_holds');
-      await client.query('DELETE FROM major_minor_requests');
-      await client.query('DELETE FROM enrollments');
-      await client.query('DELETE FROM student_programs');
-      await client.query('DELETE FROM students');
-      await client.query('DELETE FROM instructors');
-      await client.query('DELETE FROM advisors');
-      // Note: class_sections.instructor_id references users, but we might want to keep class sections
-      // So we'll set instructor_id to NULL instead of deleting class sections
-      await client.query('UPDATE class_sections SET instructor_id = NULL WHERE instructor_id IS NOT NULL');
-      
-      // Finally, delete all users
-      await client.query('DELETE FROM users');
-      
-      await client.query('COMMIT');
-      console.log("[API] All existing user data deleted successfully");
-    } catch (deleteErr) {
-      await client.query('ROLLBACK');
-      console.error("[API] Error deleting existing user data:", deleteErr);
-      return res.status(500).json({
-        status: "error",
-        error: `Failed to delete existing user data: ${deleteErr.message}`,
-      });
-    } finally {
-      client.release();
-    }
+    // Note: We no longer delete all existing user data.
+    // Instead, we only update/insert users that are in the YAML file.
+    // Users not in the YAML file will remain unchanged in the database.
+    console.log("[API] Importing/updating users from YAML (existing users not in YAML will be preserved)...");
 
     const {
       registrars = [],
@@ -556,10 +519,10 @@ router.post("/users", upload.single("file"), async (req, res) => {
     }
 
     async function insertUser(obj, role) {
-      const { SBU_ID, first_name, last_name, email } = obj;
+      const { SBU_ID, first_name, last_name, email, password } = obj;
       
-      // Always set password to "password" for all users (demo/testing convenience)
-      const defaultPassword = "password";
+      // Use password from YAML if provided, otherwise default to "password"
+      const userPassword = password || "password";
 
       if (!SBU_ID || !email || !first_name || !last_name) {
         results.skipped++;
@@ -592,13 +555,13 @@ router.post("/users", upload.single("file"), async (req, res) => {
 
       if (check.rows.length > 0) {
         const existing = check.rows[0];
-        // If SBU_ID matches, always update password to default
+        // If SBU_ID matches, update password from YAML if provided
         if (String(existing.sbu_id) === String(SBU_ID)) {
-          // Always update password to default "password"
+          // Update password from YAML if provided
           try {
             await req.db.query(
               `UPDATE users SET password_hash = $1 WHERE user_id = $2`,
-              [defaultPassword, existing.user_id]
+              [userPassword, existing.user_id]
             );
             results.updated++;
           } catch (updateErr) {
@@ -610,11 +573,11 @@ router.post("/users", upload.single("file"), async (req, res) => {
         }
         // If email matches but SBU_ID is different, skip with warning
         if (existing.email && existing.email.toLowerCase() === email.toLowerCase()) {
-          // Always update password to default
+          // Update password from YAML if provided
           try {
             await req.db.query(
               `UPDATE users SET password_hash = $1 WHERE user_id = $2`,
-              [defaultPassword, existing.user_id]
+              [userPassword, existing.user_id]
             );
             results.updated++;
           } catch (updateErr) {
@@ -631,7 +594,7 @@ router.post("/users", upload.single("file"), async (req, res) => {
           `INSERT INTO users (sbu_id, first_name, last_name, email, role, password_hash)
            VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING user_id`,
-          [SBU_ID, first_name, last_name, email, role, defaultPassword]
+          [SBU_ID, first_name, last_name, email, role, userPassword]
         );
 
         results.inserted++;
@@ -650,7 +613,7 @@ router.post("/users", upload.single("file"), async (req, res) => {
             try {
               await req.db.query(
                 `UPDATE users SET password_hash = $1 WHERE user_id = $2`,
-                [defaultPassword, existingCheck.rows[0].user_id]
+                [userPassword, existingCheck.rows[0].user_id]
               );
               results.updated++;
             } catch (updateErr) {
@@ -692,6 +655,13 @@ router.post("/users", upload.single("file"), async (req, res) => {
      */
     async function importStudentClasses(db, userId, studentObj, results) {
       try {
+        // Clean up old enrollments for this student before importing new ones
+        // This ensures the YAML file defines the complete set of enrollments for the student
+        await db.query(
+          `DELETE FROM enrollments WHERE student_id = $1`,
+          [userId]
+        );
+        
         const { classes = [] } = studentObj;
         
         if (!Array.isArray(classes) || classes.length === 0) {
@@ -837,6 +807,13 @@ router.post("/users", upload.single("file"), async (req, res) => {
 
     async function importStudentPrograms(db, userId, studentObj, results) {
       try {
+        // Clean up old programs for this student before importing new ones
+        // This ensures the YAML file defines the complete set of programs for the student
+        await db.query(
+          `DELETE FROM student_programs WHERE student_id = $1`,
+          [userId]
+        );
+        
         // Ensure student record exists in students table
         const studentCheck = await db.query(
           `SELECT 1 FROM students WHERE user_id = $1`,
