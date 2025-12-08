@@ -1,105 +1,132 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 
 export default function AcademicCalendar() {
   const [terms, setTerms] = useState([]);
-  const [selectedTermId, setSelectedTermId] = useState(null);
+  const [selectedTermId, setSelectedTermId] = useState('');
   const [calendar, setCalendar] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingTerms, setLoadingTerms] = useState(true);
+  const [loadingCalendar, setLoadingCalendar] = useState(false);
   const [error, setError] = useState(null);
 
-  // Fetch all terms on mount
+  const reqSeqRef = useRef(0);
+
   useEffect(() => {
+    let isMounted = true;
+
     async function fetchTerms() {
       try {
-        setLoading(true);
+        setLoadingTerms(true);
         setError(null);
-        const response = await axios.get('/api/calendar/terms', {
-          withCredentials: true,
-        });
-        
-        if (response.data.ok && response.data.terms) {
+
+        const response = await axios.get('/api/calendar/terms', { withCredentials: true });
+
+        if (!isMounted) return;
+
+        if (response.data.ok && Array.isArray(response.data.terms)) {
           setTerms(response.data.terms);
-          // Auto-select first term if available
           if (response.data.terms.length > 0) {
-            setSelectedTermId(response.data.terms[0].termId);
+            setSelectedTermId(String(response.data.terms[0].termId));
+          } else {
+            setSelectedTermId('');
           }
+        } else {
+          setTerms([]);
+          setSelectedTermId('');
         }
       } catch (err) {
+        if (!isMounted) return;
         console.error('Failed to fetch terms:', err);
         setError('Failed to load academic terms. Please try again.');
+        setTerms([]);
+        setSelectedTermId('');
       } finally {
-        setLoading(false);
+        if (isMounted) setLoadingTerms(false);
       }
     }
-    
+
     fetchTerms();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  // Fetch calendar when term is selected
   useEffect(() => {
     if (!selectedTermId) return;
 
+    const mySeq = ++reqSeqRef.current;
+
     async function fetchCalendar() {
       try {
-        setLoading(true);
+        setLoadingCalendar(true);
         setError(null);
-        const response = await axios.get(`/api/calendar/academic-calendar/${selectedTermId}?_t=${Date.now()}`, {
-          withCredentials: true,
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
+        setCalendar(null);
+
+        const response = await axios.get(
+          `/api/calendar/academic-calendar/${encodeURIComponent(selectedTermId)}?_t=${Date.now()}`,
+          {
+            withCredentials: true,
+            headers: {
+              'Cache-Control': 'no-cache',
+              Pragma: 'no-cache',
+            },
           }
-        });
-        
-        console.log('[AcademicCalendar] API response:', response.data);
+        );
+
+        if (mySeq !== reqSeqRef.current) return;
+
         if (response.data.ok) {
-          setCalendar(response.data.calendar);
-          console.log('[AcademicCalendar] Calendar data:', response.data.calendar);
-          if (!response.data.calendar) {
-            setError(response.data.message || `No academic calendar found for ${response.data.term?.semester} ${response.data.term?.year}. Please import the calendar using the Import page.`);
+          const cal = response.data.calendar ?? null;
+          setCalendar(cal);
+
+          if (!cal) {
+            setError(
+              response.data.message ||
+                `No academic calendar found for ${response.data.term?.semester ?? ''} ${response.data.term?.year ?? ''}. Please import the calendar using the Import page.`
+            );
           } else {
-            setError(null); // Clear error if calendar is found
+            setError(null);
           }
         } else {
+          setCalendar(null);
           setError(response.data.error || 'Failed to load calendar');
         }
       } catch (err) {
+        if (mySeq !== reqSeqRef.current) return;
         console.error('Failed to fetch calendar:', err);
         setError('Failed to load academic calendar. Please try again.');
         setCalendar(null);
       } finally {
-        setLoading(false);
+        if (mySeq === reqSeqRef.current) setLoadingCalendar(false);
       }
     }
-    
+
     fetchCalendar();
   }, [selectedTermId]);
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Not set';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-    } catch {
-      return dateString;
-    }
+    const d = new Date(dateString);
+    if (Number.isNaN(d.getTime())) return String(dateString);
+    return d.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
   };
 
-  const selectedTerm = terms.find(t => t.termId === selectedTermId);
+  const selectedTerm = useMemo(
+    () => terms.find((t) => String(t.termId) === String(selectedTermId)),
+    [terms, selectedTermId]
+  );
 
   return (
     <div style={{ padding: 20, maxWidth: 1000, margin: '0 auto' }}>
       <h1>Academic Calendar</h1>
 
-      {loading && terms.length === 0 && (
-        <p style={{ color: '#666' }}>Loading academic terms...</p>
-      )}
+      {loadingTerms && terms.length === 0 && <p style={{ color: '#666' }}>Loading academic terms...</p>}
 
       {error && (
         <div
@@ -118,19 +145,12 @@ export default function AcademicCalendar() {
 
       {terms.length > 0 && (
         <div style={{ marginBottom: 24 }}>
-          <label
-            style={{
-              display: 'block',
-              marginBottom: 8,
-              fontWeight: 'bold',
-              fontSize: 16,
-            }}
-          >
+          <label style={{ display: 'block', marginBottom: 8, fontWeight: 'bold', fontSize: 16 }}>
             Select Term:
           </label>
           <select
-            value={selectedTermId || ''}
-            onChange={(e) => setSelectedTermId(Number(e.target.value))}
+            value={selectedTermId}
+            onChange={(e) => setSelectedTermId(String(e.target.value))}
             style={{
               padding: '10px 16px',
               border: '1px solid #ddd',
@@ -141,7 +161,7 @@ export default function AcademicCalendar() {
             }}
           >
             {terms.map((term) => (
-              <option key={term.termId} value={term.termId}>
+              <option key={String(term.termId)} value={String(term.termId)}>
                 {term.semester} {term.year}
               </option>
             ))}
@@ -149,9 +169,7 @@ export default function AcademicCalendar() {
         </div>
       )}
 
-      {loading && calendar === null && selectedTermId && (
-        <p style={{ color: '#666' }}>Loading calendar data...</p>
-      )}
+      {loadingCalendar && selectedTermId && <p style={{ color: '#666' }}>Loading calendar data...</p>}
 
       {calendar && selectedTerm && (
         <div
@@ -168,11 +186,8 @@ export default function AcademicCalendar() {
           </h2>
 
           <div style={{ display: 'grid', gap: 20 }}>
-            {/* Registration Dates */}
             <div>
-              <h3 style={{ color: '#1976d2', marginBottom: 12, fontSize: 18 }}>
-                Registration & Enrollment
-              </h3>
+              <h3 style={{ color: '#1976d2', marginBottom: 12, fontSize: 18 }}>Registration & Enrollment</h3>
               <div style={{ display: 'grid', gap: 12 }}>
                 {calendar.advancedRegistrationBegins && (
                   <div
@@ -240,11 +255,8 @@ export default function AcademicCalendar() {
               </div>
             </div>
 
-            {/* Major/Minor Changes */}
             <div>
-              <h3 style={{ color: '#1976d2', marginBottom: 12, fontSize: 18 }}>
-                Major & Minor Changes
-              </h3>
+              <h3 style={{ color: '#1976d2', marginBottom: 12, fontSize: 18 }}>Major & Minor Changes</h3>
               <div style={{ display: 'grid', gap: 12 }}>
                 {calendar.majorAndMinorChangesBegin && (
                   <div
@@ -282,11 +294,8 @@ export default function AcademicCalendar() {
               </div>
             </div>
 
-            {/* Academic Deadlines */}
             <div>
-              <h3 style={{ color: '#1976d2', marginBottom: 12, fontSize: 18 }}>
-                Academic Deadlines
-              </h3>
+              <h3 style={{ color: '#1976d2', marginBottom: 12, fontSize: 18 }}>Academic Deadlines</h3>
               <div style={{ display: 'grid', gap: 12 }}>
                 {calendar.GPNCSelectionEnds && (
                   <div
@@ -327,11 +336,8 @@ export default function AcademicCalendar() {
               </div>
             </div>
 
-            {/* Semester End */}
             <div>
-              <h3 style={{ color: '#1976d2', marginBottom: 12, fontSize: 18 }}>
-                Semester Information
-              </h3>
+              <h3 style={{ color: '#1976d2', marginBottom: 12, fontSize: 18 }}>Semester Information</h3>
               {calendar.semesterEnd && (
                 <div
                   style={{
@@ -355,7 +361,7 @@ export default function AcademicCalendar() {
         </div>
       )}
 
-      {!loading && !calendar && selectedTermId && !error && (
+      {!loadingCalendar && !calendar && selectedTermId && !error && (
         <div
           style={{
             padding: 24,
@@ -367,13 +373,11 @@ export default function AcademicCalendar() {
           }}
         >
           <p>No academic calendar data available for the selected term.</p>
-          <p style={{ fontSize: 14, marginTop: 8 }}>
-            Please import the academic calendar using the Import page.
-          </p>
+          <p style={{ fontSize: 14, marginTop: 8 }}>Please import the academic calendar using the Import page.</p>
         </div>
       )}
 
-      {terms.length === 0 && !loading && (
+      {terms.length === 0 && !loadingTerms && (
         <div
           style={{
             padding: 24,
@@ -390,4 +394,3 @@ export default function AcademicCalendar() {
     </div>
   );
 }
-

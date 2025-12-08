@@ -15,7 +15,8 @@ export default function CourseCatalog() {
 
   const PAGE_SIZE = 100;
 
-  const role = localStorage.getItem('role') || 'student';
+  const role = (localStorage.getItem('role') || '').trim().toLowerCase();
+  const isRegistrar = role === 'registrar';
 
   async function loadCourses() {
     try {
@@ -65,21 +66,21 @@ export default function CourseCatalog() {
   }, [selectedTerm]);
 
   const handleScrapeClick = async () => {
+    if (!isRegistrar) return;
+
     try {
       setScrapeStatus('Running SBU catalog scrape...');
       setDeleteStatus('');
 
-      // Parse subjects from comma-separated string
       const subjectsArray = scrapeSubjects
         .split(',')
-        .map(s => s.trim().toUpperCase())
-        .filter(s => s.length > 0);
+        .map((s) => s.trim().toUpperCase())
+        .filter((s) => s.length > 0);
 
       const requestBody = {
         term: scrapeTerm.trim() || 'Fall2025',
       };
 
-      // Only include subjects if provided
       if (subjectsArray.length > 0) {
         requestBody.subjects = subjectsArray;
       }
@@ -100,12 +101,13 @@ export default function CourseCatalog() {
         throw new Error(data?.error || `HTTP ${res.status}`);
       }
 
-      const subjectsList = Array.isArray(data.subjects) && data.subjects.length > 0
-        ? data.subjects.join(', ')
-        : 'default subjects';
-      
+      const subjectsList =
+        Array.isArray(data.subjects) && data.subjects.length > 0 ? data.subjects.join(', ') : 'default subjects';
+
       setScrapeStatus(
-        `Imported/updated ${data.upserted} courses for ${data.term}${subjectsList !== 'default subjects' ? ` (${subjectsList})` : ''}.`
+        `Imported/updated ${data.upserted} courses for ${data.term}${
+          subjectsList !== 'default subjects' ? ` (${subjectsList})` : ''
+        }.`
       );
 
       await loadCourses();
@@ -115,9 +117,12 @@ export default function CourseCatalog() {
     }
   };
 
-
   const handleDeleteClick = async () => {
-    if (!window.confirm('Are you sure you want to delete ALL courses from the database? This action cannot be undone.')) {
+    if (!isRegistrar) return;
+
+    if (
+      !window.confirm('Are you sure you want to delete ALL courses from the database? This action cannot be undone.')
+    ) {
       return;
     }
 
@@ -148,8 +153,7 @@ export default function CourseCatalog() {
       }
 
       setDeleteStatus(data?.message || `Deleted ${data?.deleted || 0} course(s).`);
-      
-      // Clear courses immediately and reload
+
       setCourses([]);
       await loadCourses();
     } catch (err) {
@@ -158,23 +162,20 @@ export default function CourseCatalog() {
     }
   };
 
-  // Helper function to highlight search terms in text
-  const highlightText = (text, searchTerm) => {
-    if (!searchTerm || !text) return text;
-    
+  const highlightText = (text, search) => {
+    if (!search || !text) return text;
+
     const textStr = String(text);
-    const searchStr = String(searchTerm).trim();
-    
+    const searchStr = String(search).trim();
+
     if (!searchStr) return textStr;
-    
-    // Escape special regex characters
+
     const escapedSearch = searchStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(`(${escapedSearch})`, 'gi');
     const parts = textStr.split(regex);
-    
-    // Filter out empty strings and map to React elements
+
     return parts
-      .filter(part => part.length > 0)
+      .filter((part) => part.length > 0)
       .map((part, index) => {
         if (part.toLowerCase() === searchStr.toLowerCase()) {
           return (
@@ -189,14 +190,15 @@ export default function CourseCatalog() {
 
   const filteredCourses = useMemo(() => {
     const q = searchTerm.toLowerCase().trim();
-    
+
     if (!q) {
-      return courses.filter((course) => {
-        const matchesTerm = course.term === selectedTerm;
-        const matchesDepartment =
-          selectedDepartment === 'All' || course.id.startsWith(selectedDepartment);
-        return matchesTerm && matchesDepartment;
-      }).map(course => ({ ...course, matchScore: 0 }));
+      return courses
+        .filter((course) => {
+          const matchesTerm = course.term === selectedTerm;
+          const matchesDepartment = selectedDepartment === 'All' || course.id.startsWith(selectedDepartment);
+          return matchesTerm && matchesDepartment;
+        })
+        .map((course) => ({ ...course, matchScore: 0 }));
     }
 
     return courses
@@ -210,42 +212,34 @@ export default function CourseCatalog() {
           course.description.toLowerCase().includes(q);
 
         const matchesTerm = course.term === selectedTerm;
-
-        const matchesDepartment =
-          selectedDepartment === 'All' || course.id.startsWith(selectedDepartment);
+        const matchesDepartment = selectedDepartment === 'All' || course.id.startsWith(selectedDepartment);
 
         return matchesSearch && matchesTerm && matchesDepartment;
       })
       .map((course) => {
-        // Calculate match score: title matches get highest priority
         let matchScore = 0;
         const nameLower = course.name.toLowerCase();
         const idLower = course.id.toLowerCase();
-        
-        // Title match gets highest score (100)
+
         if (nameLower.includes(q)) {
           matchScore += 100;
-          // Exact title match gets even higher
           if (nameLower === q || nameLower.startsWith(q)) {
             matchScore += 50;
           }
         }
-        
-        // Course ID match gets high score (50)
+
         if (idLower.includes(q)) {
           matchScore += 50;
-          // Exact ID match gets even higher
           if (idLower === q) {
             matchScore += 25;
           }
         }
-        
-        // Other field matches get lower scores
+
         if (course.prereqText.toLowerCase().includes(q)) matchScore += 10;
         if (course.coreqText.toLowerCase().includes(q)) matchScore += 10;
         if (course.sbcText.toLowerCase().includes(q)) matchScore += 10;
         if (course.description.toLowerCase().includes(q)) matchScore += 5;
-        
+
         return { ...course, matchScore };
       });
   }, [courses, searchTerm, selectedTerm, selectedDepartment]);
@@ -253,14 +247,12 @@ export default function CourseCatalog() {
   const sortedCourses = useMemo(() => {
     const arr = [...filteredCourses];
     arr.sort((a, b) => {
-      // If there's a search term, prioritize by match score first
       if (searchTerm.trim()) {
         if (b.matchScore !== a.matchScore) {
-          return b.matchScore - a.matchScore; // Higher score first
+          return b.matchScore - a.matchScore;
         }
       }
-      
-      // Then sort by the selected sort option
+
       switch (sortBy) {
         case 'name':
           return a.name.localeCompare(b.name);
@@ -424,13 +416,11 @@ export default function CourseCatalog() {
     <div style={{ padding: 20 }}>
       <h1>Course Catalog</h1>
 
-      {role === 'registrar' && (
+      {isRegistrar && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <label style={{ fontSize: 13, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                Term:
-              </label>
+              <label style={{ fontSize: 13, fontWeight: 'bold', whiteSpace: 'nowrap' }}>Term:</label>
               <input
                 type="text"
                 value={scrapeTerm}
@@ -446,9 +436,7 @@ export default function CourseCatalog() {
               />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <label style={{ fontSize: 13, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                Subjects:
-              </label>
+              <label style={{ fontSize: 13, fontWeight: 'bold', whiteSpace: 'nowrap' }}>Subjects:</label>
               <input
                 type="text"
                 value={scrapeSubjects}
@@ -462,9 +450,7 @@ export default function CourseCatalog() {
                   width: 200,
                 }}
               />
-              <span style={{ fontSize: 11, color: '#666' }}>
-                (comma-separated, e.g., BIO,CSE,PSY)
-              </span>
+              <span style={{ fontSize: 11, color: '#666' }}>(comma-separated, e.g., BIO,CSE,PSY)</span>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -497,9 +483,7 @@ export default function CourseCatalog() {
               Delete All Courses
             </button>
             {(scrapeStatus || deleteStatus) && (
-              <span style={{ fontSize: 13, color: '#555' }}>
-                {scrapeStatus || deleteStatus}
-              </span>
+              <span style={{ fontSize: 13, color: '#555' }}>{scrapeStatus || deleteStatus}</span>
             )}
           </div>
         </div>
@@ -515,9 +499,7 @@ export default function CourseCatalog() {
         }}
       >
         <div>
-          <label style={{ display: 'block', marginBottom: 4, fontWeight: 'bold' }}>
-            Search Courses
-          </label>
+          <label style={{ display: 'block', marginBottom: 4, fontWeight: 'bold' }}>Search Courses</label>
           <input
             type="text"
             placeholder="Search by course name, ID, prereqs, coreqs, or SBC..."
@@ -553,9 +535,7 @@ export default function CourseCatalog() {
         </div>
 
         <div>
-          <label style={{ display: 'block', marginBottom: 4, fontWeight: 'bold' }}>
-            Department
-          </label>
+          <label style={{ display: 'block', marginBottom: 4, fontWeight: 'bold' }}>Department</label>
           <select
             value={selectedDepartment}
             onChange={(e) => setSelectedDepartment(e.target.value)}
@@ -599,8 +579,8 @@ export default function CourseCatalog() {
       {loading && <p style={{ color: '#666' }}>Loading catalog...</p>}
 
       <p style={{ marginBottom: 16, color: '#666' }}>
-        Showing {sortedCourses.length === 0 ? 0 : startIdx + 1}-{endIdx} of{' '}
-        {sortedCourses.length} (filtered) — {courses.length} total
+        Showing {sortedCourses.length === 0 ? 0 : startIdx + 1}-{endIdx} of {sortedCourses.length} (filtered) —{' '}
+        {courses.length} total
       </p>
 
       <div style={{ display: 'grid', gap: 16 }}>

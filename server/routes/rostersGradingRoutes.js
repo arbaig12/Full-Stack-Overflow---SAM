@@ -2,37 +2,59 @@
 import express from "express";
 const router = express.Router();
 
-/* -----------------------
-   VALID GRADE SET
------------------------- */
 const ALLOWED_GRADES = [
-  "A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-",
-  "D+", "D", "D-", "F", "P", "NP", "CR", "NC", "S", "U", "I"
+  "A+",
+  "A",
+  "A-",
+  "B+",
+  "B",
+  "B-",
+  "C+",
+  "C",
+  "C-",
+  "D+",
+  "D",
+  "D-",
+  "F",
+  "P",
+  "NP",
+  "CR",
+  "NC",
+  "S",
+  "U",
+  "I",
 ];
 
-/* -----------------------
-   HELPERS
------------------------- */
 const getUserId = (req) =>
-  req.user?.user_id ??
-  req.user?.userId ??
-  req.session?.user?.user_id ??
-  null;
+  req.user?.user_id ?? req.user?.userId ?? req.session?.user?.user_id ?? null;
 
-/** Check if user is in instructors table */
-async function isInstructor(db, userId) {
-  const { rows } = await db.query(
-    `SELECT user_id FROM instructors WHERE user_id = $1`,
-    [userId]
-  );
-  return rows.length > 0;
+function normalizeRole(raw) {
+  const r = (raw ?? "").toString().trim().toLowerCase();
+  if (!r) return null;
+  if (r === "instructor" || r === "faculty" || r === "professor" || r === "teacher") return "instructor";
+  if (r === "registrar") return "registrar";
+  if (r === "student") return "student";
+  if (r === "advisor") return "advisor";
+  return r;
 }
 
-/**
- * Get current term — matches your DB EXACTLY
- * terms table: term_id, semester, year
- * system_state: current_term_id only
- */
+function hasInstructorRoleInReq(req) {
+  const r = normalizeRole(req.user?.role);
+  if (r === "instructor") return true;
+
+  const roles = Array.isArray(req.user?.roles) ? req.user.roles : [];
+  return roles.some((x) => String(x).toUpperCase() === "INSTRUCTOR");
+}
+
+async function requireInstructor(db, req, userId) {
+  if (hasInstructorRoleInReq(req)) return true;
+  if (!userId) return false;
+
+  const { rows } = await db.query(`SELECT role FROM users WHERE user_id = $1`, [userId]);
+  const role = normalizeRole(rows?.[0]?.role);
+  return role === "instructor";
+}
+
 async function getCurrentTerm(db) {
   const { rows } = await db.query(
     `
@@ -54,32 +76,24 @@ async function getCurrentTerm(db) {
     termId: Number(t.term_id),
     semester: t.semester,
     year: t.year,
-    termCode: `${t.semester} ${t.year}`
+    termCode: `${t.semester} ${t.year}`,
   };
 }
 
-/* =========================================================
-   GET /api/instructor/rosters
-========================================================= */
 router.get("/rosters", async (req, res) => {
   const db = req.db;
   const userId = getUserId(req);
 
-  if (!userId)
-    return res.status(401).json({ ok: false, error: "Not authenticated" });
+  if (!userId) return res.status(401).json({ ok: false, error: "Not authenticated" });
 
   try {
-    // Instructor must exist in instructors table
-    const isInst = await isInstructor(db, userId);
-    if (!isInst) {
-      return res
-        .status(403)
-        .json({ ok: false, error: "You are not registered as an instructor." });
+    const okRole = await requireInstructor(db, req, userId);
+    if (!okRole) {
+      return res.status(403).json({ ok: false, error: "You must be logged in as an instructor to access rosters." });
     }
 
     const currentTerm = await getCurrentTerm(db);
 
-    /* Pull all class sections taught by this instructor */
     const { rows: classes } = await db.query(
       `
         SELECT 
@@ -103,18 +117,13 @@ router.get("/rosters", async (req, res) => {
       [userId]
     );
 
-    if (!classes.length) {
-      return res.json({ ok: true, currentTerm, courses: [] });
-    }
+    if (!classes.length) return res.json({ ok: true, currentTerm, courses: [] });
 
-    // Convert all IDs to numbers
     const classIds = classes.map((c) => Number(c.class_id));
 
-    /* Pull roster for all these classes */
     const { rows: roster } = await db.query(
       `
         SELECT
-          e.enrollment_id,
           e.class_id,
           e.student_id,
           e.grade,
@@ -130,22 +139,20 @@ router.get("/rosters", async (req, res) => {
       [classIds]
     );
 
-    /* Group students by class_id */
     const studentsByClass = new Map();
     for (const r of roster) {
       const cid = Number(r.class_id);
       if (!studentsByClass.has(cid)) studentsByClass.set(cid, []);
       studentsByClass.get(cid).push({
-        enrollmentId: Number(r.enrollment_id),
+        classId: cid,
         studentId: Number(r.student_id),
         name: `${r.first_name} ${r.last_name}`,
         email: r.email,
         grade: r.grade,
-        status: r.status
+        status: r.status,
       });
     }
 
-    /* Build final course objects */
     const courses = classes.map((c) => {
       const cid = Number(c.class_id);
       return {
@@ -161,9 +168,8 @@ router.get("/rosters", async (req, res) => {
         semester: c.semester,
         year: c.year,
         termCode: `${c.semester} ${c.year}`,
-        isCurrent:
-          currentTerm ? Number(c.term_id) === Number(currentTerm.termId) : false,
-        students: studentsByClass.get(cid) || []
+        isCurrent: currentTerm ? Number(c.term_id) === Number(currentTerm.termId) : false,
+        students: studentsByClass.get(cid) || [],
       };
     });
 
@@ -174,35 +180,33 @@ router.get("/rosters", async (req, res) => {
   }
 });
 
-/* =========================================================
-   POST /api/instructor/rosters/:classId/grade
-========================================================= */
 router.post("/rosters/:classId/grade", async (req, res) => {
   const db = req.db;
   const userId = getUserId(req);
 
-  if (!userId)
-    return res.status(401).json({ ok: false, error: "Not authenticated" });
+  if (!userId) return res.status(401).json({ ok: false, error: "Not authenticated" });
 
   const classId = Number(req.params.classId);
-  const { enrollmentId, newGrade } = req.body;
+  const { studentId, newGrade } = req.body;
 
-  if (!classId || !enrollmentId || !newGrade) {
-    return res
-      .status(400)
-      .json({ ok: false, error: "Missing required fields." });
+  if (!classId || !studentId || !newGrade) {
+    return res.status(400).json({ ok: false, error: "Missing required fields." });
   }
 
   const gradeUpper = newGrade.trim().toUpperCase();
   if (!ALLOWED_GRADES.includes(gradeUpper)) {
     return res.status(400).json({
       ok: false,
-      error: "Invalid grade: must be one of " + ALLOWED_GRADES.join(", ")
+      error: "Invalid grade: must be one of " + ALLOWED_GRADES.join(", "),
     });
   }
 
   try {
-    /* Ensure instructor teaches this class */
+    const okRole = await requireInstructor(db, req, userId);
+    if (!okRole) {
+      return res.status(403).json({ ok: false, error: "You must be logged in as an instructor to update grades." });
+    }
+
     const { rows: classCheck } = await db.query(
       `
         SELECT term_id
@@ -213,53 +217,42 @@ router.post("/rosters/:classId/grade", async (req, res) => {
     );
 
     if (!classCheck.length) {
-      return res
-        .status(403)
-        .json({ ok: false, error: "Not allowed to change grades for this class." });
+      return res.status(403).json({ ok: false, error: "Not allowed to change grades for this class." });
     }
 
     const classTerm = Number(classCheck[0].term_id);
     const currentTerm = await getCurrentTerm(db);
 
     if (!currentTerm || Number(currentTerm.termId) !== classTerm) {
-      return res.status(403).json({
-        ok: false,
-        error: "Grades may only be changed for the current term."
-      });
+      return res.status(403).json({ ok: false, error: "Grades may only be changed for the current term." });
     }
 
-    /* Get existing grade */
     const { rows: enrRows } = await db.query(
       `
-        SELECT grade FROM enrollments 
-        WHERE enrollment_id = $1 AND class_id = $2
+        SELECT grade
+        FROM enrollments
+        WHERE class_id = $1 AND student_id = $2
       `,
-      [enrollmentId, classId]
+      [classId, studentId]
     );
 
     if (!enrRows.length) {
-      return res
-        .status(404)
-        .json({ ok: false, error: "Enrollment not found." });
+      return res.status(404).json({ ok: false, error: "Enrollment not found." });
     }
 
     const currGrade = enrRows[0].grade;
-    if (currGrade && currGrade.toUpperCase() !== "I") {
-      return res.status(400).json({
-        ok: false,
-        error: "Only incomplete (I) or missing grades may be edited."
-      });
+    if (currGrade && String(currGrade).toUpperCase() !== "I") {
+      return res.status(400).json({ ok: false, error: "Only incomplete (I) or missing grades may be edited." });
     }
 
-    /* Update grade */
     const { rows: updated } = await db.query(
       `
         UPDATE enrollments
-        SET grade = $1
-        WHERE enrollment_id = $2
+        SET grade = $1, updated_at = now()
+        WHERE class_id = $2 AND student_id = $3
         RETURNING grade
       `,
-      [gradeUpper, enrollmentId]
+      [gradeUpper, classId, studentId]
     );
 
     return res.json({ ok: true, grade: updated[0].grade });
