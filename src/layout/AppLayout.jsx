@@ -136,6 +136,7 @@ export default function AppLayout() {
                 <NavItem to="/app/userManage">User Management</NavItem>
                 <NavItem to="/app/academicCalendar">Academic Calendar</NavItem>
                 <NavItem to="/app/waiversHolds">Waivers & Holds</NavItem>
+                <NavItem to="/app/timeConflictWaivers">Time Conflict Waivers</NavItem>
                 <NavItem to="/app/auditLog">Audit Log</NavItem>
               </>
             ) : role === 'instructor' ? (
@@ -144,6 +145,7 @@ export default function AppLayout() {
                 <NavItem to="/app/rosters">Rosters & Grading</NavItem>
                 <NavItem to="/app/academicCalendar">Academic Calendar</NavItem>
                 <NavItem to="/app/waiversHolds">Waivers & Holds</NavItem>
+                <NavItem to="/app/timeConflictWaivers">Time Conflict Waivers</NavItem>
               </>
             ) : role === 'registrar' ? (
               <>

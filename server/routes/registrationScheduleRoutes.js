@@ -435,6 +435,8 @@ async function checkRegistrationWindow(db, studentId, termId, classStanding, cum
 }
 
 async function checkTimeConflict(db, studentId, newClassId, termId) {
+  console.log('[checkTimeConflict] START - studentId:', studentId, 'newClassId:', newClassId, 'termId:', termId);
+  
   const newClassRes = await db.query(
     `
     SELECT meeting_days, meeting_times
@@ -444,19 +446,40 @@ async function checkTimeConflict(db, studentId, newClassId, termId) {
     [newClassId]
   );
 
-  if (
-    newClassRes.rows.length === 0 ||
-    !newClassRes.rows[0].meeting_days ||
-    !newClassRes.rows[0].meeting_times
-  ) {
-    return { hasConflict: false };
-  }
+  console.log('[checkTimeConflict] New class query result:', {
+    rowsCount: newClassRes.rows.length,
+    row: newClassRes.rows[0] ? {
+      meeting_days: newClassRes.rows[0].meeting_days,
+      meeting_days_type: typeof newClassRes.rows[0].meeting_days,
+      meeting_days_is_null: newClassRes.rows[0].meeting_days === null,
+      meeting_days_is_empty: newClassRes.rows[0].meeting_days === '',
+      meeting_times: newClassRes.rows[0].meeting_times,
+      meeting_times_type: typeof newClassRes.rows[0].meeting_times,
+      meeting_times_is_null: newClassRes.rows[0].meeting_times === null,
+      meeting_times_is_empty: newClassRes.rows[0].meeting_times === '',
+    } : null
+  });
 
-  const newDays = newClassRes.rows[0].meeting_days
-    .split(/[,\s\/]+/)
-    .map((d) => d.trim().toUpperCase());
-  const newTimes = newClassRes.rows[0].meeting_times;
+  // Helper function to check if a value is TBA
+  const isTBA = (value) => {
+    if (!value) return true; // NULL, undefined, empty string
+    const str = String(value).trim().toUpperCase();
+    return str === 'TBA' || str === '';
+  };
 
+  const newMeetingDays = newClassRes.rows[0]?.meeting_days;
+  const newMeetingTimes = newClassRes.rows[0]?.meeting_times;
+  const newIsTBA = isTBA(newMeetingDays) || isTBA(newMeetingTimes);
+
+  console.log('[checkTimeConflict] New class TBA check:', {
+    newMeetingDays,
+    newMeetingTimes,
+    newIsTBA,
+    isTBA_days: isTBA(newMeetingDays),
+    isTBA_times: isTBA(newMeetingTimes)
+  });
+
+  // Query all enrolled classes (including TBA ones)
   const enrolledRes = await db.query(
     `
     SELECT cs.class_id, cs.meeting_days, cs.meeting_times, c.subject, c.course_num
@@ -466,32 +489,113 @@ async function checkTimeConflict(db, studentId, newClassId, termId) {
     WHERE e.student_id = $1
       AND cs.term_id = $2
       AND e.status = 'registered'
-      AND cs.meeting_days IS NOT NULL
-      AND cs.meeting_times IS NOT NULL
   `,
     [studentId, termId]
   );
 
-  for (const enrolled of enrolledRes.rows) {
-    const enrolledDays = enrolled.meeting_days
-      .split(/[,\s\/]+/)
-      .map((d) => d.trim().toUpperCase());
-    const enrolledTimes = enrolled.meeting_times;
+  console.log('[checkTimeConflict] Enrolled classes query result:', {
+    rowsCount: enrolledRes.rows.length,
+    enrolledClasses: enrolledRes.rows.map(row => ({
+      class_id: row.class_id,
+      course: `${row.subject} ${row.course_num}`,
+      meeting_days: row.meeting_days,
+      meeting_days_type: typeof row.meeting_days,
+      meeting_days_is_null: row.meeting_days === null,
+      meeting_times: row.meeting_times,
+      meeting_times_type: typeof row.meeting_times,
+      meeting_times_is_null: row.meeting_times === null,
+    }))
+  });
 
-    const dayOverlap = newDays.some((d) => enrolledDays.includes(d));
-    if (!dayOverlap) continue;
-
-    if (enrolledTimes && newTimes) {
+  // If new class has TBA, conflict with ALL existing enrollments
+  if (newIsTBA) {
+    console.log('[checkTimeConflict] New class has TBA - checking against all enrolled classes');
+    if (enrolledRes.rows.length > 0) {
+      const firstConflict = enrolledRes.rows[0];
+      console.log('[checkTimeConflict] TBA conflict detected with:', {
+        classId: firstConflict.class_id,
+        courseCode: `${firstConflict.subject} ${firstConflict.course_num}`
+      });
       return {
         hasConflict: true,
         conflictingClass: {
-          classId: enrolled.class_id,
-          courseCode: `${enrolled.subject} ${enrolled.course_num}`,
+          classId: firstConflict.class_id,
+          courseCode: `${firstConflict.subject} ${firstConflict.course_num}`,
         },
       };
     }
   }
 
+  // If new class has known schedule, check against enrolled classes
+  if (!newIsTBA && newMeetingDays && newMeetingTimes) {
+    const newDays = newMeetingDays
+      .split(/[,\s\/]+/)
+      .map((d) => d.trim().toUpperCase())
+      .filter(d => d && d !== 'TBA');
+    const newTimes = newMeetingTimes;
+
+    console.log('[checkTimeConflict] New class has known schedule:', {
+      newDays,
+      newTimes
+    });
+
+    for (const enrolled of enrolledRes.rows) {
+      const enrolledMeetingDays = enrolled.meeting_days;
+      const enrolledMeetingTimes = enrolled.meeting_times;
+      const enrolledIsTBA = isTBA(enrolledMeetingDays) || isTBA(enrolledMeetingTimes);
+
+      console.log('[checkTimeConflict] Checking enrolled class:', {
+        classId: enrolled.class_id,
+        course: `${enrolled.subject} ${enrolled.course_num}`,
+        enrolledMeetingDays,
+        enrolledMeetingTimes,
+        enrolledIsTBA
+      });
+
+      // If enrolled class has TBA, conflict with new class (known schedule)
+      if (enrolledIsTBA) {
+        console.log('[checkTimeConflict] Enrolled class has TBA - conflict detected');
+        return {
+          hasConflict: true,
+          conflictingClass: {
+            classId: enrolled.class_id,
+            courseCode: `${enrolled.subject} ${enrolled.course_num}`,
+          },
+        };
+      }
+
+      // Both have known schedules - check for actual overlap
+      if (enrolledMeetingDays && enrolledMeetingTimes && newDays.length > 0 && newTimes) {
+        const enrolledDays = enrolledMeetingDays
+          .split(/[,\s\/]+/)
+          .map((d) => d.trim().toUpperCase())
+          .filter(d => d && d !== 'TBA');
+
+        console.log('[checkTimeConflict] Both have known schedules, checking overlap:', {
+          newDays,
+          enrolledDays,
+          dayOverlap: newDays.some((d) => enrolledDays.includes(d))
+        });
+
+        const dayOverlap = newDays.some((d) => enrolledDays.includes(d));
+        if (dayOverlap && enrolledMeetingTimes && newTimes) {
+          console.log('[checkTimeConflict] Day overlap detected, checking time overlap');
+          // For now, if days overlap and both have times, consider it a conflict
+          // (Could add actual time range parsing here if needed)
+          console.log('[checkTimeConflict] Conflict detected - day overlap with times');
+          return {
+            hasConflict: true,
+            conflictingClass: {
+              classId: enrolled.class_id,
+              courseCode: `${enrolled.subject} ${enrolled.course_num}`,
+            },
+          };
+        }
+      }
+    }
+  }
+
+  console.log('[checkTimeConflict] No conflict detected');
   return { hasConflict: false };
 }
 
@@ -501,7 +605,8 @@ async function hasTimeConflictWaiver(db, studentId, classId1, classId2) {
     SELECT 1 FROM time_conflict_waivers
     WHERE student_user_id = $1
       AND ((class_id_1 = $2 AND class_id_2 = $3) OR (class_id_1 = $3 AND class_id_2 = $2))
-      AND instructor_approved = true
+      AND instructor_1_approved = true
+      AND instructor_2_approved = true
       AND advisor_approved = true
       AND status = 'approved'
   `,
@@ -669,6 +774,122 @@ function buildScheduleText(row) {
   return 'TBA';
 }
 
+/**
+ * Extract building and room from location text
+ * (used to clean location_text that may contain instructor names)
+ * Examples: "MELVILLE LBRW4550" -> {building: "MELVILLE", room: "LBRW4550"}
+ *           "HUMANITIES 1006Ryan Kaufman" -> {building: "HUMANITIES", room: "1006"}
+ */
+function extractBuildingRoomFromText(locationText) {
+  if (!locationText) return { building: null, room: null };
+  let s = String(locationText).trim();
+  if (!s) return { building: null, room: null };
+
+  // Handle special case: "TBATBA" followed by instructor name - no real location
+  if (/^TBATBA/i.test(s)) {
+    return { building: null, room: null };
+  }
+
+  // Remove "TBA" if it's at the start or end
+  s = s.replace(/^TBA\s+/i, '').replace(/\s+TBA$/i, '').trim();
+  if (!s || s.toUpperCase() === 'TBA') return { building: null, room: null };
+
+  // Remove "TBA" if it's concatenated at the end (e.g., "4530TBA" -> "4530")
+  s = s.replace(/TBA$/i, '').trim();
+  if (!s) return { building: null, room: null };
+
+  // Split by spaces first
+  const tokens = s.split(/\s+/).filter(Boolean);
+  if (tokens.length < 2) return { building: null, room: null };
+  
+  // Look for room number pattern: alphanumeric with digits, 1-8 chars
+  // Room can be concatenated with instructor (e.g., "1006Ryan", "143Hyun-Kyung", "S235SMichael") or separate
+  for (let idx = 1; idx < tokens.length; idx++) {
+    let tok = tokens[idx];
+    
+    // Remove "TBA" if concatenated at end of token
+    tok = tok.replace(/TBA$/i, '');
+    if (!tok) continue;
+    
+    // Check if this token contains a room number (has digits)
+    if (/\d/.test(tok)) {
+      // Pattern 1: Room concatenated with instructor name
+      // Match: room number (alphanumeric with digits) followed by capital letter + lowercase (name start)
+      // Examples: "1006Ryan", "143Hyun", "S235SMichael", "001William", "CENTR103Alan"
+      const concatMatch = tok.match(/^([A-Z0-9]*\d+[A-Z0-9]*?)([A-Z][a-z].*)$/);
+      if (concatMatch) {
+        let room = concatMatch[1];
+        // If room ends with a single letter and next part is instructor name, remove trailing letter
+        // (e.g., "S235S" + "Michael" -> room should be "S235", not "S235S")
+        if (/[A-Z]$/.test(room) && room.length > 1 && concatMatch[2]) {
+          const withoutLast = room.slice(0, -1);
+          if (/\d/.test(withoutLast) && withoutLast.length >= 1) {
+            room = withoutLast;
+          }
+        }
+        // Verify room has digits and is reasonable length (1-8 chars)
+        if (/\d/.test(room) && room.length >= 1 && room.length <= 8) {
+          return {
+            building: tokens.slice(0, idx).join(" ").trim(),
+            room: room
+          };
+        }
+      }
+      
+      // Pattern 2: Room is a standalone token (e.g., "1006", "317", "001", "S235", "LBRW4550")
+      // Must be alphanumeric, 1-10 chars, contains digits
+      // Remove trailing single letter if it looks suspicious (e.g., "S235S" -> "S235")
+      let cleanTok = tok;
+      if (/[A-Z]$/.test(cleanTok) && cleanTok.length > 4 && /\d/.test(cleanTok)) {
+        const withoutLast = cleanTok.slice(0, -1);
+        if (/\d/.test(withoutLast) && withoutLast.length >= 1 && withoutLast.length <= 10) {
+          cleanTok = withoutLast;
+        }
+      }
+      if (/^[A-Z0-9]{1,10}$/i.test(cleanTok) && cleanTok.length <= 10) {
+        return {
+          building: tokens.slice(0, idx).join(" ").trim(),
+          room: cleanTok
+        };
+      }
+    }
+  }
+  
+  return { building: null, room: null };
+}
+
+/**
+ * Extract instructor name from query result row.
+ * Checks junction table instructors array first, then falls back to direct columns.
+ */
+function extractInstructorName(row, hasJunctionTable) {
+  let instructorName = null;
+  
+  // First, try to get from junction table if available
+  if (hasJunctionTable && row.instructors) {
+    try {
+      const instructors = typeof row.instructors === 'string' 
+        ? JSON.parse(row.instructors) 
+        : row.instructors;
+      if (Array.isArray(instructors) && instructors.length > 0) {
+        const firstInstructor = instructors[0];
+        if (firstInstructor.first_name || firstInstructor.last_name) {
+          instructorName = `${firstInstructor.first_name || ''} ${firstInstructor.last_name || ''}`.trim();
+        }
+      }
+    } catch (e) {
+      // If JSON parse fails, fall through to direct columns
+    }
+  }
+  
+  // Fallback to direct instructor columns
+  if (!instructorName && (row.instructor_first_name || row.instructor_last_name)) {
+    instructorName = `${row.instructor_first_name ?? ''} ${row.instructor_last_name ?? ''}`.trim();
+  }
+  
+  return instructorName || null;
+}
+
 router.get('/init', async (req, res) => {
   const studentId = getStudentId(req);
   if (!studentId) return res.status(401).json({ ok: false, error: 'Not authenticated' });
@@ -700,7 +921,73 @@ router.get('/init', async (req, res) => {
       year: t.year,
     }));
 
-    const sectionsRes = await req.db.query(`
+    // Check if class_section_instructors junction table exists
+    const tableCheck = await req.db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'class_section_instructors'
+      ) AS table_exists
+    `);
+    const hasJunctionTable = tableCheck.rows[0]?.table_exists === true;
+
+    // Query sections - use junction table if available, otherwise fallback to cs.instructor_id
+    const sectionsSql = hasJunctionTable ? `
+      SELECT
+        cs.class_id,
+        cs.term_id,
+        cs.section_num,
+        cs.capacity,
+        cs.location_text,
+        cs.meeting_days,
+        cs.meeting_times,
+        cs.instructor_id,
+
+        c.subject,
+        c.course_num,
+        c.title AS course_title,
+        c.credits,
+
+        t.semester,
+        t.year,
+
+        r.building,
+        r.room,
+
+        u.first_name AS instructor_first_name,
+        u.last_name  AS instructor_last_name,
+
+        COALESCE(
+          JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'id', u_instr.user_id,
+              'first_name', u_instr.first_name,
+              'last_name', u_instr.last_name
+            )
+          ) FILTER (WHERE u_instr.user_id IS NOT NULL),
+          '[]'::json
+        ) AS instructors,
+
+        (
+          SELECT COUNT(*)
+          FROM enrollments e
+          WHERE e.class_id = cs.class_id
+          AND e.status = 'registered'
+        ) AS registered_count
+      FROM class_sections cs
+      JOIN courses c ON c.course_id = cs.course_id
+      JOIN terms t ON t.term_id = cs.term_id
+      LEFT JOIN rooms r ON r.room_id = cs.room_id
+      LEFT JOIN users u ON u.user_id = cs.instructor_id
+      LEFT JOIN class_section_instructors csi ON csi.class_id = cs.class_id
+      LEFT JOIN users u_instr ON u_instr.user_id = csi.instructor_id
+      GROUP BY cs.class_id, cs.term_id, cs.section_num, cs.capacity, cs.location_text,
+               cs.meeting_days, cs.meeting_times, cs.instructor_id,
+               c.subject, c.course_num, c.title, c.credits,
+               t.semester, t.year, r.building, r.room,
+               u.first_name, u.last_name
+      ORDER BY t.year DESC, t.semester ASC, c.subject, c.course_num, cs.section_num
+    ` : `
       SELECT
         cs.class_id,
         cs.term_id,
@@ -736,10 +1023,30 @@ router.get('/init', async (req, res) => {
       LEFT JOIN rooms r ON r.room_id = cs.room_id
       LEFT JOIN users u ON u.user_id = cs.instructor_id
       ORDER BY t.year DESC, t.semester ASC, c.subject, c.course_num, cs.section_num
-    `);
+    `;
+
+    const sectionsRes = await req.db.query(sectionsSql);
 
     const sections = sectionsRes.rows.map((row) => {
       const scheduleText = buildScheduleText(row);
+      const instructorName = extractInstructorName(row, hasJunctionTable);
+
+      // Prefer building+room over location_text, but use location_text as fallback
+      let roomLabel = '';
+      if (row.building && row.room) {
+        roomLabel = `${row.building} ${row.room}`;
+      } else if (row.location_text) {
+        const { building, room } = extractBuildingRoomFromText(row.location_text);
+        if (building && room) {
+          roomLabel = `${building} ${room}`;
+        } else {
+          // If extraction failed, use location_text as-is if it doesn't look like TBA
+          if (row.location_text && !/^TBA/i.test(row.location_text)) {
+            roomLabel = row.location_text;
+          }
+        }
+      }
+
       return {
         classId: row.class_id,
         termId: row.term_id,
@@ -750,19 +1057,72 @@ router.get('/init', async (req, res) => {
         courseCode: `${row.subject} ${row.course_num}`,
         courseTitle: row.course_title,
         credits: Number(row.credits) || 0,
-        instructorName:
-          row.instructor_first_name || row.instructor_last_name
-            ? `${row.instructor_first_name ?? ''} ${row.instructor_last_name ?? ''}`.trim()
-            : null,
+        instructorName,
         meetingDays: row.meeting_days,
         meetingTimes: row.meeting_times,
         scheduleText,
-        roomLabel: row.building && row.room ? `${row.building} ${row.room}` : '',
+        roomLabel,
       };
     });
 
-    const enrollmentsRes = await req.db.query(
-      `
+    // Query enrollments - use junction table if available, otherwise fallback to cs.instructor_id
+    const enrollmentsSql = hasJunctionTable ? `
+      SELECT
+        e.class_id,
+        e.student_id,
+        e.status,
+        e.gpnc,
+        e.credits AS enrollment_credits,
+        e.grade,
+        e.enrolled_at,
+
+        cs.term_id,
+        cs.section_num,
+        cs.location_text,
+        cs.meeting_days,
+        cs.meeting_times,
+        cs.instructor_id,
+
+        c.subject,
+        c.course_num,
+        c.title AS course_title,
+        c.credits,
+
+        t.semester,
+        t.year,
+
+        r.building,
+        r.room,
+
+        u.first_name AS instructor_first_name,
+        u.last_name AS instructor_last_name,
+
+        COALESCE(
+          JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'id', u_instr.user_id,
+              'first_name', u_instr.first_name,
+              'last_name', u_instr.last_name
+            )
+          ) FILTER (WHERE u_instr.user_id IS NOT NULL),
+          '[]'::json
+        ) AS instructors
+      FROM enrollments e
+      JOIN class_sections cs ON cs.class_id = e.class_id
+      JOIN courses c       ON c.course_id = cs.course_id
+      JOIN terms t         ON t.term_id = cs.term_id
+      LEFT JOIN rooms r    ON r.room_id = cs.room_id
+      LEFT JOIN users u    ON u.user_id = cs.instructor_id
+      LEFT JOIN class_section_instructors csi ON csi.class_id = cs.class_id
+      LEFT JOIN users u_instr ON u_instr.user_id = csi.instructor_id
+      WHERE e.student_id = $1
+      GROUP BY e.class_id, e.student_id, e.status, e.gpnc, e.credits, e.grade, e.enrolled_at,
+               cs.term_id, cs.section_num, cs.location_text, cs.meeting_days, cs.meeting_times, cs.instructor_id,
+               c.subject, c.course_num, c.title, c.credits,
+               t.semester, t.year, r.building, r.room,
+               u.first_name, u.last_name
+      ORDER BY t.year DESC, t.semester ASC, c.subject, c.course_num, cs.section_num
+    ` : `
       SELECT
         e.class_id,
         e.student_id,
@@ -799,12 +1159,31 @@ router.get('/init', async (req, res) => {
       LEFT JOIN users u    ON u.user_id = cs.instructor_id
       WHERE e.student_id = $1
       ORDER BY t.year DESC, t.semester ASC, c.subject, c.course_num, cs.section_num
-    `,
-      [studentId]
-    );
+    `;
+
+    const enrollmentsRes = await req.db.query(enrollmentsSql, [studentId]);
 
     const enrollments = enrollmentsRes.rows.map((row) => {
       const scheduleText = buildScheduleText(row);
+      const instructorName = extractInstructorName(row, hasJunctionTable);
+
+      // Prefer building+room over location_text, but use location_text as fallback
+      // Match the logic used in the sections endpoint
+      const roomLabel = (() => {
+        if (row.building && row.room) {
+          return `${row.building} ${row.room}`;
+        }
+        // Fallback to location_text, but clean it if it looks like it contains an instructor name
+        if (row.location_text) {
+          const { building, room } = extractBuildingRoomFromText(row.location_text);
+          if (building && room) {
+            return `${building} ${room}`;
+          }
+          return row.location_text;
+        }
+        return null;
+      })();
+
       return {
         enrollmentId: row.class_id,
         classId: row.class_id,
@@ -814,14 +1193,11 @@ router.get('/init', async (req, res) => {
         courseCode: `${row.subject} ${row.course_num}`,
         courseTitle: row.course_title,
         credits: Number(row.credits) || 0,
-        instructorName:
-          row.instructor_first_name || row.instructor_last_name
-            ? `${row.instructor_first_name ?? ''} ${row.instructor_last_name ?? ''}`.trim()
-            : null,
+        instructorName,
         meetingDays: row.meeting_days,
         meetingTimes: row.meeting_times,
         scheduleText,
-        roomLabel: row.building && row.room ? `${row.building} ${row.room}` : '',
+        roomLabel,
         status: row.status,
         grade: row.grade,
         gpnc: row.gpnc,
@@ -853,6 +1229,16 @@ router.post('/enroll', async (req, res) => {
   if (!classId) return res.status(400).json({ ok: false, error: 'Missing classId' });
 
   const client = req.db;
+
+  // Check if class_section_instructors junction table exists
+  const tableCheck = await client.query(`
+    SELECT EXISTS (
+      SELECT FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_name = 'class_section_instructors'
+    ) AS table_exists
+  `);
+  const hasJunctionTable = tableCheck.rows[0]?.table_exists === true;
 
   try {
     await client.query('BEGIN');
@@ -898,6 +1284,21 @@ router.post('/enroll', async (req, res) => {
 
     const secRow = secRes.rows[0];
     const termId = secRow.term_id;
+
+    console.log('[enroll] Section details from database:', {
+      class_id: secRow.class_id,
+      course: `${secRow.subject} ${secRow.course_num}`,
+      section_num: secRow.section_num,
+      term_id: termId,
+      meeting_days: secRow.meeting_days,
+      meeting_days_type: typeof secRow.meeting_days,
+      meeting_days_is_null: secRow.meeting_days === null,
+      meeting_days_value: JSON.stringify(secRow.meeting_days),
+      meeting_times: secRow.meeting_times,
+      meeting_times_type: typeof secRow.meeting_times,
+      meeting_times_is_null: secRow.meeting_times === null,
+      meeting_times_value: JSON.stringify(secRow.meeting_times),
+    });
 
     const sameCourseRes = await client.query(
       `
@@ -961,16 +1362,44 @@ router.post('/enroll', async (req, res) => {
       return res.status(400).json({ ok: false, error: antiReqCheck.reason });
     }
 
+    console.log('[enroll] About to check time conflict for:', {
+      studentId,
+      classId,
+      termId,
+      course: `${secRow.subject} ${secRow.course_num}`,
+      section: secRow.section_num,
+      meeting_days: secRow.meeting_days,
+      meeting_times: secRow.meeting_times
+    });
+
     const timeConflict = await checkTimeConflict(client, studentId, classId, termId);
+    
+    console.log('[enroll] Time conflict check result:', {
+      hasConflict: timeConflict.hasConflict,
+      conflictingClass: timeConflict.conflictingClass
+    });
+
     if (timeConflict.hasConflict) {
       const hasWaiver = await hasTimeConflictWaiver(client, studentId, classId, timeConflict.conflictingClass.classId);
+      console.log('[enroll] Time conflict waiver check:', {
+        hasWaiver,
+        classId1: classId,
+        classId2: timeConflict.conflictingClass.classId
+      });
       if (!hasWaiver) {
         await client.query('ROLLBACK');
+        console.log('[enroll] Time conflict detected, no waiver - blocking enrollment');
         return res.status(400).json({
           ok: false,
           error: `Time conflict with ${timeConflict.conflictingClass.courseCode}. Time conflict waiver required.`,
+          timeConflict: {
+            newClassId: classId,
+            conflictingClassId: timeConflict.conflictingClass.classId,
+            conflictingCourseCode: timeConflict.conflictingClass.courseCode,
+          },
         });
       }
+      console.log('[enroll] Time conflict detected but waiver exists - allowing enrollment');
     }
 
     const countRes = await client.query(
@@ -1007,52 +1436,111 @@ router.post('/enroll', async (req, res) => {
 
       const eRow = waitlistRes.rows[0];
 
-      const metaRes = await client.query(
-        `
-      SELECT
-        cs.class_id,
-        cs.term_id,
-        cs.section_num,
-        cs.capacity,
-        cs.location_text,
-        cs.meeting_days,
-        cs.meeting_times,
+      const metaResSql = hasJunctionTable ? `
+        SELECT
+          cs.class_id,
+          cs.term_id,
+          cs.section_num,
+          cs.capacity,
+          cs.location_text,
+          cs.meeting_days,
+          cs.meeting_times,
+          cs.instructor_id,
 
-        c.subject,
-        c.course_num,
-        c.title AS course_title,
-        c.credits,
+          c.subject,
+          c.course_num,
+          c.title AS course_title,
+          c.credits,
 
-        t.semester,
-        t.year,
+          t.semester,
+          t.year,
 
-        r.building,
-        r.room,
+          r.building,
+          r.room,
 
-        u.first_name AS instructor_first_name,
-        u.last_name  AS instructor_last_name
-      FROM class_sections cs
-      JOIN courses c ON c.course_id = cs.course_id
-      JOIN terms t   ON t.term_id = cs.term_id
-      LEFT JOIN rooms r ON r.room_id = cs.room_id
-      LEFT JOIN users u ON u.user_id = cs.instructor_id
-      WHERE cs.class_id = $1
-    `,
-        [classId]
-      );
+          u.first_name AS instructor_first_name,
+          u.last_name AS instructor_last_name,
+
+          COALESCE(
+            JSON_AGG(
+              JSON_BUILD_OBJECT(
+                'id', u_instr.user_id,
+                'first_name', u_instr.first_name,
+                'last_name', u_instr.last_name
+              )
+            ) FILTER (WHERE u_instr.user_id IS NOT NULL),
+            '[]'::json
+          ) AS instructors
+        FROM class_sections cs
+        JOIN courses c ON c.course_id = cs.course_id
+        JOIN terms t   ON t.term_id = cs.term_id
+        LEFT JOIN rooms r ON r.room_id = cs.room_id
+        LEFT JOIN users u ON u.user_id = cs.instructor_id
+        LEFT JOIN class_section_instructors csi ON csi.class_id = cs.class_id
+        LEFT JOIN users u_instr ON u_instr.user_id = csi.instructor_id
+        WHERE cs.class_id = $1
+        GROUP BY cs.class_id, cs.term_id, cs.section_num, cs.capacity, cs.location_text,
+                 cs.meeting_days, cs.meeting_times, cs.instructor_id,
+                 c.subject, c.course_num, c.title, c.credits,
+                 t.semester, t.year, r.building, r.room,
+                 u.first_name, u.last_name
+      ` : `
+        SELECT
+          cs.class_id,
+          cs.term_id,
+          cs.section_num,
+          cs.capacity,
+          cs.location_text,
+          cs.meeting_days,
+          cs.meeting_times,
+
+          c.subject,
+          c.course_num,
+          c.title AS course_title,
+          c.credits,
+
+          t.semester,
+          t.year,
+
+          r.building,
+          r.room,
+
+          u.first_name AS instructor_first_name,
+          u.last_name AS instructor_last_name
+        FROM class_sections cs
+        JOIN courses c ON c.course_id = cs.course_id
+        JOIN terms t   ON t.term_id = cs.term_id
+        LEFT JOIN rooms r ON r.room_id = cs.room_id
+        LEFT JOIN users u ON u.user_id = cs.instructor_id
+        WHERE cs.class_id = $1
+      `;
+
+      const metaRes = await client.query(metaResSql, [classId]);
 
       const row = metaRes.rows[0] ?? secRow;
 
       await client.query('COMMIT');
 
       const termLabel = `${row.semester} ${row.year}`;
-      const instructorName =
-        row.instructor_first_name || row.instructor_last_name
-          ? `${row.instructor_first_name ?? ''} ${row.instructor_last_name ?? ''}`.trim()
-          : null;
+      const instructorName = extractInstructorName(row, hasJunctionTable);
 
       const scheduleText = buildScheduleText(row);
-      const roomLabel = row.building && row.room ? `${row.building} ${row.room}` : '';
+      
+      // Prefer building+room over location_text, but use location_text as fallback
+      let roomLabel = '';
+      if (row.building && row.room) {
+        roomLabel = `${row.building} ${row.room}`;
+      } else if (row.location_text) {
+        const { building, room } = extractBuildingRoomFromText(row.location_text);
+        if (building && room) {
+          roomLabel = `${building} ${room}`;
+        } else {
+          // If extraction failed, use location_text as-is if it doesn't look like TBA
+          if (row.location_text && !/^TBA/i.test(row.location_text)) {
+            roomLabel = row.location_text;
+          }
+        }
+      }
 
       return res.json({
         ok: true,
@@ -1119,8 +1607,55 @@ router.post('/enroll', async (req, res) => {
     );
     const newCount = Number(countAfterRes.rows[0].registered_count);
 
-    const metaRes = await client.query(
-      `
+    const metaResSql = hasJunctionTable ? `
+      SELECT
+        cs.class_id,
+        cs.term_id,
+        cs.section_num,
+        cs.capacity,
+        cs.location_text,
+        cs.meeting_days,
+        cs.meeting_times,
+        cs.instructor_id,
+
+        c.subject,
+        c.course_num,
+        c.title AS course_title,
+        c.credits,
+
+        t.semester,
+        t.year,
+
+        r.building,
+        r.room,
+
+        u.first_name AS instructor_first_name,
+        u.last_name AS instructor_last_name,
+
+        COALESCE(
+          JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'id', u_instr.user_id,
+              'first_name', u_instr.first_name,
+              'last_name', u_instr.last_name
+            )
+          ) FILTER (WHERE u_instr.user_id IS NOT NULL),
+          '[]'::json
+        ) AS instructors
+      FROM class_sections cs
+      JOIN courses c ON c.course_id = cs.course_id
+      JOIN terms t   ON t.term_id = cs.term_id
+      LEFT JOIN rooms r ON r.room_id = cs.room_id
+      LEFT JOIN users u ON u.user_id = cs.instructor_id
+      LEFT JOIN class_section_instructors csi ON csi.class_id = cs.class_id
+      LEFT JOIN users u_instr ON u_instr.user_id = csi.instructor_id
+      WHERE cs.class_id = $1
+      GROUP BY cs.class_id, cs.term_id, cs.section_num, cs.capacity, cs.location_text,
+               cs.meeting_days, cs.meeting_times, cs.instructor_id,
+               c.subject, c.course_num, c.title, c.credits,
+               t.semester, t.year, r.building, r.room,
+               u.first_name, u.last_name
+    ` : `
       SELECT
         cs.class_id,
         cs.term_id,
@@ -1142,26 +1677,23 @@ router.post('/enroll', async (req, res) => {
         r.room,
 
         u.first_name AS instructor_first_name,
-        u.last_name  AS instructor_last_name
+        u.last_name AS instructor_last_name
       FROM class_sections cs
       JOIN courses c ON c.course_id = cs.course_id
       JOIN terms t   ON t.term_id = cs.term_id
       LEFT JOIN rooms r ON r.room_id = cs.room_id
       LEFT JOIN users u ON u.user_id = cs.instructor_id
       WHERE cs.class_id = $1
-    `,
-      [classId]
-    );
+    `;
+
+    const metaRes = await client.query(metaResSql, [classId]);
 
     const row = metaRes.rows[0];
 
     await client.query('COMMIT');
 
     const termLabel = `${row.semester} ${row.year}`;
-    const instructorName =
-      row.instructor_first_name || row.instructor_last_name
-        ? `${row.instructor_first_name ?? ''} ${row.instructor_last_name ?? ''}`.trim()
-        : null;
+    const instructorName = extractInstructorName(row, hasJunctionTable);
 
     const scheduleText = buildScheduleText(row);
     const roomLabel = row.building && row.room ? `${row.building} ${row.room}` : '';
@@ -1223,6 +1755,16 @@ router.post('/withdraw', async (req, res) => {
 
   const classId = enrollmentId;
   const client = req.db;
+
+  // Check if class_section_instructors junction table exists
+  const tableCheck = await client.query(`
+    SELECT EXISTS (
+      SELECT FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_name = 'class_section_instructors'
+    ) AS table_exists
+  `);
+  const hasJunctionTable = tableCheck.rows[0]?.table_exists === true;
 
   try {
     await client.query('BEGIN');
@@ -1291,8 +1833,55 @@ router.post('/withdraw', async (req, res) => {
       promotedStudent = await promoteWaitlistStudent(client, class_id);
     }
 
-    const metaRes = await client.query(
-      `
+    const metaResSql = hasJunctionTable ? `
+      SELECT
+        cs.class_id,
+        cs.term_id,
+        cs.section_num,
+        cs.capacity,
+        cs.location_text,
+        cs.meeting_days,
+        cs.meeting_times,
+        cs.instructor_id,
+
+        c.subject,
+        c.course_num,
+        c.title AS course_title,
+        c.credits,
+
+        t.semester,
+        t.year,
+
+        r.building,
+        r.room,
+
+        u.first_name AS instructor_first_name,
+        u.last_name AS instructor_last_name,
+
+        COALESCE(
+          JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'id', u_instr.user_id,
+              'first_name', u_instr.first_name,
+              'last_name', u_instr.last_name
+            )
+          ) FILTER (WHERE u_instr.user_id IS NOT NULL),
+          '[]'::json
+        ) AS instructors
+      FROM class_sections cs
+      JOIN courses c ON c.course_id = cs.course_id
+      JOIN terms t   ON t.term_id = cs.term_id
+      LEFT JOIN rooms r ON r.room_id = cs.room_id
+      LEFT JOIN users u ON u.user_id = cs.instructor_id
+      LEFT JOIN class_section_instructors csi ON csi.class_id = cs.class_id
+      LEFT JOIN users u_instr ON u_instr.user_id = csi.instructor_id
+      WHERE cs.class_id = $1
+      GROUP BY cs.class_id, cs.term_id, cs.section_num, cs.capacity, cs.location_text,
+               cs.meeting_days, cs.meeting_times, cs.instructor_id,
+               c.subject, c.course_num, c.title, c.credits,
+               t.semester, t.year, r.building, r.room,
+               u.first_name, u.last_name
+    ` : `
       SELECT
         cs.class_id,
         cs.term_id,
@@ -1314,26 +1903,23 @@ router.post('/withdraw', async (req, res) => {
         r.room,
 
         u.first_name AS instructor_first_name,
-        u.last_name  AS instructor_last_name
+        u.last_name AS instructor_last_name
       FROM class_sections cs
       JOIN courses c ON c.course_id = cs.course_id
       JOIN terms t   ON t.term_id = cs.term_id
       LEFT JOIN rooms r ON r.room_id = cs.room_id
       LEFT JOIN users u ON u.user_id = cs.instructor_id
       WHERE cs.class_id = $1
-    `,
-      [class_id]
-    );
+    `;
+
+    const metaRes = await client.query(metaResSql, [class_id]);
 
     const row = metaRes.rows[0] ?? secRow;
 
     await client.query('COMMIT');
 
     const termLabel = `${row.semester} ${row.year}`;
-    const instructorName =
-      row.instructor_first_name || row.instructor_last_name
-        ? `${row.instructor_first_name ?? ''} ${row.instructor_last_name ?? ''}`.trim()
-        : null;
+    const instructorName = extractInstructorName(row, hasJunctionTable);
 
     const scheduleText = buildScheduleText(row);
     const roomLabel = row.building && row.room ? `${row.building} ${row.room}` : '';
@@ -1563,6 +2149,16 @@ router.post('/time-conflict-waiver/:waiverId/approve-instructor', async (req, re
   }
 
   try {
+    // Check if class_section_instructors junction table exists
+    const tableCheck = await req.db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'class_section_instructors'
+      ) AS table_exists
+    `);
+    const hasJunctionTable = tableCheck.rows[0]?.table_exists === true;
+
     const waiverRes = await req.db.query(
       `
       SELECT class_id_1, class_id_2
@@ -1578,38 +2174,89 @@ router.post('/time-conflict-waiver/:waiverId/approve-instructor', async (req, re
 
     const { class_id_1, class_id_2 } = waiverRes.rows[0];
 
-    const instructorCheck = await req.db.query(
-      `
-      SELECT 1 FROM class_sections
-      WHERE class_id IN ($1, $2) AND instructor_id = $3
-    `,
-      [class_id_1, class_id_2, userId]
-    );
+    // Determine which specific class this instructor teaches
+    // Check both junction table and direct instructor_id column
+    let isInstructor1 = false;
+    let isInstructor2 = false;
 
-    if (instructorCheck.rows.length === 0) {
+    if (hasJunctionTable) {
+      const instructor1Check = await req.db.query(
+        `
+        SELECT 1 FROM class_section_instructors
+        WHERE class_id = $1 AND instructor_id = $2
+      `,
+        [class_id_1, userId]
+      );
+      const instructor2Check = await req.db.query(
+        `
+        SELECT 1 FROM class_section_instructors
+        WHERE class_id = $1 AND instructor_id = $2
+      `,
+        [class_id_2, userId]
+      );
+      isInstructor1 = instructor1Check.rows.length > 0;
+      isInstructor2 = instructor2Check.rows.length > 0;
+    }
+
+    // Fallback: check direct instructor_id column if junction table doesn't exist or no match found
+    if (!isInstructor1 && !isInstructor2) {
+      const instructor1Check = await req.db.query(
+        `
+        SELECT 1 FROM class_sections
+        WHERE class_id = $1 AND instructor_id = $2
+      `,
+        [class_id_1, userId]
+      );
+      const instructor2Check = await req.db.query(
+        `
+        SELECT 1 FROM class_sections
+        WHERE class_id = $1 AND instructor_id = $2
+      `,
+        [class_id_2, userId]
+      );
+      isInstructor1 = instructor1Check.rows.length > 0;
+      isInstructor2 = instructor2Check.rows.length > 0;
+    }
+
+    if (!isInstructor1 && !isInstructor2) {
       return res.status(403).json({ ok: false, error: 'You are not an instructor for either class' });
     }
 
-    await req.db.query(
-      `
-      UPDATE time_conflict_waivers
-      SET instructor_approved = $1, instructor_approved_by = $2, instructor_approved_at = NOW()
-      WHERE waiver_id = $3
-    `,
-      [approved, userId, waiverId]
-    );
+    // Update the appropriate instructor approval field
+    if (isInstructor1) {
+      await req.db.query(
+        `
+        UPDATE time_conflict_waivers
+        SET instructor_1_approved = $1, instructor_1_approved_by = $2, instructor_1_approved_at = NOW()
+        WHERE waiver_id = $3
+      `,
+        [approved, userId, waiverId]
+      );
+    } else if (isInstructor2) {
+      await req.db.query(
+        `
+        UPDATE time_conflict_waivers
+        SET instructor_2_approved = $1, instructor_2_approved_by = $2, instructor_2_approved_at = NOW()
+        WHERE waiver_id = $3
+      `,
+        [approved, userId, waiverId]
+      );
+    }
 
+    // Check if all approvals are in place (both instructors + advisor)
     if (approved) {
       const checkRes = await req.db.query(
         `
-        SELECT instructor_approved, advisor_approved
+        SELECT instructor_1_approved, instructor_2_approved, advisor_approved
         FROM time_conflict_waivers
         WHERE waiver_id = $1
       `,
         [waiverId]
       );
 
-      if (checkRes.rows[0].instructor_approved && checkRes.rows[0].advisor_approved) {
+      if (checkRes.rows[0].instructor_1_approved && 
+          checkRes.rows[0].instructor_2_approved && 
+          checkRes.rows[0].advisor_approved) {
         await req.db.query(
           `
           UPDATE time_conflict_waivers
@@ -1639,6 +2286,31 @@ router.post('/time-conflict-waiver/:waiverId/approve-advisor', async (req, res) 
   }
 
   try {
+    // First, get the student_user_id from the waiver to validate advisor permissions
+    const waiverRes = await req.db.query(
+      `
+      SELECT student_user_id
+      FROM time_conflict_waivers
+      WHERE waiver_id = $1
+    `,
+      [waiverId]
+    );
+
+    if (waiverRes.rows.length === 0) {
+      return res.status(404).json({ ok: false, error: 'Waiver not found' });
+    }
+
+    const studentId = waiverRes.rows[0].student_user_id;
+
+    // Validate that the advisor can approve for this student (similar to canAdvisorPlaceHold logic)
+    const canApprove = await canAdvisorPlaceHold(req.db, userId, studentId);
+    if (!canApprove) {
+      return res.status(403).json({ 
+        ok: false, 
+        error: 'You do not have permission to approve waivers for this student. Only advisors for the student\'s department/college or university-level advisors can approve.' 
+      });
+    }
+
     await req.db.query(
       `
       UPDATE time_conflict_waivers
@@ -1651,14 +2323,16 @@ router.post('/time-conflict-waiver/:waiverId/approve-advisor', async (req, res) 
     if (approved) {
       const checkRes = await req.db.query(
         `
-        SELECT instructor_approved, advisor_approved
+        SELECT instructor_1_approved, instructor_2_approved, advisor_approved
         FROM time_conflict_waivers
         WHERE waiver_id = $1
       `,
         [waiverId]
       );
 
-      if (checkRes.rows[0].instructor_approved && checkRes.rows[0].advisor_approved) {
+      if (checkRes.rows[0].instructor_1_approved && 
+          checkRes.rows[0].instructor_2_approved && 
+          checkRes.rows[0].advisor_approved) {
         await req.db.query(
           `
           UPDATE time_conflict_waivers
@@ -1673,6 +2347,294 @@ router.post('/time-conflict-waiver/:waiverId/approve-advisor', async (req, res) 
     return res.json({ ok: true, message: approved ? 'Advisor approval recorded' : 'Advisor approval denied' });
   } catch (err) {
     console.error('[registration/time-conflict-waiver/:waiverId/approve-advisor]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// GET endpoint for instructors to view pending time conflict waivers
+router.get('/time-conflict-waiver/pending-instructor', async (req, res) => {
+  const userRole = getUserRole(req);
+  const userId = req.user?.user_id ?? req.user?.userId ?? null;
+
+  if (userRole !== 'Instructor') {
+    return res.status(403).json({ ok: false, error: 'Only instructors can view instructor pending waivers' });
+  }
+
+  try {
+    // Check if class_section_instructors junction table exists
+    const tableCheck = await req.db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'class_section_instructors'
+      ) AS table_exists
+    `);
+    const hasJunctionTable = tableCheck.rows[0]?.table_exists === true;
+
+    // Query waivers where:
+    // 1. Status is 'pending'
+    // 2. The instructor teaches one of the classes (class_id_1 or class_id_2)
+    // 3. The instructor hasn't approved yet (instructor_1_approved is false if they teach class_id_1, instructor_2_approved is false if they teach class_id_2)
+    const query = hasJunctionTable ? `
+      SELECT DISTINCT
+        tcw.waiver_id,
+        tcw.student_user_id,
+        tcw.class_id_1,
+        tcw.class_id_2,
+        tcw.instructor_1_approved,
+        tcw.instructor_2_approved,
+        tcw.advisor_approved,
+        tcw.status,
+        tcw.requested_at,
+        -- Student info
+        u_student.first_name AS student_first_name,
+        u_student.last_name AS student_last_name,
+        u_student.email AS student_email,
+        -- Class 1 info
+        c1.subject AS class1_subject,
+        c1.course_num AS class1_course_num,
+        c1.title AS class1_title,
+        cs1.section_num AS class1_section_num,
+        cs1.meeting_days AS class1_meeting_days,
+        cs1.meeting_times AS class1_meeting_times,
+        t1.semester AS class1_semester,
+        t1.year AS class1_year,
+        -- Class 2 info
+        c2.subject AS class2_subject,
+        c2.course_num AS class2_course_num,
+        c2.title AS class2_title,
+        cs2.section_num AS class2_section_num,
+        cs2.meeting_days AS class2_meeting_days,
+        cs2.meeting_times AS class2_meeting_times,
+        t2.semester AS class2_semester,
+        t2.year AS class2_year,
+        -- Determine which class this instructor teaches
+        CASE 
+          WHEN EXISTS (SELECT 1 FROM class_section_instructors csi1 WHERE csi1.class_id = tcw.class_id_1 AND csi1.instructor_id = $1) THEN 1
+          WHEN EXISTS (SELECT 1 FROM class_section_instructors csi2 WHERE csi2.class_id = tcw.class_id_2 AND csi2.instructor_id = $1) THEN 2
+          ELSE NULL
+        END AS instructor_class_number,
+        CASE 
+          WHEN EXISTS (SELECT 1 FROM class_section_instructors csi1 WHERE csi1.class_id = tcw.class_id_1 AND csi1.instructor_id = $1) THEN NOT tcw.instructor_1_approved
+          WHEN EXISTS (SELECT 1 FROM class_section_instructors csi2 WHERE csi2.class_id = tcw.class_id_2 AND csi2.instructor_id = $1) THEN NOT tcw.instructor_2_approved
+          ELSE FALSE
+        END AS needs_approval
+      FROM time_conflict_waivers tcw
+      JOIN users u_student ON u_student.user_id = tcw.student_user_id
+      JOIN class_sections cs1 ON cs1.class_id = tcw.class_id_1
+      JOIN courses c1 ON c1.course_id = cs1.course_id
+      JOIN terms t1 ON t1.term_id = cs1.term_id
+      JOIN class_sections cs2 ON cs2.class_id = tcw.class_id_2
+      JOIN courses c2 ON c2.course_id = cs2.course_id
+      JOIN terms t2 ON t2.term_id = cs2.term_id
+      WHERE tcw.status = 'pending'
+        AND (
+          (EXISTS (SELECT 1 FROM class_section_instructors csi1 WHERE csi1.class_id = tcw.class_id_1 AND csi1.instructor_id = $1) AND NOT tcw.instructor_1_approved)
+          OR
+          (EXISTS (SELECT 1 FROM class_section_instructors csi2 WHERE csi2.class_id = tcw.class_id_2 AND csi2.instructor_id = $1) AND NOT tcw.instructor_2_approved)
+        )
+      ORDER BY tcw.requested_at DESC
+    ` : `
+      SELECT DISTINCT
+        tcw.waiver_id,
+        tcw.student_user_id,
+        tcw.class_id_1,
+        tcw.class_id_2,
+        tcw.instructor_1_approved,
+        tcw.instructor_2_approved,
+        tcw.advisor_approved,
+        tcw.status,
+        tcw.requested_at,
+        -- Student info
+        u_student.first_name AS student_first_name,
+        u_student.last_name AS student_last_name,
+        u_student.email AS student_email,
+        -- Class 1 info
+        c1.subject AS class1_subject,
+        c1.course_num AS class1_course_num,
+        c1.title AS class1_title,
+        cs1.section_num AS class1_section_num,
+        cs1.meeting_days AS class1_meeting_days,
+        cs1.meeting_times AS class1_meeting_times,
+        t1.semester AS class1_semester,
+        t1.year AS class1_year,
+        -- Class 2 info
+        c2.subject AS class2_subject,
+        c2.course_num AS class2_course_num,
+        c2.title AS class2_title,
+        cs2.section_num AS class2_section_num,
+        cs2.meeting_days AS class2_meeting_days,
+        cs2.meeting_times AS class2_meeting_times,
+        t2.semester AS class2_semester,
+        t2.year AS class2_year,
+        -- Determine which class this instructor teaches
+        CASE 
+          WHEN cs1.instructor_id = $1 THEN 1
+          WHEN cs2.instructor_id = $1 THEN 2
+          ELSE NULL
+        END AS instructor_class_number,
+        CASE 
+          WHEN cs1.instructor_id = $1 THEN NOT tcw.instructor_1_approved
+          WHEN cs2.instructor_id = $1 THEN NOT tcw.instructor_2_approved
+          ELSE FALSE
+        END AS needs_approval
+      FROM time_conflict_waivers tcw
+      JOIN users u_student ON u_student.user_id = tcw.student_user_id
+      JOIN class_sections cs1 ON cs1.class_id = tcw.class_id_1
+      JOIN courses c1 ON c1.course_id = cs1.course_id
+      JOIN terms t1 ON t1.term_id = cs1.term_id
+      JOIN class_sections cs2 ON cs2.class_id = tcw.class_id_2
+      JOIN courses c2 ON c2.course_id = cs2.course_id
+      JOIN terms t2 ON t2.term_id = cs2.term_id
+      WHERE tcw.status = 'pending'
+        AND (
+          (cs1.instructor_id = $1 AND NOT tcw.instructor_1_approved)
+          OR
+          (cs2.instructor_id = $1 AND NOT tcw.instructor_2_approved)
+        )
+      ORDER BY tcw.requested_at DESC
+    `;
+
+    const result = await req.db.query(query, [userId]);
+
+    const waivers = result.rows.map(row => ({
+      waiverId: row.waiver_id,
+      studentId: row.student_user_id,
+      studentName: `${row.student_first_name} ${row.student_last_name}`,
+      studentEmail: row.student_email,
+      class1: {
+        classId: row.class_id_1,
+        courseCode: `${row.class1_subject} ${row.class1_course_num}`,
+        courseTitle: row.class1_title,
+        sectionNum: row.class1_section_num,
+        meetingDays: row.class1_meeting_days,
+        meetingTimes: row.class1_meeting_times,
+        term: `${row.class1_semester} ${row.class1_year}`,
+      },
+      class2: {
+        classId: row.class_id_2,
+        courseCode: `${row.class2_subject} ${row.class2_course_num}`,
+        courseTitle: row.class2_title,
+        sectionNum: row.class2_section_num,
+        meetingDays: row.class2_meeting_days,
+        meetingTimes: row.class2_meeting_times,
+        term: `${row.class2_semester} ${row.class2_year}`,
+      },
+      instructorClassNumber: row.instructor_class_number,
+      instructor1Approved: row.instructor_1_approved,
+      instructor2Approved: row.instructor_2_approved,
+      advisorApproved: row.advisor_approved,
+      status: row.status,
+      requestedAt: row.requested_at,
+    }));
+
+    return res.json({ ok: true, waivers });
+  } catch (err) {
+    console.error('[registration/time-conflict-waiver/pending-instructor]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// GET endpoint for advisors to view pending time conflict waivers
+router.get('/time-conflict-waiver/pending-advisor', async (req, res) => {
+  const userRole = getUserRole(req);
+  const userId = req.user?.user_id ?? req.user?.userId ?? null;
+
+  if (userRole !== 'Advisor') {
+    return res.status(403).json({ ok: false, error: 'Only advisors can view advisor pending waivers' });
+  }
+
+  try {
+    // Get all pending waivers where advisor hasn't approved yet
+    // Then filter by advisor scope using canAdvisorPlaceHold logic
+    const query = `
+      SELECT
+        tcw.waiver_id,
+        tcw.student_user_id,
+        tcw.class_id_1,
+        tcw.class_id_2,
+        tcw.instructor_1_approved,
+        tcw.instructor_2_approved,
+        tcw.advisor_approved,
+        tcw.status,
+        tcw.requested_at,
+        -- Student info
+        u_student.first_name AS student_first_name,
+        u_student.last_name AS student_last_name,
+        u_student.email AS student_email,
+        -- Class 1 info
+        c1.subject AS class1_subject,
+        c1.course_num AS class1_course_num,
+        c1.title AS class1_title,
+        cs1.section_num AS class1_section_num,
+        cs1.meeting_days AS class1_meeting_days,
+        cs1.meeting_times AS class1_meeting_times,
+        t1.semester AS class1_semester,
+        t1.year AS class1_year,
+        -- Class 2 info
+        c2.subject AS class2_subject,
+        c2.course_num AS class2_course_num,
+        c2.title AS class2_title,
+        cs2.section_num AS class2_section_num,
+        cs2.meeting_days AS class2_meeting_days,
+        cs2.meeting_times AS class2_meeting_times,
+        t2.semester AS class2_semester,
+        t2.year AS class2_year
+      FROM time_conflict_waivers tcw
+      JOIN users u_student ON u_student.user_id = tcw.student_user_id
+      JOIN class_sections cs1 ON cs1.class_id = tcw.class_id_1
+      JOIN courses c1 ON c1.course_id = cs1.course_id
+      JOIN terms t1 ON t1.term_id = cs1.term_id
+      JOIN class_sections cs2 ON cs2.class_id = tcw.class_id_2
+      JOIN courses c2 ON c2.course_id = cs2.course_id
+      JOIN terms t2 ON t2.term_id = cs2.term_id
+      WHERE tcw.status = 'pending'
+        AND NOT tcw.advisor_approved
+      ORDER BY tcw.requested_at DESC
+    `;
+
+    const result = await req.db.query(query);
+
+    // Filter waivers by advisor scope
+    const filteredWaivers = [];
+    for (const row of result.rows) {
+      const canApprove = await canAdvisorPlaceHold(req.db, userId, row.student_user_id);
+      if (canApprove) {
+        filteredWaivers.push({
+          waiverId: row.waiver_id,
+          studentId: row.student_user_id,
+          studentName: `${row.student_first_name} ${row.student_last_name}`,
+          studentEmail: row.student_email,
+          class1: {
+            classId: row.class_id_1,
+            courseCode: `${row.class1_subject} ${row.class1_course_num}`,
+            courseTitle: row.class1_title,
+            sectionNum: row.class1_section_num,
+            meetingDays: row.class1_meeting_days,
+            meetingTimes: row.class1_meeting_times,
+            term: `${row.class1_semester} ${row.class1_year}`,
+          },
+          class2: {
+            classId: row.class_id_2,
+            courseCode: `${row.class2_subject} ${row.class2_course_num}`,
+            courseTitle: row.class2_title,
+            sectionNum: row.class2_section_num,
+            meetingDays: row.class2_meeting_days,
+            meetingTimes: row.class2_meeting_times,
+            term: `${row.class2_semester} ${row.class2_year}`,
+          },
+          instructor1Approved: row.instructor_1_approved,
+          instructor2Approved: row.instructor_2_approved,
+          advisorApproved: row.advisor_approved,
+          status: row.status,
+          requestedAt: row.requested_at,
+        });
+      }
+    }
+
+    return res.json({ ok: true, waivers: filteredWaivers });
+  } catch (err) {
+    console.error('[registration/time-conflict-waiver/pending-advisor]', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

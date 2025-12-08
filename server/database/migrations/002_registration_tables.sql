@@ -14,14 +14,18 @@
 
 -- 1. Time Conflict Waivers Table
 -- Note: The existing 'waivers' table is generic, but we need specific fields for time conflicts
+-- Note: This schema was updated in migration 011 to require two separate instructor approvals
 CREATE TABLE IF NOT EXISTS time_conflict_waivers (
     waiver_id SERIAL PRIMARY KEY,
     student_user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     class_id_1 INTEGER NOT NULL REFERENCES class_sections(class_id) ON DELETE CASCADE,
     class_id_2 INTEGER NOT NULL REFERENCES class_sections(class_id) ON DELETE CASCADE,
-    instructor_approved BOOLEAN DEFAULT FALSE,
-    instructor_approved_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
-    instructor_approved_at TIMESTAMP,
+    instructor_1_approved BOOLEAN DEFAULT FALSE,
+    instructor_1_approved_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+    instructor_1_approved_at TIMESTAMP,
+    instructor_2_approved BOOLEAN DEFAULT FALSE,
+    instructor_2_approved_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+    instructor_2_approved_at TIMESTAMP,
     advisor_approved BOOLEAN DEFAULT FALSE,
     advisor_approved_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
     advisor_approved_at TIMESTAMP,

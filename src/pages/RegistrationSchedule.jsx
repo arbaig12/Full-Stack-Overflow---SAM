@@ -18,6 +18,8 @@ export default function RegistrationSchedule() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
+  const [timeConflictInfo, setTimeConflictInfo] = useState(null);
+  const [waiverRequestLoading, setWaiverRequestLoading] = useState(false);
 
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 50;
@@ -324,6 +326,7 @@ export default function RegistrationSchedule() {
 
       const conflict = findScheduleConflict(section);
       if (conflict) {
+        setTimeConflictInfo(null);
         setError(
           `Schedule conflict: ${section.courseCode} (${section.scheduleText || "time TBA"}) ` +
             `overlaps with ${conflict.courseCode} (${conflict.scheduleText || "time TBA"}).`
@@ -341,10 +344,24 @@ export default function RegistrationSchedule() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || data.ok === false) {
+        // Check if this is a time conflict error that requires a waiver
+        if (data.timeConflict && data.error?.includes('Time conflict waiver required')) {
+          setTimeConflictInfo({
+            newClassId: section.classId,
+            conflictingClassId: data.timeConflict.conflictingClassId,
+            conflictingCourseCode: data.timeConflict.conflictingCourseCode,
+            newCourseCode: section.courseCode,
+          });
+        } else {
+          setTimeConflictInfo(null);
+        }
         throw new Error(
           data.error || `Failed to register for ${section.courseCode}.`
         );
       }
+
+      // Clear time conflict info on successful enrollment
+      setTimeConflictInfo(null);
 
       const { enrollment, updatedSection, waitlisted, message: responseMessage } = data;
 
@@ -372,6 +389,45 @@ export default function RegistrationSchedule() {
       setError(e.message || "Failed to register.");
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleRequestWaiver = async () => {
+    if (!timeConflictInfo) return;
+
+    try {
+      setWaiverRequestLoading(true);
+      setError("");
+      setMessage("");
+
+      const res = await fetch("/api/registration/time-conflict-waiver/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          classId1: timeConflictInfo.newClassId,
+          classId2: timeConflictInfo.conflictingClassId,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || "Failed to request time conflict waiver.");
+      }
+
+      setMessage(
+        data.message || 
+        `Time conflict waiver requested for ${timeConflictInfo.newCourseCode} and ${timeConflictInfo.conflictingCourseCode}. ` +
+        `The waiver requires approval from both instructors and an advisor.`
+      );
+      setTimeConflictInfo(null);
+      setError("");
+    } catch (e) {
+      console.error(e);
+      setError(e.message || "Failed to request waiver.");
+    } finally {
+      setWaiverRequestLoading(false);
     }
   };
 
@@ -584,7 +640,29 @@ export default function RegistrationSchedule() {
             fontSize: 14,
           }}
         >
-          {error || message}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+            <span>{error || message}</span>
+            {timeConflictInfo && error && (
+              <button
+                onClick={handleRequestWaiver}
+                disabled={waiverRequestLoading}
+                style={{
+                  padding: "6px 16px",
+                  border: "none",
+                  borderRadius: 6,
+                  background: "#1976d2",
+                  color: "white",
+                  cursor: waiverRequestLoading ? "not-allowed" : "pointer",
+                  fontWeight: "bold",
+                  fontSize: 13,
+                  whiteSpace: "nowrap",
+                  opacity: waiverRequestLoading ? 0.7 : 1,
+                }}
+              >
+                {waiverRequestLoading ? "Requesting..." : "Request Waiver"}
+              </button>
+            )}
+          </div>
         </div>
       )}
 
