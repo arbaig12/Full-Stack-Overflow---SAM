@@ -27,6 +27,7 @@ import registrationScheduleRoutes from './routes/registrationScheduleRoutes.js';
 import studentProgramRoutes from './routes/studentProgramRoutes.js';
 import waiversHoldsRoutes from './routes/waiversHoldsRoutes.js';
 import auditLogRoutes from './routes/auditLogRoutes.js';
+import currentDateRoutes from './routes/currentDateRoutes.js';
 import authUser from "./middleware/authUser.js";
 
 
@@ -111,6 +112,7 @@ app.use('/api/registration', registrationScheduleRoutes);
 app.use('/api/student-programs', studentProgramRoutes);
 app.use('/api/waivers-holds', waiversHoldsRoutes);
 app.use('/api/audit-log', auditLogRoutes);
+app.use('/api/current-date', currentDateRoutes);
 app.use("/api/auth", authRoutes);
 
 

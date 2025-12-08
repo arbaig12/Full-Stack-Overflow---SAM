@@ -1,5 +1,6 @@
 // server/routes/studentProgramRoutes.js
 import express from 'express';
+import { getCurrentDate } from '../utils/dateWrapper.js';
 
 const router = express.Router();
 
@@ -14,6 +15,85 @@ function getStudentId(req) {
     req.session?.user?.user_id ??
     null
   );
+}
+
+/**
+ * Helper function to check if major/minor changes are currently allowed
+ * based on academic calendar dates.
+ * 
+ * Changes are allowed if the current date falls within any academic calendar's
+ * major/minor changes window (between major_and_minor_changes_begin and major_and_minor_changes_end).
+ * 
+ * @param {Object} db - Database connection
+ * @returns {Promise<{allowed: boolean, reason?: string}>}
+ */
+async function checkMajorMinorChangeAllowed(db) {
+  try {
+    const currentDate = getCurrentDate();
+    
+    // Query all academic calendars to find any active window
+    const calendarQuery = `
+      SELECT 
+        major_and_minor_changes_begin,
+        major_and_minor_changes_end,
+        term->>'semester' AS semester,
+        term->>'year' AS year
+      FROM academic_calendar
+      WHERE major_and_minor_changes_begin IS NOT NULL 
+        AND major_and_minor_changes_end IS NOT NULL
+    `;
+    
+    const result = await db.query(calendarQuery);
+    
+    // Check if current date falls within any active window
+    for (const calendar of result.rows) {
+      const beginDate = new Date(calendar.major_and_minor_changes_begin);
+      const endDate = new Date(calendar.major_and_minor_changes_end);
+      
+      // Set time to start of day for comparison
+      beginDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+      const today = new Date(currentDate);
+      today.setHours(0, 0, 0, 0);
+      
+      if (today >= beginDate && today <= endDate) {
+        return { allowed: true };
+      }
+    }
+    
+    // No active window found
+    // Find the next available window to provide helpful error message
+    let nextWindow = null;
+    for (const calendar of result.rows) {
+      const beginDate = new Date(calendar.major_and_minor_changes_begin);
+      beginDate.setHours(0, 0, 0, 0);
+      const today = new Date(currentDate);
+      today.setHours(0, 0, 0, 0);
+      
+      if (beginDate > today && (!nextWindow || beginDate < nextWindow.date)) {
+        nextWindow = {
+          date: beginDate,
+          term: `${calendar.semester} ${calendar.year}`
+        };
+      }
+    }
+    
+    if (nextWindow) {
+      return {
+        allowed: false,
+        reason: `Major/minor changes are not currently permitted. The next window opens on ${nextWindow.date.toLocaleDateString()} for ${nextWindow.term}.`
+      };
+    }
+    
+    return {
+      allowed: false,
+      reason: 'Major/minor changes are not currently permitted. No change window is currently active.'
+    };
+  } catch (e) {
+    console.error('[student-programs] Error checking major/minor change window:', e);
+    // On error, be permissive (don't block changes if we can't check)
+    return { allowed: true };
+  }
 }
 
 /**
@@ -284,6 +364,16 @@ router.post('/add', async (req, res) => {
       });
     }
 
+    // Check if major/minor changes are currently allowed based on academic calendar
+    const changeCheck = await checkMajorMinorChangeAllowed(db);
+    if (!changeCheck.allowed) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({
+        ok: false,
+        error: changeCheck.reason || 'Major/minor changes are not currently permitted',
+      });
+    }
+
     // 4) Insert declaration (DB constraint is second line of defense)
     await client.query(
       `
@@ -363,6 +453,15 @@ router.post('/drop', async (req, res) => {
   const db = req.db;
 
   try {
+    // Check if major/minor changes are currently allowed based on academic calendar
+    const changeCheck = await checkMajorMinorChangeAllowed(db);
+    if (!changeCheck.allowed) {
+      return res.status(403).json({
+        ok: false,
+        error: changeCheck.reason || 'Major/minor changes are not currently permitted',
+      });
+    }
+
     await db.query(
       `
       DELETE FROM student_programs

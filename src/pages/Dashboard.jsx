@@ -9,8 +9,46 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
 
+  // Fetch SAM's current date from backend and update display
   useEffect(() => {
-    const timer = setInterval(() => setCurrentDate(new Date()), 1000);
+    const fetchSystemDate = async () => {
+      try {
+        const res = await fetch('/api/current-date', {
+          credentials: 'include'
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ok && data.currentDateObject) {
+            // Parse the system date from backend
+            const systemDate = new Date(data.currentDateObject);
+            // Get current browser time to preserve the time display
+            const now = new Date();
+            // Combine: use system date but add current time of day
+            const displayDate = new Date(systemDate);
+            displayDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+            setCurrentDate(displayDate);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching system date:', err);
+        // Fallback to actual date if API fails
+        setCurrentDate(new Date());
+      }
+    };
+
+    // Fetch initial date
+    fetchSystemDate();
+
+    // Update every second (increment time but keep the base date from system)
+    const timer = setInterval(() => {
+      setCurrentDate(prev => {
+        // Increment the time by 1 second while keeping the date
+        const updated = new Date(prev);
+        updated.setSeconds(updated.getSeconds() + 1);
+        return updated;
+      });
+    }, 1000);
+
     return () => clearInterval(timer);
   }, []);
 
