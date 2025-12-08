@@ -2,18 +2,44 @@ import express from "express";
 const router = express.Router();
 
 const GRADE_POINTS = {
-  "A+": 4.0, "A": 4.0, "A-": 3.7,
-  "B+": 3.3, "B": 3.0, "B-": 2.7,
-  "C+": 2.3, "C": 2.0, "C-": 1.7,
-  "D+": 1.3, "D": 1.0, "D-": 0.7,
-  "F": 0.0,
+  "A+": 4.0,
+  A: 4.0,
+  "A-": 3.7,
+  "B+": 3.3,
+  B: 3.0,
+  "B-": 2.7,
+  "C+": 2.3,
+  C: 2.0,
+  "C-": 1.7,
+  "D+": 1.3,
+  D: 1.0,
+  "D-": 0.7,
+  F: 0.0,
 };
 
 const UNIVERSITY_GRAD_REQ = {
   minimumCredits: 120,
   sbcs: [
-    "ARTS","GLO","HUM","LANG","QPS","SBS","SNW","TECH","USA","WRT",
-    "STAS","EXP+","HFA+","SBS+","STEM+","CER","DIV","ESI","SPK","WRTD",
+    "ARTS",
+    "GLO",
+    "HUM",
+    "LANG",
+    "QPS",
+    "SBS",
+    "SNW",
+    "TECH",
+    "USA",
+    "WRT",
+    "STAS",
+    "EXP+",
+    "HFA+",
+    "SBS+",
+    "STEM+",
+    "CER",
+    "DIV",
+    "ESI",
+    "SPK",
+    "WRTD",
   ],
 };
 
@@ -30,10 +56,8 @@ const normLower = (x) => {
 function normProgramType(x) {
   const t = normLower(x);
   if (!t) return null;
-  if (t === "major" || t === "maj" || t === "ma") return "major";
-  if (t === "minor" || t === "min" || t === "mi") return "minor";
-  if (t === "majors") return "major";
-  if (t === "minors") return "minor";
+  if (t === "major" || t === "maj" || t === "ma" || t === "majors") return "major";
+  if (t === "minor" || t === "min" || t === "mi" || t === "minors") return "minor";
   return t;
 }
 
@@ -63,7 +87,7 @@ function extractSbcCodes(sbcField) {
   try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) return parsed.map(normStr).filter(Boolean);
-  } catch (_) {}
+  } catch {}
 
   return raw
     .replace(/partially fulfills:/i, "")
@@ -314,11 +338,7 @@ function groupStatusFromCourses(courses, requiredCount, mode) {
 
 function buildGroupsForProgram(reqObj, enrollments, enrollmentIdx, courseInfoMap, programId) {
   const groups = [];
-  const requiredList =
-    reqObj?.required_courses ??
-    reqObj?.requiredCourses ??
-    reqObj?.required ??
-    [];
+  const requiredList = reqObj?.required_courses ?? reqObj?.requiredCourses ?? reqObj?.required ?? [];
 
   const coreCodes = Array.isArray(requiredList) ? requiredList : [];
   const coreItems = coreCodes.map((c) => buildCourseNode(c, enrollmentIdx, courseInfoMap));
@@ -412,7 +432,7 @@ function buildGroupsForProgram(reqObj, enrollments, enrollmentIdx, courseInfoMap
         };
       });
 
-      const completed = steps.every((s) => !!s.status.completed);
+      const completed = steps.length > 0 && steps.every((s) => !!s.status.completed);
       const inProgress = !completed && steps.some((s) => s.status.inProgress || s.status.completed);
 
       groups.push({
@@ -447,9 +467,7 @@ function buildGroupsForProgram(reqObj, enrollments, enrollmentIdx, courseInfoMap
 
       if (rawVal.min_credits != null) {
         const minCredits = Number(rawVal.min_credits) || 0;
-        const additional = Array.isArray(rawVal.additional_allowed_courses)
-          ? rawVal.additional_allowed_courses
-          : [];
+        const additional = Array.isArray(rawVal.additional_allowed_courses) ? rawVal.additional_allowed_courses : [];
 
         const allowed = new Set();
         for (const g of optionGroups) {
@@ -657,7 +675,7 @@ router.get("/progress", async (req, res) => {
 
     const { rows: drRows } = await db.query(
       `
-      SELECT id, subject, degree_type, program_type, degree_requirements
+      SELECT id, subject, degree_type, program_type, degree_requirements, effective_term, admission_requirements
       FROM degree_requirements
       `
     );
@@ -679,9 +697,7 @@ router.get("/progress", async (req, res) => {
             normProgramType(r.program_type) === programType
         );
         if (!dr) {
-          dr = drRows.find(
-            (r) => normUpper(r.subject) === inf.subject && normUpper(r.degree_type) === inf.degreeType
-          );
+          dr = drRows.find((r) => normUpper(r.subject) === inf.subject && normUpper(r.degree_type) === inf.degreeType);
         }
       }
 
@@ -766,6 +782,93 @@ router.get("/progress", async (req, res) => {
     });
   } catch (err) {
     console.error("[degree/progress] error:", err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+router.get("/degree-requirements", async (req, res) => {
+  const studentId = getStudentId(req);
+  if (!studentId) return res.status(401).json({ ok: false, error: "Not authenticated" });
+
+  try {
+    const db = req.db;
+
+    const { rows } = await db.query(
+      `
+      SELECT
+        id,
+        subject,
+        degree_type,
+        program_type,
+        effective_term,
+        updated_at
+      FROM degree_requirements
+      ORDER BY subject ASC, degree_type ASC, id ASC
+      `
+    );
+
+    const degreeRequirements = rows.map((r) => ({
+      id: r.id,
+      subject: r.subject ?? null,
+      degreeType: r.degree_type ?? null,
+      programType: normProgramType(r.program_type) ?? r.program_type ?? null,
+      effectiveTerm: safeJson(r.effective_term),
+      updatedAt: r.updated_at ?? null,
+    }));
+
+    return res.json({ ok: true, degreeRequirements });
+  } catch (err) {
+    console.error("[degree] GET /degree-requirements failed:", err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+router.get("/degree-requirements/:id", async (req, res) => {
+  const studentId = getStudentId(req);
+  if (!studentId) return res.status(401).json({ ok: false, error: "Not authenticated" });
+
+  try {
+    const db = req.db;
+    const id = parseInt(req.params.id, 10);
+
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ ok: false, error: "Invalid id" });
+    }
+
+    const { rows } = await db.query(
+      `
+      SELECT 
+        id,
+        subject,
+        degree_type,
+        program_type,
+        effective_term,
+        admission_requirements,
+        degree_requirements
+      FROM degree_requirements
+      WHERE id = $1
+      `,
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ ok: false, error: "Degree requirements not found" });
+    }
+
+    const row = rows[0];
+
+    return res.json({
+      ok: true,
+      id: row.id,
+      subject: row.subject,
+      degreeType: row.degree_type,
+      programType: normProgramType(row.program_type) ?? row.program_type,
+      effectiveTerm: safeJson(row.effective_term),
+      admissionRequirements: safeJson(row.admission_requirements),
+      degreeRequirements: safeJson(row.degree_requirements),
+    });
+  } catch (err) {
+    console.error("[degree] GET /degree-requirements/:id failed:", err);
     return res.status(500).json({ ok: false, error: err.message });
   }
 });
