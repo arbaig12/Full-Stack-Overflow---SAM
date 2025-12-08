@@ -11,6 +11,9 @@ export default function RegistrationSchedule() {
   const [enrollments, setEnrollments] = useState([]);
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterSubject, setFilterSubject] = useState("");
+  const [filterCourseNum, setFilterCourseNum] = useState("");
+  const [filterDays, setFilterDays] = useState({ M: false, T: false, W: false, R: false, F: false });
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -76,40 +79,78 @@ export default function RegistrationSchedule() {
   useEffect(() => {
     async function loadRegistrationData() {
       try {
-        setLoading(true);
         setError("");
         setMessage("");
 
-        const res = await fetch("/api/registration/init", {
-          credentials: "include",
-        });
+        // Try to load from registration/init (requires auth)
+        let termsData = [];
+        let enrollmentsData = [];
+        let currentTermData = null;
 
-        if (!res.ok) {
-          throw new Error(`Failed to load registration data (HTTP ${res.status})`);
+        try {
+          const res = await fetch("/api/registration/init", {
+            credentials: "include",
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data.ok !== false) {
+              termsData = data.terms || [];
+              enrollmentsData = data.enrollments || [];
+              currentTermData = data.systemState?.currentTerm;
+            }
+          } else if (res.status === 401) {
+            // Not authenticated - try to load terms from public endpoint
+            console.log("Not authenticated, trying public terms endpoint");
+            try {
+              const termsRes = await fetch("/api/calendar/terms", {
+                credentials: "include",
+              });
+              if (termsRes.ok) {
+                const termsData_res = await termsRes.json();
+                if (termsData_res.ok && termsData_res.terms) {
+                  termsData = termsData_res.terms;
+                }
+              }
+            } catch (termsErr) {
+              console.log("Could not load terms from calendar endpoint");
+            }
+          }
+        } catch (e) {
+          // If registration/init fails, try calendar/terms as fallback
+          console.log("Registration init failed, trying calendar terms");
+          try {
+            const termsRes = await fetch("/api/calendar/terms", {
+              credentials: "include",
+            });
+            if (termsRes.ok) {
+              const termsData_res = await termsRes.json();
+              if (termsData_res.ok && termsData_res.terms) {
+                termsData = termsData_res.terms;
+              }
+            }
+          } catch (termsErr) {
+            console.error("Could not load terms:", termsErr);
+          }
         }
 
-        const data = await res.json();
-        if (data.ok === false) {
-          throw new Error(data.error || "Failed to load registration data.");
-        }
+        setTerms(termsData);
+        setEnrollments(enrollmentsData);
 
-        const { systemState, terms = [], sections = [], enrollments = [] } = data;
-
-        setTerms(terms);
-        setSections(sections);
-        setEnrollments(enrollments);
-
-        const current = systemState?.currentTerm;
-        if (current?.termId) {
-          setCurrentTermId(String(current.termId));
-          setSelectedTermId(String(current.termId));
-        } else if (terms.length > 0) {
-          setCurrentTermId(String(terms[0].termId));
-          setSelectedTermId(String(terms[0].termId));
+        // Set selected term
+        if (currentTermData?.termId) {
+          setCurrentTermId(String(currentTermData.termId));
+          setSelectedTermId(String(currentTermData.termId));
+        } else if (termsData.length > 0) {
+          setCurrentTermId(String(termsData[0].termId));
+          setSelectedTermId(String(termsData[0].termId));
         }
       } catch (e) {
         console.error(e);
-        setError(e.message || "Failed to load registration data.");
+        // Don't show error if it's just an auth issue - we can still view sections
+        if (!e.message?.includes("401")) {
+          setError(e.message || "Failed to load registration data.");
+        }
       } finally {
         setLoading(false);
       }
@@ -120,7 +161,79 @@ export default function RegistrationSchedule() {
 
   useEffect(() => {
     setPage(1);
-  }, [selectedTermId, searchTerm, activeTab]);
+  }, [selectedTermId, searchTerm, filterSubject, filterCourseNum, filterDays, activeTab]);
+
+  // Load sections with filters when filters or term changes
+  useEffect(() => {
+    async function loadSectionsWithFilters() {
+      if (!selectedTermId) {
+        setSections([]);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError("");
+
+        // Build query params
+        const params = new URLSearchParams({ term_id: selectedTermId });
+        if (filterSubject) params.append('subject', filterSubject.toUpperCase());
+        if (filterCourseNum) params.append('course_num', filterCourseNum);
+        
+        // Build days filter (e.g., "M,W" for Monday and Wednesday)
+        // Backend stores days as "MW", "TR", etc., so we send single letters
+        const selectedDays = Object.keys(filterDays).filter(day => filterDays[day]);
+        if (selectedDays.length > 0) {
+          const daysStr = selectedDays.join(',');
+          params.append('days', daysStr);
+        }
+
+        const res = await fetch(`/api/schedule/sections?${params.toString()}`, {
+          credentials: "include",
+        });
+
+        if (!res.ok) {
+          throw new Error(`Failed to load sections (HTTP ${res.status})`);
+        }
+
+        const data = await res.json();
+        if (data.ok === false) {
+          throw new Error(data.error || "Failed to load sections.");
+        }
+
+        // Transform sections to match the format expected by the component
+        const transformedSections = (data.sections || []).map(sec => ({
+          classId: sec.classId,
+          termId: sec.termId,
+          sectionNum: sec.sectionNumber,
+          courseCode: sec.courseCode,
+          courseTitle: sec.title,
+          credits: sec.credits,
+          instructorName: sec.instructor?.name || null,
+          scheduleText: sec.meetingDays && sec.meetingTimes 
+            ? `${sec.meetingDays} ${sec.meetingTimes}` 
+            : sec.meetingDays || sec.meetingTimes || 'TBA',
+          meetingDays: sec.meetingDays,
+          meetingTimes: sec.meetingTimes,
+          roomLabel: sec.location || 'TBA',
+          capacity: sec.capacity,
+          enrolledCount: sec.enrolled || 0,
+          sbc: sec.sbc || '',
+        }));
+
+        setSections(transformedSections);
+      } catch (e) {
+        console.error(e);
+        setError(e.message || "Failed to load sections.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (activeTab === "register") {
+      loadSectionsWithFilters();
+    }
+  }, [selectedTermId, filterSubject, filterCourseNum, filterDays, activeTab]);
 
   const getTermLabel = (termId) => {
     const t = terms.find((term) => String(term.termId) === String(termId));
@@ -154,14 +267,13 @@ export default function RegistrationSchedule() {
 
   const filteredSections = useMemo(() => {
     return sections.filter((sec) => {
-      const sameTerm = String(sec.termId) === String(selectedTermId);
       const matchesSearch =
         sec.courseTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
         sec.courseCode.toLowerCase().includes(searchTerm.toLowerCase());
       const notAlreadyEnrolled = !enrolledClassIds.has(String(sec.classId));
-      return sameTerm && matchesSearch && notAlreadyEnrolled;
+      return matchesSearch && notAlreadyEnrolled;
     });
-  }, [sections, selectedTermId, searchTerm, enrolledClassIds]);
+  }, [sections, searchTerm, enrolledClassIds]);
 
   const totalPages = Math.max(1, Math.ceil(filteredSections.length / PAGE_SIZE));
 
@@ -503,23 +615,106 @@ export default function RegistrationSchedule() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr",
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
               gap: 16,
               marginBottom: 24,
             }}
           >
-            <input
-              type="text"
-              placeholder="Search by course code or title..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{
-                padding: "8px 12px",
-                border: "1px solid #ddd",
-                borderRadius: 6,
-                fontSize: 14,
-              }}
-            />
+            <div>
+              <label style={{ display: "block", marginBottom: 4, fontWeight: "bold", fontSize: 14 }}>
+                Search by course code or title
+              </label>
+              <input
+                type="text"
+                placeholder="e.g., CSE 416..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  border: "1px solid #ddd",
+                  borderRadius: 6,
+                  fontSize: 14,
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: "block", marginBottom: 4, fontWeight: "bold", fontSize: 14 }}>
+                Subject
+              </label>
+              <input
+                type="text"
+                placeholder="e.g., CSE"
+                value={filterSubject}
+                onChange={(e) => setFilterSubject(e.target.value.toUpperCase())}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  border: "1px solid #ddd",
+                  borderRadius: 6,
+                  fontSize: 14,
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: "block", marginBottom: 4, fontWeight: "bold", fontSize: 14 }}>
+                Course Number
+              </label>
+              <input
+                type="text"
+                placeholder="e.g., 416"
+                value={filterCourseNum}
+                onChange={(e) => setFilterCourseNum(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  border: "1px solid #ddd",
+                  borderRadius: 6,
+                  fontSize: 14,
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: "block", marginBottom: 4, fontWeight: "bold", fontSize: 14 }}>
+                Days of Week
+              </label>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[
+                  { key: "M", label: "Mon" },
+                  { key: "T", label: "Tue" },
+                  { key: "W", label: "Wed" },
+                  { key: "R", label: "Thu" },
+                  { key: "F", label: "Fri" },
+                ].map(({ key, label }) => (
+                  <label
+                    key={key}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                      cursor: "pointer",
+                      padding: "4px 8px",
+                      border: `1px solid ${filterDays[key] ? "#1976d2" : "#ddd"}`,
+                      borderRadius: 4,
+                      background: filterDays[key] ? "#e3f2fd" : "white",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={filterDays[key]}
+                      onChange={(e) =>
+                        setFilterDays((prev) => ({ ...prev, [key]: e.target.checked }))
+                      }
+                      style={{ cursor: "pointer" }}
+                    />
+                    <span style={{ fontSize: 13 }}>{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div style={{ display: "grid", gap: 16 }}>
@@ -553,7 +748,7 @@ export default function RegistrationSchedule() {
                         }}
                       >
                         <h3 style={{ margin: 0, fontSize: 18, color: "#333" }}>
-                          {sec.courseCode} – {sec.courseTitle} (Sec {sec.sectionNum})
+                          {sec.courseTitle} (Sec {sec.sectionNum})
                         </h3>
                         <span
                           style={{
@@ -588,6 +783,11 @@ export default function RegistrationSchedule() {
                         <div>
                           <strong>Room:</strong> {sec.roomLabel || "TBA"}
                         </div>
+                        {sec.sbc && (
+                          <div>
+                            <strong>SBCs:</strong> {sec.sbc}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -703,7 +903,7 @@ export default function RegistrationSchedule() {
                         }}
                       >
                         <h3 style={{ margin: 0, fontSize: 18, color: "#333" }}>
-                          {enr.courseCode} – {enr.courseTitle}
+                          {enr.courseTitle}
                         </h3>
                         <span
                           style={{
