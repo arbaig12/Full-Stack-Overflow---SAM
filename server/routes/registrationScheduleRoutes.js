@@ -612,7 +612,6 @@ router.get('/init', async (req, res) => {
         e.student_id,
         e.status,
         e.grade,
-        e.grading_basis,
         e.enrolled_at,
 
         cs.term_id,
@@ -674,7 +673,7 @@ router.get('/init', async (req, res) => {
 
             status: row.status,
             grade: row.grade,
-            gradingBasis: row.grading_basis,
+            gradingBasis: null, // grading_basis column doesn't exist in enrollments table
             enrolledAt: row.enrolled_at,
         };
     });
