@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 export default function MajorMinorRequests() {
   const [loading, setLoading] = useState(true);
@@ -29,13 +29,7 @@ export default function MajorMinorRequests() {
     fetchUserRole();
   }, []);
 
-  useEffect(() => {
-    if (userRole !== null) {
-      loadRequests();
-    }
-  }, [userRole]);
-
-  async function loadRequests() {
+  const loadRequests = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -70,7 +64,13 @@ export default function MajorMinorRequests() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [userRole]);
+
+  useEffect(() => {
+    if (userRole !== null) {
+      loadRequests();
+    }
+  }, [userRole, loadRequests]);
 
   const handleApprove = async (requestId) => {
     if (!window.confirm('Approve this request?')) return;

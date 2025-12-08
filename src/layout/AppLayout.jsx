@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, NavLink, useLocation } from 'react-router-dom';
+import { Outlet, NavLink } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
 export default function AppLayout() {
@@ -27,7 +27,6 @@ export default function AppLayout() {
   }, []);
 
   const { user, signout } = useAuth();
-  const loc = useLocation();
   const brandText = {
     fontSize: 28,
     fontWeight: 800,
