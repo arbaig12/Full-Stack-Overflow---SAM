@@ -127,8 +127,6 @@ export default function AppLayout() {
                 <NavItem to="/app/plan">Schedule Planning</NavItem>
                 <NavItem to="/app/academicCalendar">Academic Calendar</NavItem>
                 <NavItem to="/app/studentProfile">Student Profile</NavItem>
-                <NavItem to="/app/waiversHolds">Waivers & Holds</NavItem>
-                <NavItem to="/app/auditLog">Audit Log</NavItem>
               </>
             ) : role === 'advisor' ? (
               <>
@@ -152,7 +150,6 @@ export default function AppLayout() {
                 <NavItem to="/app" end>Dashboard</NavItem>
                 <NavItem to="/app/catalog">Course Catalog</NavItem>
                 <NavItem to="/app/classManage">Manage Class Sections</NavItem>
-                <NavItem to="/app/degree">Degree Progress</NavItem>
                 <NavItem to="/app/degreeRequirements">Degree Requirements</NavItem>
                 <NavItem to="/app/rosters">Rosters & Grading</NavItem>
                 <NavItem to="/app/userManage">User Management</NavItem>

@@ -491,47 +491,10 @@ router.post("/users", upload.single("file"), async (req, res) => {
       });
     }
 
-    // Delete all existing user data before re-importing
-    // This ensures a clean slate and prevents duplicate/conflicting data
-    console.log("[API] Deleting all existing user data...");
-    const db = req.db;
-    const client = await db.connect();
-    
-    try {
-      await client.query('BEGIN');
-      
-      // Delete in order to respect foreign key constraints
-      // Delete child tables first (tables that reference users)
-      await client.query('DELETE FROM capacity_overrides');
-      await client.query('DELETE FROM department_permissions');
-      await client.query('DELETE FROM prerequisite_waivers');
-      await client.query('DELETE FROM time_conflict_waivers');
-      await client.query('DELETE FROM registration_holds');
-      await client.query('DELETE FROM major_minor_requests');
-      await client.query('DELETE FROM enrollments');
-      await client.query('DELETE FROM student_programs');
-      await client.query('DELETE FROM students');
-      await client.query('DELETE FROM instructors');
-      await client.query('DELETE FROM advisors');
-      // Note: class_sections.instructor_id references users, but we might want to keep class sections
-      // So we'll set instructor_id to NULL instead of deleting class sections
-      await client.query('UPDATE class_sections SET instructor_id = NULL WHERE instructor_id IS NOT NULL');
-      
-      // Finally, delete all users
-      await client.query('DELETE FROM users');
-      
-      await client.query('COMMIT');
-      console.log("[API] All existing user data deleted successfully");
-    } catch (deleteErr) {
-      await client.query('ROLLBACK');
-      console.error("[API] Error deleting existing user data:", deleteErr);
-      return res.status(500).json({
-        status: "error",
-        error: `Failed to delete existing user data: ${deleteErr.message}`,
-      });
-    } finally {
-      client.release();
-    }
+    // Note: We no longer delete all existing user data.
+    // Instead, we only update/insert users that are in the YAML file.
+    // Users not in the YAML file will remain unchanged in the database.
+    console.log("[API] Importing/updating users from YAML (existing users not in YAML will be preserved)...");
 
     const {
       registrars = [],
@@ -556,10 +519,10 @@ router.post("/users", upload.single("file"), async (req, res) => {
     }
 
     async function insertUser(obj, role) {
-      const { SBU_ID, first_name, last_name, email } = obj;
+      const { SBU_ID, first_name, last_name, email, password } = obj;
       
-      // Always set password to "password" for all users (demo/testing convenience)
-      const defaultPassword = "password";
+      // Use password from YAML if provided, otherwise default to "password"
+      const userPassword = password || "password";
 
       if (!SBU_ID || !email || !first_name || !last_name) {
         results.skipped++;
@@ -592,13 +555,13 @@ router.post("/users", upload.single("file"), async (req, res) => {
 
       if (check.rows.length > 0) {
         const existing = check.rows[0];
-        // If SBU_ID matches, always update password to default
+        // If SBU_ID matches, update password from YAML if provided
         if (String(existing.sbu_id) === String(SBU_ID)) {
-          // Always update password to default "password"
+          // Update password from YAML if provided
           try {
             await req.db.query(
               `UPDATE users SET password_hash = $1 WHERE user_id = $2`,
-              [defaultPassword, existing.user_id]
+              [userPassword, existing.user_id]
             );
             results.updated++;
           } catch (updateErr) {
@@ -610,11 +573,11 @@ router.post("/users", upload.single("file"), async (req, res) => {
         }
         // If email matches but SBU_ID is different, skip with warning
         if (existing.email && existing.email.toLowerCase() === email.toLowerCase()) {
-          // Always update password to default
+          // Update password from YAML if provided
           try {
             await req.db.query(
               `UPDATE users SET password_hash = $1 WHERE user_id = $2`,
-              [defaultPassword, existing.user_id]
+              [userPassword, existing.user_id]
             );
             results.updated++;
           } catch (updateErr) {
@@ -631,7 +594,7 @@ router.post("/users", upload.single("file"), async (req, res) => {
           `INSERT INTO users (sbu_id, first_name, last_name, email, role, password_hash)
            VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING user_id`,
-          [SBU_ID, first_name, last_name, email, role, defaultPassword]
+          [SBU_ID, first_name, last_name, email, role, userPassword]
         );
 
         results.inserted++;
@@ -650,7 +613,7 @@ router.post("/users", upload.single("file"), async (req, res) => {
             try {
               await req.db.query(
                 `UPDATE users SET password_hash = $1 WHERE user_id = $2`,
-                [defaultPassword, existingCheck.rows[0].user_id]
+                [userPassword, existingCheck.rows[0].user_id]
               );
               results.updated++;
             } catch (updateErr) {
@@ -724,214 +687,139 @@ router.post("/users", upload.single("file"), async (req, res) => {
     }
     
     /**
-     * Import student classes from YAML into enrollments table
+     * Import student class enrollments from YAML classes array
      */
     async function importStudentClasses(db, userId, studentObj, results) {
       try {
+        // Clean up old enrollments for this student before importing new ones
+        // This ensures the YAML file defines the complete set of enrollments for the student
+        await db.query(
+          `DELETE FROM enrollments WHERE student_id = $1`,
+          [userId]
+        );
+        
         const { classes = [] } = studentObj;
+        
         if (!Array.isArray(classes) || classes.length === 0) {
-          console.log(`[import] Student ${studentObj.SBU_ID}: No classes to import`);
           return; // No classes to import
         }
 
-        console.log(`[import] Student ${studentObj.SBU_ID}: Processing ${classes.length} classes`);
-        let importedCount = 0;
-        let skippedCount = 0;
-
         for (const classEntry of classes) {
-          const { class_id: yamlClassId, department, course_num, section, semester, year, credits, GPNC, grade } = classEntry;
-
-          console.log(`[import] Student ${studentObj.SBU_ID}: Processing class - class_id=${yamlClassId}, ${department} ${course_num}-${section}, ${semester} ${year}`);
-
-          if (!yamlClassId || !department || !course_num || !section || !semester || !year) {
-            skippedCount++;
-            const missingFields = [];
-            if (!yamlClassId) missingFields.push('class_id');
-            if (!department) missingFields.push('department');
-            if (!course_num) missingFields.push('course_num');
-            if (!section) missingFields.push('section');
-            if (!semester) missingFields.push('semester');
-            if (!year) missingFields.push('year');
-            console.log(`[import] Student ${studentObj.SBU_ID}: SKIP - Missing required fields: ${missingFields.join(', ')}`);
+          const { class_id, department, course_num, section, semester, year, credits, GPNC, grade } = classEntry;
+          
+          if (!class_id && (!department || !course_num || !section || !semester || !year)) {
             results.warnings.push(
-              `Student ${studentObj.SBU_ID}: Skipping class entry with missing required fields (${missingFields.join(', ')}): ${JSON.stringify(classEntry)}`
+              `Student ${studentObj.SBU_ID}: Skipping class entry with insufficient data: ${JSON.stringify(classEntry)}`
             );
             continue;
           }
 
           // Get or create the term_id (auto-create if missing)
-          console.log(`[import] Student ${studentObj.SBU_ID}: Looking up/creating term: ${semester} ${year}`);
-          const termId = await getOrCreateTerm(db, semester, year);
-          console.log(`[import] Student ${studentObj.SBU_ID}: Term ID: ${termId} for ${semester} ${year}`);
+          const termId = await getOrCreateTerm(req.db, semester, year);
+          let classSectionId = null;
 
-          // Find the course_id
-          console.log(`[import] Student ${studentObj.SBU_ID}: Looking up course: ${department} ${course_num}`);
-          const courseRes = await db.query(
-            `SELECT course_id FROM courses WHERE UPPER(subject) = UPPER($1) AND course_num = $2 LIMIT 1`,
-            [department, course_num]
-          );
-
-          if (courseRes.rows.length === 0) {
-            skippedCount++;
-            // Check if course exists with different case or similar
-            const similarCourses = await db.query(
-              `SELECT course_id, subject, course_num FROM courses WHERE UPPER(subject) LIKE UPPER($1) OR course_num = $2 LIMIT 5`,
-              [`%${department}%`, course_num]
+          // Try to find class_section by class_id first
+          if (class_id) {
+            const classRes = await db.query(
+              `SELECT class_id, course_id FROM class_sections WHERE class_id = $1 AND term_id = $2`,
+              [class_id, termId]
             );
-            console.log(`[import] Student ${studentObj.SBU_ID}: SKIP - Course not found for ${department} ${course_num}`);
-            if (similarCourses.rows.length > 0) {
-              console.log(`[import] Student ${studentObj.SBU_ID}: Similar courses found: ${JSON.stringify(similarCourses.rows.map(r => `${r.subject} ${r.course_num}`))}`);
+            
+            if (classRes.rows.length > 0) {
+              classSectionId = classRes.rows[0].class_id;
             }
+          }
+
+          // If not found by class_id, try to find by course and section
+          if (!classSectionId && department && course_num && section) {
+            const sectionRes = await db.query(
+              `SELECT cs.class_id, cs.course_id
+               FROM class_sections cs
+               JOIN courses c ON c.course_id = cs.course_id
+               WHERE c.subject = $1 
+                 AND c.course_num = $2 
+                 AND cs.section_num = $3
+                 AND cs.term_id = $4`,
+              [department, course_num, section, termId]
+            );
+
+            if (sectionRes.rows.length > 0) {
+              classSectionId = sectionRes.rows[0].class_id;
+            }
+          }
+
+          if (!classSectionId) {
             results.warnings.push(
-              `Student ${studentObj.SBU_ID}: Course not found for ${department} ${course_num}, skipping`
+              `Student ${studentObj.SBU_ID}: Class section not found for class_id=${class_id || 'N/A'}, ${department} ${course_num} section ${section} in ${semester} ${year}. Skipping.`
             );
             continue;
           }
 
-          const courseId = courseRes.rows[0].course_id;
-          console.log(`[import] Student ${studentObj.SBU_ID}: Found course_id: ${courseId} for ${department} ${course_num}`);
-
-          // Find the class_section by class_id (the YAML class_id should match class_sections.class_id)
-          // If not found, try to find by course_id, term_id, and section_num
-          console.log(`[import] Student ${studentObj.SBU_ID}: Looking up class section by class_id: ${yamlClassId}`);
-          let classSectionRes = await db.query(
-            `SELECT class_id FROM class_sections WHERE class_id = $1 LIMIT 1`,
-            [yamlClassId]
-          );
-
-          if (classSectionRes.rows.length === 0) {
-            // Try to find by course, term, and section
-            // Convert section to string to handle both numeric and string formats
-            const sectionStr = String(section).trim();
-            console.log(`[import] Student ${studentObj.SBU_ID}: Class section not found by class_id=${yamlClassId}, trying by course_id=${courseId}, term_id=${termId}, section_num="${sectionStr}"`);
-            classSectionRes = await db.query(
-              `SELECT class_id FROM class_sections 
-               WHERE course_id = $1 AND term_id = $2 AND section_num = $3 LIMIT 1`,
-              [courseId, termId, sectionStr]
+          // Get course credits if not provided in YAML
+          let enrollmentCredits = credits;
+          if (!enrollmentCredits) {
+            const courseRes = await db.query(
+              `SELECT c.credits 
+               FROM class_sections cs
+               JOIN courses c ON c.course_id = cs.course_id
+               WHERE cs.class_id = $1`,
+              [classSectionId]
             );
-            
-            // If still not found, check what sections exist for this course/term
-            if (classSectionRes.rows.length === 0) {
-              const existingSections = await db.query(
-                `SELECT class_id, section_num FROM class_sections 
-                 WHERE course_id = $1 AND term_id = $2 LIMIT 10`,
-                [courseId, termId]
-              );
-              if (existingSections.rows.length > 0) {
-                console.log(`[import] Student ${studentObj.SBU_ID}: Available sections for ${department} ${course_num} ${semester} ${year}: ${existingSections.rows.map(r => r.section_num).join(', ')}`);
-              } else {
-                console.log(`[import] Student ${studentObj.SBU_ID}: No sections exist for course_id=${courseId}, term_id=${termId}`);
-              }
+            if (courseRes.rows.length > 0) {
+              enrollmentCredits = courseRes.rows[0].credits;
             }
           }
-
-          if (classSectionRes.rows.length === 0) {
-            // Class section doesn't exist - create a stub section
-            const sectionStr = String(section).trim();
-            console.log(`[import] Student ${studentObj.SBU_ID}: Creating stub class section for ${department} ${course_num}-${sectionStr} ${semester} ${year}`);
-            
-            try {
-              // Create stub section with minimal data
-              // Use default capacity of 30, all other fields null/empty
-              // If section already exists (created by another student's import), just get its class_id
-              const createSectionRes = await db.query(
-                `INSERT INTO class_sections 
-                 (course_id, term_id, section_num, capacity, room_id, instructor_id, meeting_days, meeting_times, location_text, requires_dept_permission, notes)
-                 VALUES ($1, $2, $3, $4, NULL, NULL, NULL, NULL, NULL, FALSE, NULL)
-                 ON CONFLICT (course_id, term_id, section_num) 
-                 DO UPDATE SET course_id = class_sections.course_id
-                 RETURNING class_id`,
-                [courseId, termId, sectionStr, 30] // Default capacity of 30
-              );
-              
-              const newClassId = createSectionRes.rows[0].class_id;
-              
-              // Check if this was a new insert or an existing row (by checking if capacity was set to 30)
-              const checkRes = await db.query(
-                `SELECT class_id, capacity FROM class_sections WHERE class_id = $1`,
-                [newClassId]
-              );
-              
-              if (checkRes.rows.length > 0 && checkRes.rows[0].capacity === 30) {
-                console.log(`[import] Student ${studentObj.SBU_ID}: Created new stub class section with class_id=${newClassId} for ${department} ${course_num}-${sectionStr}`);
-                results.warnings.push(
-                  `Student ${studentObj.SBU_ID}: Auto-created stub class section for ${department} ${course_num}-${sectionStr} ${semester} ${year} (class_id=${newClassId})`
-                );
-              } else {
-                console.log(`[import] Student ${studentObj.SBU_ID}: Using existing class section with class_id=${newClassId} for ${department} ${course_num}-${sectionStr}`);
-              }
-              
-              classSectionRes = { rows: [{ class_id: newClassId }] };
-            } catch (createErr) {
-              // If creation fails, try to get existing section one more time
-              console.error(`[import] Student ${studentObj.SBU_ID}: Failed to create stub section: ${createErr.message}, trying to find existing...`);
-              const retryRes = await db.query(
-                `SELECT class_id FROM class_sections 
-                 WHERE course_id = $1 AND term_id = $2 AND section_num = $3 LIMIT 1`,
-                [courseId, termId, sectionStr]
-              );
-              
-              if (retryRes.rows.length > 0) {
-                console.log(`[import] Student ${studentObj.SBU_ID}: Found existing section after conflict, using class_id=${retryRes.rows[0].class_id}`);
-                classSectionRes = retryRes;
-              } else {
-                // If still not found, skip this class
-                skippedCount++;
-                console.error(`[import] Student ${studentObj.SBU_ID}: Could not create or find class section, skipping`);
-                results.warnings.push(
-                  `Student ${studentObj.SBU_ID}: Failed to create class section for ${department} ${course_num}-${section} ${semester} ${year}: ${createErr.message}, skipping`
-                );
-                continue;
-              }
-            }
-          }
-
-          const classId = classSectionRes.rows[0].class_id;
-          console.log(`[import] Student ${studentObj.SBU_ID}: Using class_id: ${classId} for section ${section}`);
 
           // Determine enrollment status
-          // If grade is null, status is 'registered' (current/future term)
-          // If grade exists, status is 'completed'
-          const status = grade ? 'completed' : 'registered';
-
-          // Determine GPNC value (convert to boolean, default to false)
-          // GPNC column is BOOLEAN type, so we must provide a boolean value
-          // If GPNC is provided and truthy, set to true, otherwise false
-          const gpncValue = GPNC ? true : false;
-
-          console.log(`[import] Student ${studentObj.SBU_ID}: Preparing enrollment - status=${status}, grade=${grade || 'null'}, gpnc=${gpncValue}, credits=${credits || 'null'}`);
+          // If grade exists and is not null, status should be 'completed'
+          // Otherwise, status should be 'registered'
+          const enrollmentStatus = (grade && grade !== null && grade.toUpperCase() !== 'NULL') 
+            ? 'completed' 
+            : 'registered';
 
           // Check if enrollment already exists
+          // Note: enrollments table may use composite key (student_id, class_id) instead of enrollment_id
           const existingEnrollment = await db.query(
-            `SELECT student_id, class_id FROM enrollments WHERE student_id = $1 AND class_id = $2 LIMIT 1`,
-            [userId, classId]
+            `SELECT student_id, class_id FROM enrollments 
+             WHERE student_id = $1 AND class_id = $2`,
+            [userId, classSectionId]
           );
 
           if (existingEnrollment.rows.length > 0) {
             // Update existing enrollment
-            console.log(`[import] Student ${studentObj.SBU_ID}: Updating existing enrollment for class_id=${classId}`);
             await db.query(
               `UPDATE enrollments 
-               SET status = $1, grade = $2, gpnc = $3, credits = $4, updated_at = NOW()
+               SET status = $1, 
+                   grade = $2, 
+                   gpnc = $3, 
+                   credits = $4,
+                   updated_at = NOW()
                WHERE student_id = $5 AND class_id = $6`,
-              [status, grade || null, gpncValue, credits || null, userId, classId]
+              [
+                enrollmentStatus,
+                grade && grade !== null && grade.toUpperCase() !== 'NULL' ? grade : null,
+                GPNC || false,
+                enrollmentCredits || 0,
+                userId,
+                classSectionId
+              ]
             );
           } else {
             // Insert new enrollment
-            console.log(`[import] Student ${studentObj.SBU_ID}: Inserting new enrollment for class_id=${classId}`);
             await db.query(
-              `INSERT INTO enrollments (student_id, class_id, status, grade, gpnc, credits, enrolled_at, updated_at)
-               VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())`,
-              [userId, classId, status, grade || null, gpncValue, credits || null]
+              `INSERT INTO enrollments 
+               (student_id, class_id, status, grade, gpnc, credits, enrolled_at)
+               VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+              [
+                userId,
+                classSectionId,
+                enrollmentStatus,
+                grade && grade !== null && grade.toUpperCase() !== 'NULL' ? grade : null,
+                GPNC || false,
+                enrollmentCredits || 0
+              ]
             );
           }
-
-          importedCount++;
-          console.log(`[import] Student ${studentObj.SBU_ID}: SUCCESS - Imported class ${department} ${course_num}-${section} (class_id=${classId})`);
-        }
-
-        if (importedCount > 0 || skippedCount > 0) {
-          console.log(`[import] Student ${studentObj.SBU_ID}: Imported ${importedCount} classes, skipped ${skippedCount}`);
         }
       } catch (err) {
         results.warnings.push(
@@ -941,109 +829,15 @@ router.post("/users", upload.single("file"), async (req, res) => {
       }
     }
 
-    /**
-     * Import student metadata (university_entry, transfer_courses) into students table
-     */
-    async function importStudentMetadata(db, userId, studentObj, results) {
-      try {
-        // Ensure student record exists
-        const studentCheck = await db.query(
-          `SELECT 1 FROM students WHERE user_id = $1`,
-          [userId]
-        );
-
-        if (studentCheck.rows.length === 0) {
-          await db.query(
-            `INSERT INTO students (user_id) VALUES ($1)`,
-            [userId]
-          );
-        }
-
-        // Prepare update fields
-        const updates = [];
-        const values = [];
-        let paramIndex = 1;
-
-        // Import university_entry
-        if (studentObj.university_entry) {
-          const universityEntry = studentObj.university_entry;
-          // Check if the column exists first
-          try {
-            await db.query(
-              `UPDATE students 
-               SET university_entry = $1::jsonb 
-               WHERE user_id = $2`,
-              [JSON.stringify(universityEntry), userId]
-            );
-          } catch (err) {
-            // Column might not exist, try ALTER TABLE
-            if (err.message.includes('column') && err.message.includes('does not exist')) {
-              try {
-                await db.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS university_entry JSONB`);
-                await db.query(
-                  `UPDATE students 
-                   SET university_entry = $1::jsonb 
-                   WHERE user_id = $2`,
-                  [JSON.stringify(universityEntry), userId]
-                );
-              } catch (alterErr) {
-                results.warnings.push(
-                  `Student ${studentObj.SBU_ID}: Could not add university_entry column: ${alterErr.message}`
-                );
-              }
-            } else {
-              results.warnings.push(
-                `Student ${studentObj.SBU_ID}: Could not update university_entry: ${err.message}`
-              );
-            }
-          }
-        }
-
-        // Import transfer_courses (filter out placement tests)
-        if (studentObj.transfer_courses) {
-          const filtered = filterTransferCourses(studentObj.transfer_courses);
-          if (filtered.length > 0) {
-            try {
-              await db.query(
-                `UPDATE students 
-                 SET transfer_courses = $1::jsonb 
-                 WHERE user_id = $2`,
-                [JSON.stringify(filtered), userId]
-              );
-            } catch (err) {
-              // Column might not exist, try ALTER TABLE
-              if (err.message.includes('column') && err.message.includes('does not exist')) {
-                try {
-                  await db.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS transfer_courses JSONB`);
-                  await db.query(
-                    `UPDATE students 
-                     SET transfer_courses = $1::jsonb 
-                     WHERE user_id = $2`,
-                    [JSON.stringify(filtered), userId]
-                  );
-                } catch (alterErr) {
-                  results.warnings.push(
-                    `Student ${studentObj.SBU_ID}: Could not add transfer_courses column: ${alterErr.message}`
-                  );
-                }
-              } else {
-                results.warnings.push(
-                  `Student ${studentObj.SBU_ID}: Could not update transfer_courses: ${err.message}`
-                );
-              }
-            }
-          }
-        }
-      } catch (err) {
-        results.warnings.push(
-          `Failed to import metadata for student ${studentObj.SBU_ID}: ${err.message}`
-        );
-        console.error(`[import] Error importing metadata for student ${studentObj.SBU_ID}:`, err);
-      }
-    }
-
     async function importStudentPrograms(db, userId, studentObj, results) {
       try {
+        // Clean up old programs for this student before importing new ones
+        // This ensures the YAML file defines the complete set of programs for the student
+        await db.query(
+          `DELETE FROM student_programs WHERE student_id = $1`,
+          [userId]
+        );
+        
         // Ensure student record exists in students table
         const studentCheck = await db.query(
           `SELECT 1 FROM students WHERE user_id = $1`,
@@ -1269,13 +1063,12 @@ router.post("/users", upload.single("file"), async (req, res) => {
     for (const a of academic_advisors) await insertUser(a, "Advisor");
     for (const i of instructors) await insertUser(i, "Instructor");
     
-    // Import students and their majors/minors, classes, and metadata
+    // Import students and their majors/minors and classes
     for (const s of students) {
       const userId = await insertUser(s, "Student");
       if (userId) {
         await importStudentPrograms(req.db, userId, s, results);
         await importStudentClasses(req.db, userId, s, results);
-        await importStudentMetadata(req.db, userId, s, results);
       }
     }
 

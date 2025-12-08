@@ -17,22 +17,26 @@ registrars:
   first_name: Rob
   last_name: Rogers
   email: rob.rogers@stonybrook.edu
+  password: password
 - SBU_ID: 100654321
   first_name: Ralph
   last_name: Randall
   email: ralph.randall@stonybrook.edu
+  password: password
 
 academic_advisors:
 - SBU_ID: 100765431
   first_name: Alan
   last_name: Alda
   email: alan.alda@stonybrook.edu
+  password: password
   level: university # valid values: university, college, department
   academic_unit: SBU # list of acronyms of colleges/schools (e.g., [CAS]) or subjects (e.g., [CSE, ISE]), or [SBU] for university-level advisors
 - SBU_ID: 100765430
   first_name: Kevin
   last_name: Kamper
   email: kevin.kamper@stonybrook.edu
+  password: password
   level: department
   academic_unit: [CSE,ISE]
 
@@ -41,16 +45,19 @@ instructors:
   first_name: Scott
   last_name: Stoller
   email: scott.stoller@stonybrook.edu
+  password: password
 - SBU_ID: 100876543
   first_name: Alan
   last_name: Turing
   email: alan.turing@stonybrook.edu
+  password: password
 
 students:
 - SBU_ID: 100123456
   first_name: Charles
   last_name: Brown
   email: charlie.brown@stonybrook.edu
+  password: password
   university_entry: {semester: Fall, year: 2020} # term in which the student entered the university.  valid values for semester: Fall, Spring, SummerI, SummerII
   direct_admit: null # major to which the student was directly admitted when accepted to the university, if any, otherwise null
   AOI: CSE # major for which the student is AOI if any, otherwise null
