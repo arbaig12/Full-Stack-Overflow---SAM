@@ -13,6 +13,15 @@ export default function RostersGrading() {
   const [editingEnrollmentId, setEditingEnrollmentId] = useState(null);
   const [gradeInput, setGradeInput] = useState("");
 
+  // Capacity override state (for registrars)
+  const [userRole, setUserRole] = useState(null);
+  const [capacityOverrideStudentSearch, setCapacityOverrideStudentSearch] = useState("");
+  const [capacityOverrideStudents, setCapacityOverrideStudents] = useState([]);
+  const [selectedOverrideStudent, setSelectedOverrideStudent] = useState(null);
+  const [capacityOverrideClasses, setCapacityOverrideClasses] = useState([]);
+  const [selectedOverrideClassId, setSelectedOverrideClassId] = useState(null);
+  const [capacityOverrideLoading, setCapacityOverrideLoading] = useState(false);
+
   /* ---------------------- HELPERS ---------------------- */
 
   const validGrades = [
@@ -68,6 +77,83 @@ export default function RostersGrading() {
 
     loadRosters();
   }, []);
+
+  // Fetch user role
+  useEffect(() => {
+    async function fetchUserRole() {
+      try {
+        const res = await fetch("/api/dashboard", {
+          credentials: "include",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.role) {
+            setUserRole(data.role.toLowerCase());
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching user role:", err);
+      }
+    }
+    fetchUserRole();
+  }, []);
+
+  // Load classes for capacity override
+  useEffect(() => {
+    async function loadClassesForOverride() {
+      if (userRole !== "registrar") return;
+
+      try {
+        const res = await fetch("/api/schedule/sections", {
+          credentials: "include",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ok !== false && data.sections) {
+            const classes = data.sections.map((sec) => ({
+              classId: sec.classId,
+              courseCode: sec.courseCode,
+              sectionNum: sec.sectionNumber,
+              title: sec.title,
+              termLabel: sec.termLabel || `${sec.term?.semester} ${sec.term?.year}`,
+            }));
+            setCapacityOverrideClasses(classes);
+          }
+        }
+      } catch (err) {
+        console.error("Error loading classes for override:", err);
+      }
+    }
+    loadClassesForOverride();
+  }, [userRole]);
+
+  // Search students for capacity override
+  useEffect(() => {
+    async function searchStudents() {
+      if (!capacityOverrideStudentSearch.trim() || capacityOverrideStudentSearch.length < 2) {
+        setCapacityOverrideStudents([]);
+        return;
+      }
+
+      try {
+        const res = await fetch(
+          `/api/user-management/search?name=${encodeURIComponent(capacityOverrideStudentSearch)}&role=student`,
+          { credentials: "include" }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ok !== false && data.users) {
+            setCapacityOverrideStudents(data.users.slice(0, 10)); // Limit to 10 results
+          }
+        }
+      } catch (err) {
+        console.error("Error searching students:", err);
+      }
+    }
+
+    const timeoutId = setTimeout(searchStudents, 300);
+    return () => clearTimeout(timeoutId);
+  }, [capacityOverrideStudentSearch]);
 
   /* ---------------------- GRADE EDIT HANDLERS ---------------------- */
 
@@ -151,6 +237,47 @@ export default function RostersGrading() {
     }
   };
 
+  /* ---------------------- CAPACITY OVERRIDE HANDLERS ---------------------- */
+
+  const handleGrantCapacityOverride = async () => {
+    if (!selectedOverrideStudent || !selectedOverrideClassId) {
+      setMessage("Please select both a student and a class.");
+      return;
+    }
+
+    try {
+      setCapacityOverrideLoading(true);
+      setMessage("");
+
+      const res = await fetch("/api/registration/capacity-override", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          studentId: selectedOverrideStudent.user_id || selectedOverrideStudent.userId,
+          classId: selectedOverrideClassId,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || "Failed to grant capacity override.");
+      }
+
+      setMessage(
+        `Capacity override granted successfully. ${selectedOverrideStudent.first_name} ${selectedOverrideStudent.last_name} can now register for the selected class even if it's full.`
+      );
+      setSelectedOverrideStudent(null);
+      setSelectedOverrideClassId(null);
+      setCapacityOverrideStudentSearch("");
+    } catch (err) {
+      console.error(err);
+      setMessage(err.message || "Failed to grant capacity override.");
+    } finally {
+      setCapacityOverrideLoading(false);
+    }
+  };
+
   /* ---------------------- RENDER ---------------------- */
 
   return (
@@ -194,6 +321,165 @@ export default function RostersGrading() {
           }}
         >
           {message}
+        </div>
+      )}
+
+      {/* Capacity Override Section (Registrars only) */}
+      {userRole === "registrar" && (
+        <div
+          style={{
+            marginBottom: 32,
+            padding: 20,
+            borderRadius: 12,
+            background: "#fff",
+            border: "2px solid #1976d2",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+          }}
+        >
+          <h2 style={{ margin: "0 0 16px 0", color: "#1976d2" }}>
+            Grant Capacity Override
+          </h2>
+          <p style={{ marginBottom: 16, color: "#666", fontSize: 14 }}>
+            Allow a student to register for a class even if it's full. This
+            overrides the class capacity restriction.
+          </p>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+              gap: 16,
+              marginBottom: 16,
+            }}
+          >
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  fontWeight: "bold",
+                  fontSize: 14,
+                }}
+              >
+                Search Student:
+              </label>
+              <input
+                type="text"
+                value={capacityOverrideStudentSearch}
+                onChange={(e) => setCapacityOverrideStudentSearch(e.target.value)}
+                placeholder="Search by name, email, or ID..."
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  border: "1px solid #ddd",
+                  borderRadius: 6,
+                  fontSize: 14,
+                }}
+              />
+              {capacityOverrideStudents.length > 0 && (
+                <div
+                  style={{
+                    marginTop: 4,
+                    border: "1px solid #ddd",
+                    borderRadius: 6,
+                    background: "#fff",
+                    maxHeight: 200,
+                    overflowY: "auto",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                  }}
+                >
+                  {capacityOverrideStudents.map((student) => (
+                    <div
+                      key={student.user_id || student.userId}
+                      onClick={() => {
+                        setSelectedOverrideStudent(student);
+                        setCapacityOverrideStudentSearch(
+                          `${student.first_name} ${student.last_name} (${student.email})`
+                        );
+                        setCapacityOverrideStudents([]);
+                      }}
+                      style={{
+                        padding: "8px 12px",
+                        cursor: "pointer",
+                        borderBottom: "1px solid #f0f0f0",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "#f5f5f5";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "#fff";
+                      }}
+                    >
+                      <div style={{ fontWeight: "bold" }}>
+                        {student.first_name} {student.last_name}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#666" }}>
+                        {student.email}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  fontWeight: "bold",
+                  fontSize: 14,
+                }}
+              >
+                Select Class:
+              </label>
+              <select
+                value={selectedOverrideClassId || ""}
+                onChange={(e) =>
+                  setSelectedOverrideClassId(
+                    e.target.value ? Number(e.target.value) : null
+                  )
+                }
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  border: "1px solid #ddd",
+                  borderRadius: 6,
+                  fontSize: 14,
+                }}
+              >
+                <option value="">-- Select a class --</option>
+                {capacityOverrideClasses.map((cls) => (
+                  <option key={cls.classId} value={cls.classId}>
+                    {cls.courseCode}-{cls.sectionNum} – {cls.title} ({cls.termLabel})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <button
+            onClick={handleGrantCapacityOverride}
+            disabled={!selectedOverrideStudent || !selectedOverrideClassId || capacityOverrideLoading}
+            style={{
+              padding: "10px 20px",
+              border: "none",
+              borderRadius: 6,
+              background:
+                !selectedOverrideStudent || !selectedOverrideClassId || capacityOverrideLoading
+                  ? "#ccc"
+                  : "#1976d2",
+              color: "white",
+              fontWeight: "bold",
+              cursor:
+                !selectedOverrideStudent || !selectedOverrideClassId || capacityOverrideLoading
+                  ? "not-allowed"
+                  : "pointer",
+              fontSize: 14,
+            }}
+          >
+            {capacityOverrideLoading ? "Granting..." : "Grant Capacity Override"}
+          </button>
         </div>
       )}
 

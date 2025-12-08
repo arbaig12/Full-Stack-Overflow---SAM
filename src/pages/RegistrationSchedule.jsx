@@ -290,7 +290,11 @@ export default function RegistrationSchedule() {
   );
 
   const enrolledClassIds = useMemo(
-    () => new Set(enrollmentsForSelectedTerm.map((e) => String(e.classId))),
+    () => new Set(
+      enrollmentsForSelectedTerm
+        .filter((e) => e.status === 'registered')
+        .map((e) => String(e.classId))
+    ),
     [enrollmentsForSelectedTerm]
   );
 
@@ -342,9 +346,11 @@ export default function RegistrationSchedule() {
         );
       }
 
-      const { enrollment, updatedSection } = data;
+      const { enrollment, updatedSection, waitlisted, message: responseMessage } = data;
 
-      if (enrollment) setEnrollments((prev) => [...prev, enrollment]);
+      if (enrollment) {
+        setEnrollments((prev) => [...prev, enrollment]);
+      }
 
       if (updatedSection) {
         setSections((prev) =>
@@ -356,7 +362,11 @@ export default function RegistrationSchedule() {
         );
       }
 
-      setMessage(`Successfully registered for ${section.courseCode}.`);
+      if (waitlisted) {
+        setMessage(responseMessage || `Class is full. Added to waitlist for ${section.courseCode}.`);
+      } else {
+        setMessage(responseMessage || `Successfully registered for ${section.courseCode}.`);
+      }
     } catch (e) {
       console.error(e);
       setError(e.message || "Failed to register.");
@@ -386,7 +396,7 @@ export default function RegistrationSchedule() {
         );
       }
 
-      const { updatedSection } = data;
+      const { updatedSection, promotedStudent, message: responseMessage } = data;
 
       setEnrollments((prev) =>
         prev.filter((e) => e.enrollmentId !== enrollment.enrollmentId)
@@ -402,7 +412,30 @@ export default function RegistrationSchedule() {
         );
       }
 
-      setMessage(`Successfully withdrew from ${enrollment.courseCode}.`);
+      // Refresh enrollments to show promoted student if any
+      if (promotedStudent) {
+        try {
+          const initRes = await fetch("/api/registration/init", {
+            credentials: "include",
+          });
+          if (initRes.ok) {
+            const initData = await initRes.json();
+            if (initData.ok !== false && initData.enrollments) {
+              setEnrollments(initData.enrollments);
+            }
+          }
+        } catch (refreshErr) {
+          console.error("Failed to refresh enrollments after promotion:", refreshErr);
+        }
+      }
+
+      if (responseMessage) {
+        setMessage(responseMessage);
+      } else if (promotedStudent) {
+        setMessage(`Successfully withdrew from ${enrollment.courseCode}. A waitlisted student was automatically registered.`);
+      } else {
+        setMessage(`Successfully withdrew from ${enrollment.courseCode}.`);
+      }
     } catch (e) {
       console.error(e);
       setError(e.message || "Failed to withdraw.");
@@ -1052,30 +1085,52 @@ export default function RegistrationSchedule() {
                         </div>
                         <div>
                           <strong>Status:</strong>{" "}
-                          <span style={{ color: "#28a745", fontWeight: "bold" }}>
-                            Enrolled
-                          </span>
+                          {enr.status === 'waitlisted' ? (
+                            <span style={{ color: "#ff9800", fontWeight: "bold" }}>
+                              Waitlisted
+                            </span>
+                          ) : (
+                            <span style={{ color: "#28a745", fontWeight: "bold" }}>
+                              Enrolled
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     <div style={{ textAlign: "right" }}>
-                      <button
-                        onClick={() => handleWithdraw(enr)}
-                        disabled={actionLoading}
-                        style={{
-                          padding: "8px 16px",
-                          border: "none",
-                          borderRadius: 6,
-                          background: "#dc3545",
-                          color: "white",
-                          cursor: actionLoading ? "not-allowed" : "pointer",
-                          fontWeight: "bold",
-                          opacity: actionLoading ? 0.8 : 1,
-                        }}
-                      >
-                        Withdraw
-                      </button>
+                      {enr.status === 'waitlisted' ? (
+                        <span
+                          style={{
+                            padding: "8px 16px",
+                            borderRadius: 6,
+                            background: "#fff3cd",
+                            color: "#856404",
+                            fontWeight: "bold",
+                            fontSize: 14,
+                            display: "inline-block",
+                          }}
+                        >
+                          On Waitlist
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleWithdraw(enr)}
+                          disabled={actionLoading}
+                          style={{
+                            padding: "8px 16px",
+                            border: "none",
+                            borderRadius: 6,
+                            background: "#dc3545",
+                            color: "white",
+                            cursor: actionLoading ? "not-allowed" : "pointer",
+                            fontWeight: "bold",
+                            opacity: actionLoading ? 0.8 : 1,
+                          }}
+                        >
+                          Withdraw
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
