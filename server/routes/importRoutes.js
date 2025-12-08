@@ -48,25 +48,90 @@ async function extractPdfText(pdfBuffer) {
 function toMilitaryTimeRange(timeStr) {
   if (!timeStr || timeStr === "TBA") return timeStr;
 
-  const match =
-    /^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})(AM|PM)$/i.exec(timeStr.trim());
-  if (!match) return timeStr;
+  // Handle format: "12:30-01:50PM" (AM/PM only on end time)
+  // The start time is inferred: if end is PM and start < end in 12-hour, start is also PM
+  // If start > end (like 12:30 to 01:50), start is PM and end is PM (next hour)
+  let match = /^(\d{1,2}):(\d{2})(AM|PM)?-(\d{1,2}):(\d{2})(AM|PM)$/i.exec(timeStr.trim());
+  
+  if (match) {
+    let [, h1, m1, suffix1, h2, m2, suffix2] = match;
+    let hour1 = parseInt(h1, 10);
+    let hour2 = parseInt(h2, 10);
+    
+    const isPM2 = suffix2 && suffix2.toUpperCase() === "PM";
+    
+    // If first time has AM/PM, use it
+    if (suffix1) {
+      const isPM1 = suffix1.toUpperCase() === "PM";
+      if (isPM1 && hour1 !== 12) hour1 += 12;
+      if (!isPM1 && hour1 === 12) hour1 = 0;
+    } else {
+      // Infer from second time and logic
+      // Common patterns:
+      // - "11:00-12:20PM" typically means 11:00 AM to 12:20 PM (morning class)
+      // - "11:30-01:50PM" typically means 11:30 AM to 1:50 PM (lunchtime class, crossing noon)
+      // - "12:30-01:50PM" means 12:30 PM to 1:50 PM (afternoon class)
+      // - "01:00-02:20PM" means 1:00 PM to 2:20 PM (afternoon class)
+      if (isPM2) {
+        if (hour1 === 12) {
+          // 12:xx is noon (PM) - keep as 12
+          hour1 = 12;
+        } else if (hour1 < hour2) {
+          // Start hour < end hour: most likely both are in the same period
+          // But for morning classes (11:00-12:20PM), start is AM, end is PM
+          // For afternoon classes (01:00-02:20PM), both are PM
+          // Heuristic: if start is 11 or less and end is 12, assume start is AM (morning class)
+          if (hour1 <= 11 && hour2 === 12) {
+            // Morning class: 11:00 AM to 12:20 PM
+            // hour1 stays as-is (AM)
+          } else {
+            // Afternoon/evening class: both PM
+            hour1 += 12;
+          }
+        } else {
+          // hour1 > hour2: e.g., 11:30-01:50PM or 12:30-01:50PM
+          // This means we're crossing noon
+          // If start is 12, it's PM (noon)
+          // If start is 1-11, it's AM (crossing noon to PM)
+          if (hour1 === 12) {
+            hour1 = 12; // noon (PM)
+          } else {
+            // hour1 is 1-11, so it's AM (stays as-is)
+            // e.g., 11:30-01:50PM -> 11:30 AM to 1:50 PM
+          }
+        }
+      } else {
+        // End is AM
+        if (hour1 === 12) hour1 = 0; // midnight
+        // Otherwise hour1 stays as-is (AM)
+      }
+    }
 
-  let [, h1, m1, h2, m2, suffix] = match;
-  let hour1 = parseInt(h1, 10);
-  let hour2 = parseInt(h2, 10);
-  const isPM = suffix.toUpperCase() === "PM";
+    if (isPM2 && hour2 !== 12) hour2 += 12;
+    if (!isPM2 && hour2 === 12) hour2 = 0;
 
-  if (isPM && hour1 !== 12) hour1 += 12;
-  if (!isPM && hour1 === 12) hour1 = 0;
+    return `${String(hour1).padStart(2, "0")}:${m1}-${String(hour2).padStart(2, "0")}:${m2}`;
+  }
 
-  if (isPM && hour2 !== 12) hour2 += 12;
-  if (!isPM && hour2 === 12) hour2 = 0;
+  // Fallback: try original format with AM/PM on both
+  match = /^(\d{1,2}):(\d{2})(AM|PM)-(\d{1,2}):(\d{2})(AM|PM)$/i.exec(timeStr.trim());
+  if (match) {
+    let [, h1, m1, suffix1, h2, m2, suffix2] = match;
+    let hour1 = parseInt(h1, 10);
+    let hour2 = parseInt(h2, 10);
+    const isPM1 = suffix1.toUpperCase() === "PM";
+    const isPM2 = suffix2.toUpperCase() === "PM";
 
-  return `${String(hour1).padStart(2, "0")}:${m1}-${String(hour2).padStart(
-    2,
-    "0"
-  )}:${m2}`;
+    if (isPM1 && hour1 !== 12) hour1 += 12;
+    if (!isPM1 && hour1 === 12) hour1 = 0;
+
+    if (isPM2 && hour2 !== 12) hour2 += 12;
+    if (!isPM2 && hour2 === 12) hour2 = 0;
+
+    return `${String(hour1).padStart(2, "0")}:${m1}-${String(hour2).padStart(2, "0")}:${m2}`;
+  }
+
+  return timeStr;
 }
 
 function extractTermFromPdfText(text) {
@@ -106,40 +171,118 @@ async function lookupTermId(db, semester, year) {
 }
 
 /**
- * Given the tail text (e.g. "FREY HALL 205 Aruna Sharma"),
- * split out building and room. Instructor text is ignored
- * for DB purposes.
+ * Given the tail text (e.g. "FREY HALL 317 Scott Stoller" or "HUMANITIES 1006Ryan Kaufman"),
+ * split out building, room, and instructor name.
+ * Returns: { building, room, instructorName }
  */
 function splitLocationTail(tail) {
   if (!tail) {
-    return { building: null, room: null };
+    return { building: null, room: null, instructorName: null };
   }
 
-  const tokens = tail.trim().split(/\s+/);
+  let s = String(tail).trim();
+  if (!s) {
+    return { building: null, room: null, instructorName: null };
+  }
+
+  // Handle special case: "TBATBA" prefix followed by instructor name (e.g., "TBATBAEsther Arkin")
+  // This means no location, just instructor name
+  const tbaTbaMatch = /^TBATBA(.+)$/i.exec(s);
+  if (tbaTbaMatch) {
+    const instructorName = tbaTbaMatch[1].trim();
+    // Check if it looks like a name (has capital letter + lowercase)
+    if (instructorName.length > 2 && /[A-Z][a-z]/.test(instructorName)) {
+      return { building: null, room: null, instructorName };
+    }
+    return { building: null, room: null, instructorName: null };
+  }
+
+  // Remove standalone "TBA" tokens and clean up
+  s = s.replace(/\bTBA\b/gi, '').replace(/\s+/g, ' ').trim();
+  
+  // If after removing TBA we have nothing, return null
+  if (!s) {
+    return { building: null, room: null, instructorName: null };
+  }
+
+  const tokens = s.split(/\s+/).filter(Boolean);
   if (tokens.length < 2) {
-    return { building: null, room: null };
+    // If only one token, check if it's a name
+    if (tokens.length === 1 && /[A-Z][a-z]/.test(tokens[0]) && tokens[0].length > 2) {
+      return { building: null, room: null, instructorName: tokens[0] };
+    }
+    return { building: null, room: null, instructorName: null };
   }
 
-  // Find the first token that "looks like" a room code (205, E4310, N107, etc.)
-  const roomIndex = tokens.findIndex((tok) => /^[A-Z0-9]{2,8}$/.test(tok));
+  // Find the first token that "looks like" a room code (205, E4310, N107, 317, 1006, etc.)
+  // Room pattern: alphanumeric, 1-10 chars, contains digits
+  const roomRe = /^[A-Z0-9]{1,10}$/i;
+  let roomIndex = -1;
+  let roomToken = null;
+  
+  for (let idx = 1; idx < tokens.length; idx++) {
+    let tok = tokens[idx];
+    
+    // Remove "TBA" if concatenated at end (e.g., "4530TBA", "P112TBA")
+    tok = tok.replace(/TBA$/i, '');
+    if (!tok) continue;
+    
+    // Check if token looks like a room number
+    if (roomRe.test(tok) && /\d/.test(tok)) {
+      // Check if room number is concatenated with instructor name (e.g., "1006Ryan", "4530Esther")
+      const roomMatch = tok.match(/^([A-Z0-9]{1,10})([A-Z][a-z].*)$/);
+      if (roomMatch) {
+        // Room and instructor concatenated: split them
+        roomToken = roomMatch[1];
+        roomIndex = idx;
+        // Insert instructor part as new token
+        tokens.splice(idx + 1, 0, roomMatch[2]);
+        break;
+      } else if (tok.length <= 10) {
+        // Normal room token
+        roomToken = tok;
+        roomIndex = idx;
+        break;
+      }
+    }
+  }
 
-  if (roomIndex <= 0) {
-    // Either no room-ish token, or it's the first token ("TBA TBA ...").
-    return { building: null, room: null };
+  if (roomIndex <= 0 || !roomToken) {
+    // No room found - check if we have an instructor name
+    // Look for tokens that look like names (capital letter + lowercase)
+    const nameTokens = tokens.filter(t => /[A-Z][a-z]/.test(t) && t.length > 2);
+    if (nameTokens.length > 0) {
+      return { building: null, room: null, instructorName: nameTokens.join(' ') };
+    }
+    return { building: null, room: null, instructorName: null };
   }
 
   const buildingTokens = tokens.slice(0, roomIndex);
-  const roomToken = tokens[roomIndex];
+  const instructorTokens = tokens.slice(roomIndex + 1);
 
-  const building = buildingTokens.join(" ");
-  const room = roomToken;
+  const building = buildingTokens.join(" ").trim();
+  const room = roomToken.trim();
+  
+  // Extract instructor name from remaining tokens
+  let instructorName = null;
+  if (instructorTokens.length > 0) {
+    const nameStr = instructorTokens.join(" ").trim();
+    // Verify it looks like a name (has capital letter + lowercase)
+    if (nameStr.length > 2 && /[A-Z][a-z]/.test(nameStr)) {
+      instructorName = nameStr;
+    }
+  }
 
   // Treat "TBA" as no real location.
   if (!building || !room || building.toUpperCase() === "TBA" || room.toUpperCase() === "TBA") {
-    return { building: null, room: null };
+    // If we have an instructor name but no location, return just the instructor
+    if (instructorName) {
+      return { building: null, room: null, instructorName };
+    }
+    return { building: null, room: null, instructorName: null };
   }
 
-  return { building, room };
+  return { building, room, instructorName };
 }
 
 function parseSocPdfToSections(text) {
@@ -153,6 +296,8 @@ function parseSocPdfToSections(text) {
     const line = raw.trim();
     if (!line) continue;
 
+    // Match course header: "AAS 110 G Appreciating Indian Music Credit(s): 3 SBC: ARTS"
+    // or "AAS 110" at start of line
     const courseMatch = /^([A-Z]{2,4})\s+(\d{3})\b/.exec(line);
     if (courseMatch) {
       currentSubject = courseMatch[1];
@@ -162,29 +307,74 @@ function parseSocPdfToSections(text) {
 
     if (!currentSubject || !currentCourseNum) continue;
 
-    const secMatch =
-      /^(\d{5})\s+(LEC|REC|LAB|SEM|TUT|CLN|SUP|STU)\s+(\S+)\s+([A-Z]+|APPT)\s+([\d:APM\-]+|TBA)\s+(\d{2}-[A-Z]{3}-\d{4})\s+(\d{2}-[A-Z]{3}-\d{4})\s+(.+)$/.exec(
-        line
-      );
+    // Match section line formats:
+    // Compact: "85429LEC01TR12:30-01:50PM25-AUG-202518-DEC-2025FREY HALL205Aruna Sharma"
+    // Also: "91486SEMS01M11:00-11:55AM25-AUG-202518-DEC-2025SOCBEHAV SCIN107GiAnna Biondi"
+    // Note: Section types can be LEC, REC, LAB, SEM, TUT, CLN, SUP, STU, or SEMS, RECR, LABL, TUTT
+    // Days can be single (M, T, W, R, F) or multiple (MW, TR, etc.)
+    // Times can have any minutes (:00, :30, :21, :51, :55, etc.)
+    
+    // Try compact format first (no spaces between main fields)
+    // Pattern: 5digits + LEC/REC/etc + 1-3digits + days + time + startdate + enddate + rest
+    // Allow section types: LEC, REC, LAB, SEM, TUT, CLN, SUP, STU, SEMS, RECR, LABL, TUTT
+    // Allow section numbers: 01, 02, 1, 2, 327, 328, etc. (1-3 digits)
+    // Allow any minutes in time: \d{2} (not just :00 or :30)
+    // Allow days to be single letter (M, T, W, R, F, H) or multiple (MW, TR, MWF, etc.) or FLEX or APPT
+    // Days pattern: M, T, W, R, F, H, or combinations like MW, TR, MWF, TWR, etc. (max 4 chars, only M/T/W/R/F/H)
+    // Allow time to be TBA (possibly followed by -), "-", or time range
+    const daysPattern = '[MTWRFH]{1,4}|APPT|FLEX';
+    const timePattern = '\\d{1,2}:\\d{2}(?:AM|PM)?-\\d{1,2}:\\d{2}(?:AM|PM)|TBA-?|-';
+    let secMatch = new RegExp(`^\\s*(\\d{5})(LEC|REC|LAB|SEM|TUT|CLN|SUP|STU|SEMS|RECR|LABL|TUTT)(\\d{1,3})(${daysPattern})(${timePattern})(\\d{2}-[A-Z]{3}-\\d{4})(\\d{2}-[A-Z]{3}-\\d{4})(.+)$`).exec(line);
+    
+    // If compact format doesn't match, try spaced format
+    if (!secMatch) {
+      secMatch = new RegExp(`^\\s*(\\d{5})\\s+(LEC|REC|LAB|SEM|TUT|CLN|SUP|STU|SEMS|RECR|LABL|TUTT)\\s+(\\S+)\\s+(${daysPattern})\\s+(${timePattern})\\s+(\\d{2}-[A-Z]{3}-\\d{4})\\s+(\\d{2}-[A-Z]{3}-\\d{4})\\s+(.+)$`).exec(line);
+    }
+    
+    // Normalize section types: TUTT->TUT, SEMS->SEM, RECR->REC, LABL->LAB
+    if (secMatch) {
+      const typeMap = { 'TUTT': 'TUT', 'SEMS': 'SEM', 'RECR': 'REC', 'LABL': 'LAB' };
+      if (typeMap[secMatch[2]]) {
+        secMatch[2] = typeMap[secMatch[2]];
+      }
+    }
 
-    if (!secMatch) continue;
+    if (!secMatch) {
+      // Debug: log lines that look like sections but don't match
+      if (/^\s*\d{5}/.test(line)) {
+        console.log(`[API] DEBUG: Line looks like section but didn't match regex: "${line.substring(0, 80)}"`);
+      }
+      continue;
+    }
 
     const sectionNum = secMatch[3];
-    const days = secMatch[4];
+    let days = secMatch[4];
     const times = secMatch[5];
-    const tail = secMatch[8];
+    // Clean up tail: normalize multiple spaces to single space
+    const tail = secMatch[8].replace(/\s+/g, ' ').trim();
+    
+    // Normalize days: "RT" should be "TR" (Tuesday/Thursday)
+    if (days === "RT") {
+      days = "TR";
+    }
+    
+    // Debug: log successful matches for first few sections
+    if (sections.length < 3) {
+      console.log(`[API] DEBUG: Matched section - subject: ${currentSubject}, course: ${currentCourseNum}, section: ${sectionNum}, days: ${days}, time: ${times}`);
+    }
 
-    const { building, room } = splitLocationTail(tail);
+    const { building, room, instructorName } = splitLocationTail(tail);
 
     sections.push({
       subject: currentSubject,
       courseNum: currentCourseNum,
       sectionNum,
-      meetingDays: days === "APPT" ? "TBA" : days,
-      meetingTimes: toMilitaryTimeRange(times),
+      meetingDays: (days === "APPT" || days === "FLEX" || days === "-") ? "TBA" : days,
+      meetingTimes: (times === "-" || times === "TBA" || times === "TBA-") ? "TBA" : toMilitaryTimeRange(times),
       locationText: tail,
       building,
       room,
+      instructorName,
     });
   }
 
@@ -589,16 +779,47 @@ router.post("/schedule", upload.single("file"), async (req, res) => {
       );
     }
 
+    // Debug: log first 2000 chars of PDF text to help diagnose parsing issues
+    if (text.length > 0) {
+      const sampleText = text.slice(0, 2000);
+      console.log(`[API] PDF text sample (first 2000 chars):\n${sampleText}`);
+      // Also log a few sample lines
+      const sampleLines = text.split(/\r?\n/).slice(0, 20).filter(l => l.trim().length > 0);
+      console.log(`[API] Sample PDF lines:\n${sampleLines.join('\n')}`);
+    } else {
+      console.warn('[API] WARNING: PDF text extraction returned empty string!');
+    }
+
     const parsedSections = parseSocPdfToSections(text);
     console.log(`[API] Parsed ${parsedSections.length} section rows from PDF`);
+    
+    if (parsedSections.length === 0 && text.length > 100) {
+      console.warn('[API] WARNING: No sections parsed but PDF has content. Check regex pattern.');
+    }
+
+    // Log first few parsed sections for debugging
+    if (parsedSections.length > 0) {
+      console.log(`[API] Sample parsed sections (first 3):`, parsedSections.slice(0, 3).map(s => ({
+        subject: s.subject,
+        courseNum: s.courseNum,
+        sectionNum: s.sectionNum,
+        meetingDays: s.meetingDays,
+        meetingTimes: s.meetingTimes
+      })));
+    }
 
     let inserted = 0;
     let updated = 0;
     let skipped = 0;
     const warnings = [];
+    const subjectCounts = {};
 
     for (const sec of parsedSections) {
-      const { subject, courseNum, sectionNum, meetingDays, meetingTimes, locationText } = sec;
+      const { subject, courseNum, sectionNum, meetingDays, meetingTimes, locationText, instructorName } = sec;
+
+      // Track subjects being processed
+      if (!subjectCounts[subject]) subjectCounts[subject] = { total: 0, found: 0, notFound: [] };
+      subjectCounts[subject].total++;
 
       const courseRes = await db.query(
         `
@@ -613,17 +834,22 @@ router.post("/schedule", upload.single("file"), async (req, res) => {
 
       if (courseRes.rows.length === 0) {
         skipped++;
+        subjectCounts[subject].notFound.push(`${subject} ${courseNum}`);
         warnings.push(
           `No course found for ${subject} ${courseNum} (section ${sectionNum}); skipping.`
         );
         continue;
       }
 
+      subjectCounts[subject].found++;
       const courseId = courseRes.rows[0].course_id;
       const capacity = 50;
 
       const normDays = normalizeMeetingDays(meetingDays);
-      const { building, room } = extractBuildingRoom(locationText);
+      // Use building/room/instructorName already extracted by splitLocationTail during parsing
+      const building = sec.building || null;
+      const room = sec.room || null;
+      const instructorNameFromSec = sec.instructorName || null;
 
       let roomId = null;
       if (building && room) {
@@ -649,20 +875,61 @@ router.post("/schedule", upload.single("file"), async (req, res) => {
         roomId = roomRes.rows[0]?.room_id ?? null;
       }
 
+      // Try to match instructor by name
+      let instructorId = null;
+      if (instructorNameFromSec && instructorNameFromSec.toUpperCase() !== 'TBA') {
+        // Try to match instructor by first and last name
+        // Handle names like "Scott Stoller", "S.N. Sridhar", "Hyun-Kyung Lim"
+        const nameParts = instructorNameFromSec.trim().split(/\s+/).filter(p => p.length > 0);
+        if (nameParts.length >= 2) {
+          // Try exact match first (last name, first name)
+          const lastName = nameParts[nameParts.length - 1];
+          const firstName = nameParts[0];
+          
+          const instRes = await db.query(
+            `
+            SELECT user_id
+            FROM users
+            WHERE role = 'Instructor'
+              AND (
+                (LOWER(last_name) = LOWER($1) AND LOWER(first_name) = LOWER($2))
+                OR (LOWER(last_name) = LOWER($1) AND LOWER(first_name) LIKE LOWER($2 || '%'))
+                OR (LOWER(last_name) LIKE LOWER($1 || '%') AND LOWER(first_name) = LOWER($2))
+              )
+            LIMIT 1
+            `,
+            [lastName, firstName]
+          );
+          
+          if (instRes.rows.length > 0) {
+            instructorId = instRes.rows[0].user_id;
+          }
+        }
+      }
+
+      // Store location_text: if we have building+room, use that; otherwise keep original (may contain instructor name for later extraction)
+      // If instructor was matched, we can clean it. If not matched but we have instructor name, keep it in location_text for display
+      const cleanLocationText = (building && room && instructorId) 
+        ? `${building} ${room}` 
+        : (building && room && !instructorNameFromSec)
+          ? `${building} ${room}`
+          : locationText; // Keep original if instructor name exists but wasn't matched
+
       const result = await db.query(
         `
         INSERT INTO class_sections
-          (course_id, term_id, section_num, capacity, meeting_days, meeting_times, location_text, room_id)
+          (course_id, term_id, section_num, capacity, meeting_days, meeting_times, location_text, room_id, instructor_id)
         VALUES
-          ($1, $2, $3, $4, $5, $6, $7, $8)
+          ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         ON CONFLICT (course_id, term_id, section_num)
         DO UPDATE SET
           meeting_days   = EXCLUDED.meeting_days,
           meeting_times  = EXCLUDED.meeting_times,
           location_text  = EXCLUDED.location_text,
           capacity       = EXCLUDED.capacity,
-          room_id        = EXCLUDED.room_id
-        RETURNING (xmax = 0) AS inserted
+          room_id        = EXCLUDED.room_id,
+          instructor_id  = EXCLUDED.instructor_id
+        RETURNING (xmax = 0) AS inserted, class_id
         `,
         [
           courseId,
@@ -671,14 +938,34 @@ router.post("/schedule", upload.single("file"), async (req, res) => {
           capacity,
           normDays || null,
           meetingTimes || null,
-          locationText || null,
+          cleanLocationText || null,
           roomId,
+          instructorId,
         ]
       );
 
-      if (result.rows[0]?.inserted) inserted++;
-      else updated++;
+      const wasInserted = result.rows[0]?.inserted;
+      const classId = result.rows[0]?.class_id;
+      if (wasInserted) {
+        inserted++;
+        console.log(`[API] INSERTED: ${subject} ${courseNum}-${sectionNum} (class_id=${classId})`);
+      } else {
+        updated++;
+        console.log(`[API] UPDATED: ${subject} ${courseNum}-${sectionNum} (class_id=${classId})`);
+      }
     }
+
+    // Log summary by subject
+    console.log(`[API] Import summary by subject:`);
+    Object.keys(subjectCounts).forEach(subj => {
+      const stats = subjectCounts[subj];
+      console.log(`[API]   ${subj}: ${stats.found}/${stats.total} courses found in DB`);
+      if (stats.notFound.length > 0 && stats.notFound.length <= 10) {
+        console.log(`[API]     Missing courses: ${stats.notFound.join(', ')}`);
+      } else if (stats.notFound.length > 10) {
+        console.log(`[API]     Missing courses: ${stats.notFound.slice(0, 10).join(', ')} ... and ${stats.notFound.length - 10} more`);
+      }
+    });
 
     return res.status(200).json({
       status: "success",
