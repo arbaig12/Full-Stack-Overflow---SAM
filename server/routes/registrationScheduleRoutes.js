@@ -192,10 +192,176 @@ async function checkRegistrationHolds(db, studentId) {
     FROM registration_holds
     WHERE student_user_id = $1
       AND resolved_at IS NULL
-  `,
+    `,
     [studentId]
   );
   return result.rows;
+}
+
+/**
+ * Check if an advisor can place/remove a hold on a student.
+ * - University-level advisors: can place holds on any student
+ * - College-level advisors: can only place holds on students whose majors are in their college
+ * - Department-level advisors: can only place holds on students whose majors are in their department
+ * - Registrars: can place any type of hold on any student
+ */
+export async function canAdvisorPlaceHold(db, advisorId, studentId) {
+  try {
+    // Registrars can always place holds
+    const userCheck = await db.query(
+      `SELECT role FROM users WHERE user_id = $1`,
+      [advisorId]
+    );
+    if (userCheck.rows.length > 0 && userCheck.rows[0].role === 'Registrar') {
+      return true;
+    }
+
+    // Check if advisors table exists and has the user
+    let advisorRes;
+    try {
+      // First try to get advisor info with college_id (if column exists)
+      try {
+        advisorRes = await db.query(
+          `
+          SELECT a.level, a.department_id, a.college_id
+          FROM advisors a
+          WHERE a.user_id = $1
+          `,
+          [advisorId]
+        );
+      } catch (colErr) {
+        // If college_id column doesn't exist, query without it
+        if (colErr.code === '42703') { // Undefined column
+          advisorRes = await db.query(
+            `
+            SELECT a.level, a.department_id
+            FROM advisors a
+            WHERE a.user_id = $1
+            `,
+            [advisorId]
+          );
+        } else {
+          throw colErr;
+        }
+      }
+    } catch (tableErr) {
+      // If advisors table doesn't exist, be restrictive - deny access
+      // Advisors must be properly configured in the advisors table
+      console.error('[canAdvisorPlaceHold] Advisors table issue, denying access:', tableErr.message);
+      return false;
+    }
+
+    // If advisor not in advisors table, deny access
+    // Advisors must be properly configured in the advisors table with level and department/college info
+    if (advisorRes.rows.length === 0) {
+      console.log('[canAdvisorPlaceHold] Advisor not found in advisors table, denying access');
+      return false;
+    }
+
+    const advisor = advisorRes.rows[0];
+
+    // University-level advisors can place holds on any student
+    if (advisor.level === 'university') {
+      return true;
+    }
+
+    // Get student's majors and their departments/colleges
+    const studentMajorsRes = await db.query(
+      `
+      SELECT p.department_id, d.college_id
+      FROM student_programs sp
+      JOIN programs p ON p.program_id = sp.program_id
+      LEFT JOIN departments d ON d.department_id = p.department_id
+      WHERE sp.student_id = $1
+        AND p.type = 'MAJOR'
+      `,
+      [studentId]
+    );
+
+    if (studentMajorsRes.rows.length === 0) {
+      // Student has no majors - only university-level advisors can place holds
+      console.log('[canAdvisorPlaceHold] Student has no majors, denying access');
+      return false;
+    }
+
+    // Department-level advisors can place holds on students with majors in their department
+    if (advisor.level === 'department') {
+      const canPlace = studentMajorsRes.rows.some(row => row.department_id === advisor.department_id);
+      if (!canPlace) {
+        console.log('[canAdvisorPlaceHold] Department-level advisor cannot place hold - student not in their department');
+      }
+      return canPlace;
+    }
+
+    // College-level advisors can place holds on students with majors in their college
+    if (advisor.level === 'college') {
+      // Get advisor's college_id - prefer direct college_id, fallback to department's college
+      let advisorCollegeId = advisor.college_id || null;
+      
+      // If no direct college_id, try to get it from department
+      if (!advisorCollegeId && advisor.department_id) {
+        try {
+          const collegeRes = await db.query(
+            `
+            SELECT d.college_id
+            FROM departments d
+            WHERE d.department_id = $1
+            `,
+            [advisor.department_id]
+          );
+          if (collegeRes.rows.length > 0 && collegeRes.rows[0].college_id) {
+            advisorCollegeId = collegeRes.rows[0].college_id;
+          }
+        } catch (colErr) {
+          console.log('[canAdvisorPlaceHold] Error getting college from department:', colErr.message);
+        }
+      }
+      
+      if (!advisorCollegeId) {
+        // If no department_id or can't determine college, deny access
+        console.log('[canAdvisorPlaceHold] Cannot determine college for college-level advisor, denying access');
+        return false;
+      }
+      
+      const canPlace = studentMajorsRes.rows.some(row => row.college_id === advisorCollegeId);
+      if (!canPlace) {
+        console.log(`[canAdvisorPlaceHold] College-level advisor (college_id: ${advisorCollegeId}) cannot place hold - student not in their college (student colleges: ${studentMajorsRes.rows.map(r => r.college_id).join(', ')})`);
+      } else {
+        console.log(`[canAdvisorPlaceHold] College-level advisor (college_id: ${advisorCollegeId}) CAN place hold - student is in their college`);
+      }
+      return canPlace;
+    }
+
+    return false;
+  } catch (err) {
+    console.error('[canAdvisorPlaceHold] Error:', err);
+    // On error, be restrictive - don't allow
+    return false;
+  }
+}
+
+/**
+ * Create an audit log entry
+ */
+async function createAuditLogEntry(db, {
+  studentId,
+  actionType,
+  actionDescription,
+  performedBy,
+  entityType = null,
+  entityId = null,
+  note = null
+}) {
+  try {
+    await db.query(
+      `INSERT INTO audit_log (student_id, action_type, action_description, performed_by, entity_type, entity_id, performed_at, note)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7)`,
+      [studentId, actionType, actionDescription, performedBy, entityType, entityId, note]
+    );
+  } catch (err) {
+    // Log error but don't fail the main operation
+    console.error('[createAuditLogEntry] Error:', err);
+  }
 }
 
 async function checkRegistrationWindow(db, studentId, termId, classStanding, cumulativeCredits) {
@@ -1148,6 +1314,31 @@ router.post('/holds', async (req, res) => {
   }
 
   try {
+    // Check authorization for academic advising holds
+    if (holdType === 'academic_advising' && userRole === 'Advisor') {
+      console.log('[registration/holds] Checking authorization for advisor:', {
+        advisorId: userId,
+        studentId: studentId,
+        holdType: holdType
+      });
+      const canPlace = await canAdvisorPlaceHold(req.db, userId, studentId);
+      console.log('[registration/holds] Authorization result:', { canPlace, advisorId: userId, studentId });
+      if (!canPlace) {
+        return res.status(403).json({ 
+          ok: false, 
+          error: 'You are not authorized to place academic advising holds on this student. Academic advising holds can only be placed on students in your scope (university/college/department).' 
+        });
+      }
+    }
+
+    // Financial holds can only be placed by registrars
+    if (holdType === 'financial' && userRole !== 'Registrar') {
+      return res.status(403).json({ 
+        ok: false, 
+        error: 'Only registrars can place financial holds' 
+      });
+    }
+
     const result = await req.db.query(
       `
       INSERT INTO registration_holds (student_user_id, hold_type, note, placed_by_user_id, placed_at)
@@ -1157,7 +1348,33 @@ router.post('/holds', async (req, res) => {
       [studentId, holdType, note || null, userId]
     );
 
-    return res.json({ ok: true, hold: result.rows[0] });
+    const hold = result.rows[0];
+    console.log('[registration/holds] Hold created successfully:', {
+      holdId: hold.hold_id,
+      studentId: hold.student_user_id,
+      holdType: hold.hold_type,
+      placedBy: userId
+    });
+
+    // Create audit log entry (don't fail the request if this fails)
+    const actionDescription = `Registration hold placed: ${holdType}${note ? ` - ${note}` : ''}`;
+    try {
+      await createAuditLogEntry(req.db, {
+        studentId: parseInt(studentId),
+        actionType: 'registration_hold_placed',
+        actionDescription,
+        performedBy: userId,
+        entityType: 'registration_hold',
+        entityId: hold.hold_id,
+        note: note || null
+      });
+      console.log('[registration/holds] Audit log entry created successfully');
+    } catch (auditErr) {
+      // Log error but don't fail the request
+      console.error('[registration/holds] Failed to create audit log entry (non-fatal):', auditErr);
+    }
+
+    return res.json({ ok: true, hold });
   } catch (err) {
     console.error('[registration/holds]', err);
     res.status(500).json({ ok: false, error: err.message });
@@ -1174,6 +1391,42 @@ router.delete('/holds/:holdId', async (req, res) => {
   }
 
   try {
+    // First, get the hold details to check authorization
+    const holdRes = await req.db.query(
+      `
+      SELECT hold_id, student_user_id, hold_type, note
+      FROM registration_holds
+      WHERE hold_id = $1 AND resolved_at IS NULL
+    `,
+      [holdId]
+    );
+
+    if (holdRes.rows.length === 0) {
+      return res.status(404).json({ ok: false, error: 'Hold not found or already removed' });
+    }
+
+    const hold = holdRes.rows[0];
+
+    // Check authorization for academic advising holds
+    if (hold.hold_type === 'academic_advising' && userRole === 'Advisor') {
+      const canRemove = await canAdvisorPlaceHold(req.db, userId, hold.student_user_id);
+      if (!canRemove) {
+        return res.status(403).json({ 
+          ok: false, 
+          error: 'You are not authorized to remove this academic advising hold. Academic advising holds can only be removed by advisors with authority over this student.' 
+        });
+      }
+    }
+
+    // Financial holds can only be removed by registrars
+    if (hold.hold_type === 'financial' && userRole !== 'Registrar') {
+      return res.status(403).json({ 
+        ok: false, 
+        error: 'Only registrars can remove financial holds' 
+      });
+    }
+
+    // Remove the hold
     const result = await req.db.query(
       `
       UPDATE registration_holds
@@ -1187,6 +1440,18 @@ router.delete('/holds/:holdId', async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ ok: false, error: 'Hold not found or already removed' });
     }
+
+    // Create audit log entry
+    const actionDescription = `Registration hold removed: ${hold.hold_type}`;
+    await createAuditLogEntry(req.db, {
+      studentId: hold.student_user_id,
+      actionType: 'registration_hold_removed',
+      actionDescription,
+      performedBy: userId,
+      entityType: 'registration_hold',
+      entityId: hold.hold_id,
+      note: null
+    });
 
     return res.json({ ok: true, message: 'Hold removed successfully' });
   } catch (err) {
