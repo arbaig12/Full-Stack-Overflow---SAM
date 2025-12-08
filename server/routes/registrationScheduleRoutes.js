@@ -1331,13 +1331,7 @@ router.post('/holds', async (req, res) => {
       }
     }
 
-    // Financial holds can only be placed by registrars
-    if (holdType === 'financial' && userRole !== 'Registrar') {
-      return res.status(403).json({ 
-        ok: false, 
-        error: 'Only registrars can place financial holds' 
-      });
-    }
+    // Advisors can place all types of holds (financial, disciplinary, other, and academic_advising if authorized)
 
     const result = await req.db.query(
       `
@@ -1418,13 +1412,7 @@ router.delete('/holds/:holdId', async (req, res) => {
       }
     }
 
-    // Financial holds can only be removed by registrars
-    if (hold.hold_type === 'financial' && userRole !== 'Registrar') {
-      return res.status(403).json({ 
-        ok: false, 
-        error: 'Only registrars can remove financial holds' 
-      });
-    }
+    // Advisors can remove all types of holds (financial, disciplinary, other, and academic_advising if authorized)
 
     // Remove the hold
     const result = await req.db.query(

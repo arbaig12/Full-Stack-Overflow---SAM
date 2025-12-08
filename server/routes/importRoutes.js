@@ -1035,8 +1035,156 @@ router.post("/users", upload.single("file"), async (req, res) => {
       }
     }
 
+    /**
+     * Import advisor metadata into advisors table
+     */
+    async function importAdvisorMetadata(db, advisorObj, userId) {
+      if (!userId) return;
+
+      const { level, academic_unit } = advisorObj;
+      
+      if (!level) {
+        results.warnings.push(`Advisor ${advisorObj.SBU_ID} missing level field, skipping advisor metadata import`);
+        return;
+      }
+
+      let departmentId = null;
+      let collegeId = null;
+
+      if (level === 'university') {
+        // University-level advisors don't need department_id
+        departmentId = null;
+        collegeId = null;
+      } else if (level === 'college') {
+        // College-level advisors: map academic_unit (e.g., "CEAS", "CAS") to a department in that college
+        const academicUnits = Array.isArray(academic_unit) ? academic_unit : [academic_unit];
+        const collegeName = academicUnits[0]?.toUpperCase();
+        
+        if (!collegeName) {
+          results.warnings.push(`Advisor ${advisorObj.SBU_ID} has college level but no academic_unit, skipping`);
+          return;
+        }
+
+        // Map college names to college_id (CEAS = 1, CAS = 2, etc.)
+        // For now, we'll try to find a department in that college
+        // First, try to find the college_id by name or code
+        let targetCollegeId = null;
+        try {
+          const collegeRes = await db.query(
+            `SELECT college_id FROM colleges WHERE UPPER(name) = $1 OR UPPER(code) = $1 LIMIT 1`,
+            [collegeName]
+          );
+          if (collegeRes.rows.length > 0) {
+            targetCollegeId = collegeRes.rows[0].college_id;
+          } else {
+            // Fallback: assume CEAS = 1, CAS = 2
+            if (collegeName === 'CEAS') {
+              targetCollegeId = 1;
+            } else if (collegeName === 'CAS') {
+              targetCollegeId = 2;
+            }
+          }
+        } catch (err) {
+          // If colleges table doesn't exist or query fails, use fallback
+          if (collegeName === 'CEAS') {
+            targetCollegeId = 1;
+          } else if (collegeName === 'CAS') {
+            targetCollegeId = 2;
+          }
+        }
+
+        if (targetCollegeId) {
+          collegeId = targetCollegeId;
+          // Find any department in this college to use as department_id
+          try {
+            const deptRes = await db.query(
+              `SELECT department_id FROM departments WHERE college_id = $1 LIMIT 1`,
+              [targetCollegeId]
+            );
+            if (deptRes.rows.length > 0) {
+              departmentId = deptRes.rows[0].department_id;
+            } else {
+              results.warnings.push(`Advisor ${advisorObj.SBU_ID}: No departments found for college ${collegeName}, cannot set department_id`);
+            }
+          } catch (err) {
+            results.warnings.push(`Advisor ${advisorObj.SBU_ID}: Error finding department for college ${collegeName}: ${err.message}`);
+          }
+        } else {
+          results.warnings.push(`Advisor ${advisorObj.SBU_ID}: Unknown college ${collegeName}, skipping`);
+          return;
+        }
+      } else if (level === 'department') {
+        // Department-level advisors: map academic_unit (e.g., "CSE", "AMS") to department_id
+        const academicUnits = Array.isArray(academic_unit) ? academic_unit : [academic_unit];
+        const deptCode = academicUnits[0]?.toUpperCase();
+        
+        if (!deptCode) {
+          results.warnings.push(`Advisor ${advisorObj.SBU_ID} has department level but no academic_unit, skipping`);
+          return;
+        }
+
+        try {
+          departmentId = await getOrCreateDepartment(db, deptCode);
+        } catch (err) {
+          results.warnings.push(`Advisor ${advisorObj.SBU_ID}: Error getting department for ${deptCode}: ${err.message}`);
+          return;
+        }
+      } else {
+        results.warnings.push(`Advisor ${advisorObj.SBU_ID}: Unknown level "${level}", skipping`);
+        return;
+      }
+
+      // Insert or update advisor in advisors table
+      try {
+        // Try with college_id first (if column exists)
+        try {
+          await db.query(
+            `INSERT INTO advisors (user_id, level, department_id, college_id)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (user_id) 
+             DO UPDATE SET level = $2, department_id = $3, college_id = $4`,
+            [userId, level, departmentId, collegeId]
+          );
+        } catch (colErr) {
+          // If college_id column doesn't exist, try without it
+          if (colErr.code === '42703') { // Undefined column
+            await db.query(
+              `INSERT INTO advisors (user_id, level, department_id)
+               VALUES ($1, $2, $3)
+               ON CONFLICT (user_id) 
+               DO UPDATE SET level = $2, department_id = $3`,
+              [userId, level, departmentId]
+            );
+          } else {
+            throw colErr;
+          }
+        }
+      } catch (err) {
+        // If advisors table doesn't exist, log warning but don't fail
+        if (err.code === '42P01') { // Table doesn't exist
+          results.warnings.push(`Advisors table does not exist, skipping advisor metadata import for ${advisorObj.SBU_ID}`);
+        } else if (err.code === '23505') { // Unique violation - try UPDATE instead
+          try {
+            await db.query(
+              `UPDATE advisors SET level = $1, department_id = $2 WHERE user_id = $3`,
+              [level, departmentId, userId]
+            );
+          } catch (updateErr) {
+            results.warnings.push(`Failed to update advisor metadata for ${advisorObj.SBU_ID}: ${updateErr.message}`);
+          }
+        } else {
+          results.warnings.push(`Failed to import advisor metadata for ${advisorObj.SBU_ID}: ${err.message}`);
+        }
+      }
+    }
+
     for (const r of registrars) await insertUser(r, "Registrar");
-    for (const a of academic_advisors) await insertUser(a, "Advisor");
+    for (const a of academic_advisors) {
+      const userId = await insertUser(a, "Advisor");
+      if (userId) {
+        await importAdvisorMetadata(req.db, a, userId);
+      }
+    }
     for (const i of instructors) await insertUser(i, "Instructor");
     
     // Import students and their majors/minors and classes
