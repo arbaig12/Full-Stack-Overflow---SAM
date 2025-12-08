@@ -1,0 +1,27 @@
+-- ============================================
+-- Migration 001: Initial Schema
+-- ============================================
+-- 
+-- This migration documents the initial database schema.
+-- The actual schema is created by restoring SAMFinalDB.sql.
+-- 
+-- This file serves as documentation and is NOT executed automatically.
+-- 
+-- To set up a fresh database:
+--   1. Create database: createdb sam
+--   2. Restore base schema: pg_restore -d sam -U sam_user SAMFinalDB.sql
+--   3. Run migrations: npm run migrate
+-- 
+-- Base schema includes:
+--   - users, students, instructors, advisors
+--   - courses, class_sections, enrollments
+--   - programs, student_programs
+--   - terms, academic_calendar
+--   - degree_requirements
+--   - registration_holds (existing)
+--   - waivers (existing)
+--   - And other core tables
+-- 
+-- Note: This migration is skipped by the migration runner
+-- because it doesn't start with a valid migration number pattern.
+

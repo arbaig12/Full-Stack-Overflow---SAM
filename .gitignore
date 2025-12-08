@@ -27,3 +27,5 @@ yarn-error.log*
 
 # database dumps
 *.sql
+# but allow migration files
+!server/database/migrations/*.sql
