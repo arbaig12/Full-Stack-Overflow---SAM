@@ -18,7 +18,7 @@ function getUserRole(req) {
 }
 
 function computeClassStanding(credits) {
-  if (credits >= 85) return 'U4';
+  if (credits >= 84) return 'U4';
   if (credits >= 57) return 'U3';
   if (credits >= 24) return 'U2';
   return 'U1';
@@ -618,12 +618,88 @@ async function hasTimeConflictWaiver(db, studentId, classId1, classId2) {
 async function checkPrerequisites(db, studentId, courseId, prerequisitesText) {
   if (!prerequisitesText || prerequisitesText.trim() === '') return { satisfied: true };
 
-  if (prerequisitesText.toLowerCase().includes('permission of department')) {
+  const prereqLower = prerequisitesText.toLowerCase();
+
+  // Check for department permission requirement
+  if (prereqLower.includes('permission of department')) {
     const hasPermission = await hasDepartmentPermission(db, studentId, courseId);
     if (!hasPermission) return { satisfied: false, reason: 'Department permission required' };
   }
 
-  // Parse prerequisite text into requirement groups
+  // Check for major requirements (e.g., "CSE major")
+  const majorMatch = prereqLower.match(/([a-z]{2,4})\s+major/i);
+  if (majorMatch) {
+    const requiredSubject = majorMatch[1].toUpperCase();
+    const majorCheck = await db.query(
+      `
+      SELECT 1
+      FROM student_programs sp
+      JOIN programs p ON p.program_id = sp.program_id
+      WHERE sp.student_id = $1
+        AND p.type = 'MAJOR'
+        AND UPPER(SPLIT_PART(p.code, '-', 1)) = $2
+      `,
+      [studentId, requiredSubject]
+    );
+    if (majorCheck.rows.length === 0) {
+      return { satisfied: false, reason: `${requiredSubject} major required` };
+    }
+  }
+
+  // Check for standing requirements (e.g., "U3 or U4 standing")
+  const standingMatch = prereqLower.match(/(u[1-4])\s+or\s+(u[1-4])\s+standing/i);
+  if (standingMatch) {
+    const standing1 = standingMatch[1].toUpperCase();
+    const standing2 = standingMatch[2].toUpperCase();
+    
+    // Get student's current standing
+    const creditsRes = await db.query(
+      `
+      SELECT
+        COALESCE(SUM(CASE WHEN e.grade IS NOT NULL AND e.grade != 'I' THEN c.credits ELSE 0 END), 0) AS cumulative_credits
+      FROM enrollments e
+      JOIN class_sections cs ON cs.class_id = e.class_id
+      JOIN courses c ON c.course_id = cs.course_id
+      WHERE e.student_id = $1
+        AND e.status IN ('completed', 'registered')
+      `,
+      [studentId]
+    );
+    const cumulativeCredits = Number(creditsRes.rows[0]?.cumulative_credits || 0);
+    const currentStanding = computeClassStanding(cumulativeCredits);
+    
+    if (currentStanding !== standing1 && currentStanding !== standing2) {
+      return { satisfied: false, reason: `${standing1} or ${standing2} standing required (current: ${currentStanding})` };
+    }
+  } else {
+    // Check for single standing requirement (e.g., "U3 standing")
+    const singleStandingMatch = prereqLower.match(/(u[1-4])\s+standing/i);
+    if (singleStandingMatch) {
+      const requiredStanding = singleStandingMatch[1].toUpperCase();
+      
+      // Get student's current standing
+      const creditsRes = await db.query(
+        `
+        SELECT
+          COALESCE(SUM(CASE WHEN e.grade IS NOT NULL AND e.grade != 'I' THEN c.credits ELSE 0 END), 0) AS cumulative_credits
+        FROM enrollments e
+        JOIN class_sections cs ON cs.class_id = e.class_id
+        JOIN courses c ON c.course_id = cs.course_id
+        WHERE e.student_id = $1
+          AND e.status IN ('completed', 'registered')
+        `,
+        [studentId]
+      );
+      const cumulativeCredits = Number(creditsRes.rows[0]?.cumulative_credits || 0);
+      const currentStanding = computeClassStanding(cumulativeCredits);
+      
+      if (currentStanding !== requiredStanding) {
+        return { satisfied: false, reason: `${requiredStanding} standing required (current: ${currentStanding})` };
+      }
+    }
+  }
+
+  // Parse prerequisite text into requirement groups for course prerequisites
   // Semicolons separate AND groups, "or" separates OR groups within each AND group
   const requirementGroups = parsePrerequisiteGroups(prerequisitesText);
   
