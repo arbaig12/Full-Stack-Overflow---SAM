@@ -274,6 +274,7 @@ router.get('/search', async (req, res) => {
 
     const users = result.rows.map((u) => ({
       id: u.sbu_id ?? String(u.user_id),
+      userId: u.user_id, // Include user_id for API calls
       name: `${u.first_name} ${u.last_name}`,
       email: u.email,
       role: u.role.toLowerCase(),
@@ -401,6 +402,7 @@ router.get('/students', async (req, res) => {
 
     const students = r.rows.map(u => ({
       id: u.sbu_id ?? String(u.user_id),
+      userId: u.user_id, // Include user_id for API calls
       name: `${u.first_name} ${u.last_name}`,
       email: u.email,
       role: 'student',
@@ -502,5 +504,120 @@ router.get('/advisors', async (req, res) => {
   }
 });
 
+
+/**
+ * DELETE /api/user-management/users
+ * Delete all users from the database.
+ * WARNING: This is a destructive operation for demo/testing purposes only.
+ * Also deletes related data: advisors, student_programs, enrollments, etc.
+ * 
+ * @route DELETE /users
+ * @returns {Object} 200 - Success message with count of deleted users
+ * @returns {Object} 500 - Query failure
+ */
+router.delete('/users', async (req, res) => {
+  try {
+    const db = req.db;
+    
+    console.log('[user-management] DELETE /users - Starting deletion...');
+    
+    // Get count before deletion for response
+    const countResult = await db.query('SELECT COUNT(*) as count FROM users');
+    const count = parseInt(countResult.rows[0]?.count) || 0;
+    
+    console.log(`[user-management] DELETE /users - Found ${count} users to delete`);
+    
+    if (count === 0) {
+      return res.json({
+        ok: true,
+        message: 'No users to delete.',
+        deleted: 0,
+      });
+    }
+
+    // Delete related records first to avoid foreign key constraint violations
+    // Delete in order of dependency
+    
+    // Delete audit logs first (references users via performed_by)
+    try {
+      await db.query('DELETE FROM audit_log');
+      console.log('[user-management] DELETE /users - Deleted audit_log entries');
+    } catch (err) {
+      console.log('[user-management] DELETE /users - audit_log table may not exist:', err.message);
+    }
+    
+    // Delete advisor metadata
+    try {
+      await db.query('DELETE FROM advisors');
+      console.log('[user-management] DELETE /users - Deleted advisors table entries');
+    } catch (err) {
+      console.log('[user-management] DELETE /users - Advisors table may not exist:', err.message);
+    }
+    
+    // Delete student programs (majors/minors)
+    try {
+      await db.query('DELETE FROM student_programs');
+      console.log('[user-management] DELETE /users - Deleted student_programs');
+    } catch (err) {
+      console.log('[user-management] DELETE /users - student_programs table may not exist:', err.message);
+    }
+    
+    // Delete enrollments
+    try {
+      await db.query('DELETE FROM enrollments');
+      console.log('[user-management] DELETE /users - Deleted enrollments');
+    } catch (err) {
+      console.log('[user-management] DELETE /users - enrollments table may not exist:', err.message);
+    }
+    
+    // Delete registration holds
+    try {
+      await db.query('DELETE FROM registration_holds');
+      console.log('[user-management] DELETE /users - Deleted registration_holds');
+    } catch (err) {
+      console.log('[user-management] DELETE /users - registration_holds table may not exist:', err.message);
+    }
+    
+    // Delete waivers
+    try {
+      await db.query('DELETE FROM waivers');
+      console.log('[user-management] DELETE /users - Deleted waivers');
+    } catch (err) {
+      console.log('[user-management] DELETE /users - waivers table may not exist:', err.message);
+    }
+    
+    // Delete audit logs (optional - you might want to keep these)
+    // Uncomment if you want to delete audit logs too:
+    // try {
+    //   await db.query('DELETE FROM audit_logs');
+    //   console.log('[user-management] DELETE /users - Deleted audit_logs');
+    // } catch (err) {
+    //   console.log('[user-management] DELETE /users - audit_logs table may not exist:', err.message);
+    // }
+    
+    // Now delete all users
+    const deleteResult = await db.query('DELETE FROM users');
+    
+    console.log(`[user-management] DELETE /users - Deleted ${deleteResult.rowCount || count} users`);
+    
+    // Verify deletion
+    const verifyResult = await db.query('SELECT COUNT(*) as count FROM users');
+    const remaining = parseInt(verifyResult.rows[0]?.count) || 0;
+    
+    if (remaining > 0) {
+      console.warn(`[user-management] DELETE /users - Warning: ${remaining} users still remain after deletion`);
+    }
+    
+    return res.json({
+      ok: true,
+      message: `Deleted ${count} user(s) and related data from the database.`,
+      deleted: count,
+      remaining: remaining
+    });
+  } catch (err) {
+    console.error('[user-management] DELETE /users failed:', err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
 
 export default router;

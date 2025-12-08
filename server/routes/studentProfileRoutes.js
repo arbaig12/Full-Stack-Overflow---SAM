@@ -394,6 +394,40 @@ router.get("/", async (req, res) => {
     }
 
     /* -------------------------------------
+         7. REGISTRATION HOLDS
+    -------------------------------------- */
+    let registrationHolds = [];
+    try {
+      const { rows: holdsRows } = await db.query(
+        `
+        SELECT 
+          rh.hold_id,
+          rh.hold_type,
+          rh.note,
+          rh.placed_at,
+          u.first_name || ' ' || u.last_name AS placed_by_name
+        FROM registration_holds rh
+        LEFT JOIN users u ON u.user_id = rh.placed_by_user_id
+        WHERE rh.student_user_id = $1
+          AND rh.resolved_at IS NULL
+        ORDER BY rh.placed_at DESC
+        `,
+        [userId]
+      );
+
+      registrationHolds = holdsRows.map(row => ({
+        type: row.hold_type,
+        note: row.note || null,
+        placedBy: row.placed_by_name || 'Unknown',
+        placedAt: row.placed_at
+      }));
+    } catch (err) {
+      console.log("registration_holds query error:", err.message);
+      // If table doesn't exist or query fails, return empty array
+      registrationHolds = [];
+    }
+
+    /* -------------------------------------
          FINAL RESPONSE
     -------------------------------------- */
     return res.json({
@@ -414,7 +448,7 @@ router.get("/", async (req, res) => {
         termGPA: termGpa,
         termCredits,
         termHistory, // Term-by-term GPA and cumulative GPA/credits
-        registrationHolds: ["None"],
+        registrationHolds,
         transferCourses,
       },
       schedule, // Current term schedule

@@ -131,7 +131,37 @@ export default function StudentProfile() {
             <h2>Academic Info</h2>
             <p><strong>Cumulative GPA:</strong> {academic.cumulativeGPA ? academic.cumulativeGPA.toFixed(2) : "N/A"}</p>
             <p><strong>Cumulative Credits:</strong> {academic.cumulativeCredits}</p>
-            <p><strong>Registration Holds:</strong> {academic.registrationHolds.join(", ")}</p>
+            
+            <div style={{ marginTop: 12, marginBottom: 12 }}>
+              <strong>Registration Holds:</strong>
+              {academic.registrationHolds && academic.registrationHolds.length > 0 ? (
+                <ul style={{ margin: "8px 0", paddingLeft: "20px" }}>
+                  {academic.registrationHolds.map((hold, i) => (
+                    <li key={i} style={{ marginBottom: 8 }}>
+                      <div style={{ fontWeight: "bold", color: "#d32f2f" }}>
+                        {hold.type === 'academic_advising' ? 'Academic Advising Hold' :
+                         hold.type === 'financial' ? 'Financial Hold' :
+                         hold.type === 'disciplinary' ? 'Disciplinary Hold' :
+                         hold.type === 'other' ? 'Other Hold' :
+                         hold.type}
+                      </div>
+                      {hold.note && (
+                        <div style={{ color: "#666", fontSize: "0.9em", marginTop: 4 }}>
+                          {hold.note}
+                        </div>
+                      )}
+                      {hold.placedBy && (
+                        <div style={{ color: "#666", fontSize: "0.85em", marginTop: 2 }}>
+                          Placed by: {hold.placedBy}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <span style={{ marginLeft: 8, color: "#666" }}>None</span>
+              )}
+            </div>
 
             <h3>Current Term GPA</h3>
             <p>

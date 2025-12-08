@@ -50,7 +50,8 @@ router.get('/', async (req, res) => {
         al.entity_type,
         al.entity_id,
         u.first_name || ' ' || u.last_name AS student_name,
-        p.first_name || ' ' || p.last_name AS performed_by_name
+        p.first_name || ' ' || p.last_name AS performed_by_name,
+        p.role AS performed_by_role
       FROM audit_log al
       LEFT JOIN users u ON u.user_id = al.student_id
       LEFT JOIN users p ON p.user_id = al.performed_by
@@ -127,18 +128,25 @@ router.get('/', async (req, res) => {
 
     res.json({
       ok: true,
-      entries: result.rows.map(r => ({
-        auditId: r.audit_id,
-        studentId: r.student_id,
-        studentName: r.student_name,
-        actionType: r.action_type,
-        actionDescription: r.action_description,
-        performedBy: r.performed_by,
-        performedByName: r.performed_by_name,
-        performedAt: r.performed_at,
-        entityType: r.entity_type,
-        entityId: r.entity_id
-      })),
+      entries: result.rows.map(r => {
+        // Mask registrar names for advisors (registrars can see all names)
+        let performedByName = r.performed_by_name;
+        if (role !== 'Registrar' && r.performed_by_role === 'Registrar') {
+          performedByName = 'registrar';
+        }
+        return {
+          auditId: r.audit_id,
+          studentId: r.student_id,
+          studentName: r.student_name,
+          actionType: r.action_type,
+          actionDescription: r.action_description,
+          performedBy: r.performed_by,
+          performedByName,
+          performedAt: r.performed_at,
+          entityType: r.entity_type,
+          entityId: r.entity_id
+        };
+      }),
       pagination: {
         total,
         limit: parseInt(limit),
@@ -183,7 +191,8 @@ router.get('/students/:student_id', async (req, res) => {
         al.performed_at,
         al.entity_type,
         al.entity_id,
-        p.first_name || ' ' || p.last_name AS performed_by_name
+        p.first_name || ' ' || p.last_name AS performed_by_name,
+        p.role AS performed_by_role
       FROM audit_log al
       LEFT JOIN users p ON p.user_id = al.performed_by
       WHERE al.student_id = $1
@@ -202,16 +211,23 @@ router.get('/students/:student_id', async (req, res) => {
     res.json({
       ok: true,
       studentId: parseInt(student_id),
-      entries: result.rows.map(r => ({
-        auditId: r.audit_id,
-        actionType: r.action_type,
-        actionDescription: r.action_description,
-        performedBy: r.performed_by,
-        performedByName: r.performed_by_name,
-        performedAt: r.performed_at,
-        entityType: r.entity_type,
-        entityId: r.entity_id
-      })),
+      entries: result.rows.map(r => {
+        // Mask registrar names for students and advisors (registrars can see all names)
+        let performedByName = r.performed_by_name;
+        if (role !== 'Registrar' && r.performed_by_role === 'Registrar') {
+          performedByName = 'registrar';
+        }
+        return {
+          auditId: r.audit_id,
+          actionType: r.action_type,
+          actionDescription: r.action_description,
+          performedBy: r.performed_by,
+          performedByName,
+          performedAt: r.performed_at,
+          entityType: r.entity_type,
+          entityId: r.entity_id
+        };
+      }),
       pagination: {
         total,
         limit: parseInt(limit),
