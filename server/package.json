@@ -11,7 +11,8 @@
     "coverage": "vitest run --coverage",
     "setup:registration-tables": "node database/setupRegistrationTables.js",
     "migrate": "node database/migrations/migrate.js migrate",
-    "migrate:status": "node database/migrations/migrate.js status"
+    "migrate:status": "node database/migrations/migrate.js status",
+    "fix:passwords": "node scripts/fix-registrar-passwords.js"
   },
   "vitest": {
     "coverage": {

@@ -446,6 +446,26 @@ router.post("/catalog", async (req, res) => {
 router.post("/users", upload.single("file"), async (req, res) => {
   console.log("[API] User import request received");
 
+  // Check if this is initial setup (no registrars exist) - allow import in that case
+  // Otherwise, require registrar authentication
+  const registrarCheck = await req.db.query(
+    `SELECT COUNT(*) as count FROM users WHERE role = 'Registrar'`
+  );
+  const registrarCount = parseInt(registrarCheck.rows[0]?.count || 0);
+  
+  if (registrarCount > 0) {
+    // Registrars exist, so require authentication
+    if (!req.user || !req.user.roles || !req.user.roles.includes('REGISTRAR')) {
+      return res.status(403).json({
+        status: "error",
+        error: "Only registrars can import users. Please log in as a registrar.",
+      });
+    }
+  } else {
+    // No registrars exist - this is initial setup, allow import
+    console.log("[API] No registrars found - allowing initial setup import");
+  }
+
   if (!req.file) {
     return res.status(400).json({
       status: "error",
@@ -467,6 +487,48 @@ router.post("/users", upload.single("file"), async (req, res) => {
         status: "error",
         error: "YAML parsed but produced no valid data object.",
       });
+    }
+
+    // Delete all existing user data before re-importing
+    // This ensures a clean slate and prevents duplicate/conflicting data
+    console.log("[API] Deleting all existing user data...");
+    const db = req.db;
+    const client = await db.connect();
+    
+    try {
+      await client.query('BEGIN');
+      
+      // Delete in order to respect foreign key constraints
+      // Delete child tables first (tables that reference users)
+      await client.query('DELETE FROM capacity_overrides');
+      await client.query('DELETE FROM department_permissions');
+      await client.query('DELETE FROM prerequisite_waivers');
+      await client.query('DELETE FROM time_conflict_waivers');
+      await client.query('DELETE FROM registration_holds');
+      await client.query('DELETE FROM major_minor_requests');
+      await client.query('DELETE FROM enrollments');
+      await client.query('DELETE FROM student_programs');
+      await client.query('DELETE FROM students');
+      await client.query('DELETE FROM instructors');
+      await client.query('DELETE FROM advisors');
+      // Note: class_sections.instructor_id references users, but we might want to keep class sections
+      // So we'll set instructor_id to NULL instead of deleting class sections
+      await client.query('UPDATE class_sections SET instructor_id = NULL WHERE instructor_id IS NOT NULL');
+      
+      // Finally, delete all users
+      await client.query('DELETE FROM users');
+      
+      await client.query('COMMIT');
+      console.log("[API] All existing user data deleted successfully");
+    } catch (deleteErr) {
+      await client.query('ROLLBACK');
+      console.error("[API] Error deleting existing user data:", deleteErr);
+      return res.status(500).json({
+        status: "error",
+        error: `Failed to delete existing user data: ${deleteErr.message}`,
+      });
+    } finally {
+      client.release();
     }
 
     const {
@@ -492,7 +554,10 @@ router.post("/users", upload.single("file"), async (req, res) => {
     }
 
     async function insertUser(obj, role) {
-      const { SBU_ID, first_name, last_name, email, password } = obj;
+      const { SBU_ID, first_name, last_name, email } = obj;
+      
+      // Always set password to "password" for all users (demo/testing convenience)
+      const defaultPassword = "password";
 
       if (!SBU_ID || !email || !first_name || !last_name) {
         results.skipped++;
@@ -525,19 +590,17 @@ router.post("/users", upload.single("file"), async (req, res) => {
 
       if (check.rows.length > 0) {
         const existing = check.rows[0];
-        // If SBU_ID matches, update password if provided
+        // If SBU_ID matches, always update password to default
         if (String(existing.sbu_id) === String(SBU_ID)) {
-          // Update password if provided and different from current
-          if (password) {
-            try {
-              await req.db.query(
-                `UPDATE users SET password_hash = $1 WHERE user_id = $2`,
-                [password, existing.user_id]
-              );
-              results.updated++;
-            } catch (updateErr) {
-              results.warnings.push(`Failed to update password for user ${SBU_ID}: ${updateErr.message}`);
-            }
+          // Always update password to default "password"
+          try {
+            await req.db.query(
+              `UPDATE users SET password_hash = $1 WHERE user_id = $2`,
+              [defaultPassword, existing.user_id]
+            );
+            results.updated++;
+          } catch (updateErr) {
+            results.warnings.push(`Failed to update password for user ${SBU_ID}: ${updateErr.message}`);
           }
           results.skipped++;
           results.warnings.push(`User already exists: SBU_ID=${SBU_ID}`);
@@ -545,17 +608,15 @@ router.post("/users", upload.single("file"), async (req, res) => {
         }
         // If email matches but SBU_ID is different, skip with warning
         if (existing.email && existing.email.toLowerCase() === email.toLowerCase()) {
-          // Update password if provided
-          if (password) {
-            try {
-              await req.db.query(
-                `UPDATE users SET password_hash = $1 WHERE user_id = $2`,
-                [password, existing.user_id]
-              );
-              results.updated++;
-            } catch (updateErr) {
-              results.warnings.push(`Failed to update password for user ${email}: ${updateErr.message}`);
-            }
+          // Always update password to default
+          try {
+            await req.db.query(
+              `UPDATE users SET password_hash = $1 WHERE user_id = $2`,
+              [defaultPassword, existing.user_id]
+            );
+            results.updated++;
+          } catch (updateErr) {
+            results.warnings.push(`Failed to update password for user ${email}: ${updateErr.message}`);
           }
           results.skipped++;
           results.warnings.push(`User with email ${email} already exists with different SBU_ID (existing: ${existing.sbu_id}, new: ${SBU_ID})`);
@@ -568,7 +629,7 @@ router.post("/users", upload.single("file"), async (req, res) => {
           `INSERT INTO users (sbu_id, first_name, last_name, email, role, password_hash)
            VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING user_id`,
-          [SBU_ID, first_name, last_name, email, role, password || null]
+          [SBU_ID, first_name, last_name, email, role, defaultPassword]
         );
 
         results.inserted++;
@@ -578,16 +639,16 @@ router.post("/users", upload.single("file"), async (req, res) => {
         if (insertErr.code === '23505') { // Unique violation
           results.skipped++;
           results.warnings.push(`User already exists (duplicate constraint): SBU_ID=${SBU_ID}, email=${email}`);
-          // Try to get the existing user and update password if provided
+          // Try to get the existing user and always update password to default
           const existingCheck = await req.db.query(
             `SELECT user_id FROM users WHERE sbu_id = $1 OR email = $2 LIMIT 1`,
             [SBU_ID, email]
           );
-          if (existingCheck.rows.length > 0 && password) {
+          if (existingCheck.rows.length > 0) {
             try {
               await req.db.query(
                 `UPDATE users SET password_hash = $1 WHERE user_id = $2`,
-                [password, existingCheck.rows[0].user_id]
+                [defaultPassword, existingCheck.rows[0].user_id]
               );
               results.updated++;
             } catch (updateErr) {
@@ -600,10 +661,229 @@ router.post("/users", upload.single("file"), async (req, res) => {
       }
     }
 
+    /**
+     * Get or create a department for a subject code (CSE, AMS, etc).
+     */
+    async function getOrCreateDepartment(db, subjectCode) {
+      const existing = await db.query(
+        `SELECT department_id FROM departments WHERE code = $1`,
+        [subjectCode]
+      );
+      if (existing.rows.length > 0) return existing.rows[0].department_id;
+
+      const name = `${subjectCode} Department`;
+      const collegeId = 1; // assume CEAS = 1 from seed
+      const inserted = await db.query(
+        `INSERT INTO departments (college_id, name, code)
+         VALUES ($1, $2, $3)
+         RETURNING department_id`,
+        [collegeId, name, subjectCode]
+      );
+      return inserted.rows[0].department_id;
+    }
+
+    /**
+     * Import student majors and minors into student_programs table
+     */
+    async function importStudentPrograms(db, userId, studentObj, results) {
+      try {
+        // Ensure student record exists in students table
+        const studentCheck = await db.query(
+          `SELECT 1 FROM students WHERE user_id = $1`,
+          [userId]
+        );
+
+        if (studentCheck.rows.length === 0) {
+          await db.query(
+            `INSERT INTO students (user_id) VALUES ($1)`,
+            [userId]
+          );
+        }
+
+        const { majors = [], minors = [], degrees = [] } = studentObj;
+
+        // Import majors
+        if (Array.isArray(majors) && majors.length > 0) {
+          for (let i = 0; i < majors.length; i++) {
+            const majorCode = majors[i];
+            const degreeType = degrees[i] || 'BS'; // Default to BS if not specified
+
+            // Program code format: "CSE-BS", "AMS-BS", etc.
+            const programCode = `${majorCode}-${degreeType}`;
+
+            // Try multiple patterns to find the program:
+            // 1. Exact match: "CSE-BS", "AMS-BS", etc.
+            // 2. Department-based: find by department code
+            // 3. Pattern match: code starts with the major code
+            // Also check inactive programs and reactivate them if found
+            let programRes = await db.query(
+              `SELECT p.program_id, p.type, p.code, d.code AS dept_code, p.is_active
+               FROM programs p
+               LEFT JOIN departments d ON d.department_id = p.department_id
+               WHERE p.type = 'MAJOR'
+                 AND (p.code = $1 
+                      OR p.code LIKE $2 
+                      OR d.code = $3
+                      OR p.code LIKE $4)
+               ORDER BY 
+                 CASE WHEN p.code = $1 THEN 1
+                      WHEN d.code = $3 THEN 2
+                      WHEN p.code LIKE $2 THEN 3
+                      ELSE 4 END,
+                 p.is_active DESC
+               LIMIT 1`,
+              [programCode, `${majorCode}-%`, majorCode, `${majorCode}%`]
+            );
+            
+            // If found but inactive, reactivate it
+            if (programRes.rows.length > 0 && !programRes.rows[0].is_active) {
+              await db.query(
+                `UPDATE programs SET is_active = true WHERE program_id = $1`,
+                [programRes.rows[0].program_id]
+              );
+              programRes.rows[0].is_active = true;
+            }
+
+            if (programRes.rows.length === 0) {
+              // Try to auto-create the program if it doesn't exist
+              try {
+                const departmentId = await getOrCreateDepartment(db, majorCode);
+                const programName = `${majorCode} ${degreeType}`;
+                
+                const createRes = await db.query(
+                  `INSERT INTO programs (code, name, type, department_id, is_active)
+                   VALUES ($1, $2, 'MAJOR'::program_type, $3, true)
+                   RETURNING program_id, type`,
+                  [programCode, programName, departmentId]
+                );
+                
+                const newProgram = createRes.rows[0];
+                results.warnings.push(
+                  `Student ${studentObj.SBU_ID}: Created missing program ${programCode} for major ${majorCode}.`
+                );
+                
+                // Use the newly created program
+                const program = { program_id: newProgram.program_id, type: newProgram.type, code: programCode };
+                
+                // Check if already declared
+                const existingRes = await db.query(
+                  `SELECT 1 FROM student_programs WHERE student_id = $1 AND program_id = $2`,
+                  [userId, program.program_id]
+                );
+
+                if (existingRes.rows.length === 0) {
+                  // Insert into student_programs
+                  await db.query(
+                    `INSERT INTO student_programs (student_id, program_id, kind)
+                     VALUES ($1, $2, 'MAJOR'::program_type)`,
+                    [userId, program.program_id]
+                  );
+                }
+                continue; // Successfully created and inserted, move to next major
+              } catch (createErr) {
+                results.warnings.push(
+                  `Student ${studentObj.SBU_ID}: Major program not found for ${majorCode} (tried code: ${programCode}) and failed to auto-create: ${createErr.message}. Skipping.`
+                );
+                continue;
+              }
+            }
+
+            const program = programRes.rows[0];
+            if (program.type !== 'MAJOR') {
+              results.warnings.push(
+                `Student ${studentObj.SBU_ID}: Program ${program.code} is not a MAJOR. Skipping.`
+              );
+              continue;
+            }
+
+            // Check if already declared
+            const existingRes = await db.query(
+              `SELECT 1 FROM student_programs WHERE student_id = $1 AND program_id = $2`,
+              [userId, program.program_id]
+            );
+
+            if (existingRes.rows.length === 0) {
+              // Insert into student_programs
+              await db.query(
+                `INSERT INTO student_programs (student_id, program_id, kind)
+                 VALUES ($1, $2, 'MAJOR'::program_type)`,
+                [userId, program.program_id]
+              );
+            }
+          }
+        }
+
+        // Import minors
+        // Note: YAML might have minor_requirement_versions which could help match
+        // For now, try to find minor programs by department code
+        if (Array.isArray(minors) && minors.length > 0) {
+          for (const minorCode of minors) {
+            // Try multiple patterns:
+            // 1. Exact match: "CSE-Minor" or similar
+            // 2. Department-based: find by department code
+            // 3. Pattern match: code starts with the department code
+            const programRes = await db.query(
+              `SELECT p.program_id, p.type, p.code, d.code AS dept_code
+               FROM programs p
+               LEFT JOIN departments d ON d.department_id = p.department_id
+               WHERE p.type = 'MINOR' AND p.is_active = true
+                 AND (p.code = $1 
+                      OR p.code LIKE $2 
+                      OR d.code = $1
+                      OR p.code LIKE $3)
+               ORDER BY 
+                 CASE WHEN p.code = $1 THEN 1
+                      WHEN d.code = $1 THEN 2
+                      WHEN p.code LIKE $2 THEN 3
+                      ELSE 4 END
+               LIMIT 1`,
+              [minorCode, `${minorCode}-%`, `${minorCode}%`]
+            );
+
+            if (programRes.rows.length === 0) {
+              results.warnings.push(
+                `Student ${studentObj.SBU_ID}: Minor program not found for ${minorCode}. Skipping.`
+              );
+              continue;
+            }
+
+            const program = programRes.rows[0];
+
+            // Check if already declared
+            const existingRes = await db.query(
+              `SELECT 1 FROM student_programs WHERE student_id = $1 AND program_id = $2`,
+              [userId, program.program_id]
+            );
+
+            if (existingRes.rows.length === 0) {
+              // Insert into student_programs
+              await db.query(
+                `INSERT INTO student_programs (student_id, program_id, kind)
+                 VALUES ($1, $2, 'MINOR'::program_type)`,
+                [userId, program.program_id]
+              );
+            }
+          }
+        }
+      } catch (err) {
+        results.warnings.push(
+          `Failed to import programs for student ${studentObj.SBU_ID}: ${err.message}`
+        );
+        console.error(`[import] Error importing programs for student ${studentObj.SBU_ID}:`, err);
+      }
+    }
+
     for (const r of registrars) await insertUser(r, "Registrar");
     for (const a of academic_advisors) await insertUser(a, "Advisor");
     for (const i of instructors) await insertUser(i, "Instructor");
-    for (const s of students) await insertUser(s, "Student");
+    
+    // Import students and their majors/minors
+    for (const s of students) {
+      const userId = await insertUser(s, "Student");
+      if (userId) {
+        await importStudentPrograms(req.db, userId, s, results);
+      }
+    }
 
     return res.status(200).json({
       status: "success",
@@ -1008,6 +1288,26 @@ router.post("/schedule", upload.single("file"), async (req, res) => {
 
       const wasInserted = result.rows[0]?.inserted;
       const classId = result.rows[0]?.class_id;
+      
+      // Insert instructor into junction table if matched
+      if (instructorId && classId) {
+        try {
+          await db.query(
+            `
+            INSERT INTO class_section_instructors (class_id, instructor_id)
+            VALUES ($1, $2)
+            ON CONFLICT (class_id, instructor_id) DO NOTHING
+            `,
+            [classId, instructorId]
+          );
+        } catch (e) {
+          // If table doesn't exist yet (migration not run), that's okay - instructor_id is still set
+          if (!e.message.includes('class_section_instructors')) {
+            console.warn(`[API] Failed to insert instructor into junction table:`, e.message);
+          }
+        }
+      }
+      
       if (wasInserted) {
         inserted++;
         console.log(`[API] INSERTED: ${subject} ${courseNum}-${sectionNum} (class_id=${classId})`);
@@ -1047,6 +1347,109 @@ router.post("/schedule", upload.single("file"), async (req, res) => {
     return res.status(500).json({
       status: "error",
       error: err.message || "Unexpected server error during schedule import.",
+    });
+  }
+});
+
+/**
+ * POST /api/import/users/set-default-passwords
+ * Utility route to set default password "password" for all users missing password_hash.
+ * This is useful for fixing users imported from users1.yaml (which doesn't have passwords).
+ * Only works when ENABLE_AUTH_BYPASS environment variable is set to 'true'
+ */
+router.post("/users/set-default-passwords", async (req, res) => {
+  // Check if bypass authentication is enabled
+  if (process.env.ENABLE_AUTH_BYPASS !== 'true') {
+    return res.status(403).json({ 
+      error: "This utility is only available when ENABLE_AUTH_BYPASS is enabled." 
+    });
+  }
+
+  try {
+    const defaultPassword = "password";
+    
+    // Update all users with null or empty password_hash
+    const result = await req.db.query(
+      `UPDATE users 
+       SET password_hash = $1 
+       WHERE password_hash IS NULL OR password_hash = ''
+       RETURNING user_id, email, first_name, last_name`,
+      [defaultPassword]
+    );
+
+    return res.status(200).json({
+      status: "success",
+      message: `Set default password for ${result.rows.length} user(s)`,
+      updated_users: result.rows.map(u => ({
+        user_id: u.user_id,
+        email: u.email,
+        name: `${u.first_name} ${u.last_name}`
+      })),
+      count: result.rows.length
+    });
+  } catch (err) {
+    console.error("[SET DEFAULT PASSWORDS ERROR]", err);
+    return res.status(500).json({
+      status: "error",
+      error: err.message || "Unexpected server error while setting default passwords.",
+    });
+  }
+});
+
+/**
+ * POST /api/import/users/update-password
+ * Utility route to update a specific user's password by email.
+ * Only works when ENABLE_AUTH_BYPASS environment variable is set to 'true'
+ */
+router.post("/users/update-password", async (req, res) => {
+  // Check if bypass authentication is enabled
+  if (process.env.ENABLE_AUTH_BYPASS !== 'true') {
+    return res.status(403).json({ 
+      error: "This utility is only available when ENABLE_AUTH_BYPASS is enabled." 
+    });
+  }
+
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({
+      status: "error",
+      error: "Email and password are required"
+    });
+  }
+
+  try {
+    // Update the user's password
+    const result = await req.db.query(
+      `UPDATE users 
+       SET password_hash = $1 
+       WHERE LOWER(email) = LOWER($2)
+       RETURNING user_id, email, first_name, last_name, role`,
+      [password, email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        status: "error",
+        error: `User with email ${email} not found`
+      });
+    }
+
+    return res.status(200).json({
+      status: "success",
+      message: `Password updated for ${result.rows[0].email}`,
+      user: {
+        user_id: result.rows[0].user_id,
+        email: result.rows[0].email,
+        name: `${result.rows[0].first_name} ${result.rows[0].last_name}`,
+        role: result.rows[0].role
+      }
+    });
+  } catch (err) {
+    console.error("[UPDATE PASSWORD ERROR]", err);
+    return res.status(500).json({
+      status: "error",
+      error: err.message || "Unexpected server error while updating password.",
     });
   }
 });

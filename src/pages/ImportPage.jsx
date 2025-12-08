@@ -15,6 +15,10 @@ export default function ImportPage() {
   const [terms, setTerms] = useState([]);
   const [scheduleTermId, setScheduleTermId] = useState('');
   const [scheduleSubjects, setScheduleSubjects] = useState('');
+  const [settingPasswords, setSettingPasswords] = useState(false);
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+  const [passwordEmail, setPasswordEmail] = useState('');
+  const [passwordValue, setPasswordValue] = useState('password');
 
   useEffect(() => {
     async function loadTerms() {
@@ -223,11 +227,171 @@ export default function ImportPage() {
     </div>
   );
 
+  const handleSetDefaultPasswords = async () => {
+    setSettingPasswords(true);
+    setMessages(prev => ({ ...prev, passwords: '' }));
+    try {
+      const res = await axios.post('http://localhost:4000/api/import/users/set-default-passwords', {}, {
+        withCredentials: true,
+      });
+      
+      if (res.data.status === 'success') {
+        setMessages(prev => ({ 
+          ...prev, 
+          passwords: `Success! Set default password for ${res.data.count} user(s).` 
+        }));
+      } else {
+        setMessages(prev => ({ 
+          ...prev, 
+          passwords: `Error: ${res.data.error || 'Unknown error'}` 
+        }));
+      }
+    } catch (err) {
+      setMessages(prev => ({ 
+        ...prev, 
+        passwords: `Error: ${err.response?.data?.error || err.message || 'Failed to set passwords'}` 
+      }));
+    } finally {
+      setSettingPasswords(false);
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!passwordEmail.trim()) {
+      setMessages(prev => ({ ...prev, updatePassword: 'Please enter an email address' }));
+      return;
+    }
+
+    setUpdatingPassword(true);
+    setMessages(prev => ({ ...prev, updatePassword: '' }));
+
+    try {
+      const res = await axios.post('http://localhost:4000/api/import/users/update-password', {
+        email: passwordEmail.trim(),
+        password: passwordValue
+      }, { withCredentials: true });
+
+      if (res.data.status === 'success') {
+        setMessages(prev => ({ 
+          ...prev, 
+          updatePassword: `Success: Password updated for ${res.data.user.email} (${res.data.user.name})` 
+        }));
+        setPasswordEmail('');
+      } else {
+        setMessages(prev => ({ 
+          ...prev, 
+          updatePassword: `Error: ${res.data.error || 'Unknown error'}` 
+        }));
+      }
+    } catch (err) {
+      setMessages(prev => ({ 
+        ...prev, 
+        updatePassword: `Error: ${err.response?.data?.error || err.message || 'Failed to update password'}` 
+      }));
+    } finally {
+      setUpdatingPassword(false);
+    }
+  };
+
   return (
     <div style={{ maxWidth: 700, margin: '0 auto', padding: 20 }}>
       <h2>Registrar Imports</h2>
 
       {renderFileInput('Import Users', 'users', 'api/import/users', '.yaml,.yml')}
+      
+      <div style={{ marginBottom: 20, padding: 15, background: '#f9f9f9', borderRadius: 8, border: '1px solid #ddd' }}>
+        <h3 style={{ marginTop: 0, marginBottom: 10, fontSize: 16 }}>Password Utility</h3>
+        <p style={{ marginBottom: 10, fontSize: 14, color: '#666' }}>
+          Set default password "password" for all users missing passwords. Useful after importing users1.yaml.
+        </p>
+        <button
+          onClick={handleSetDefaultPasswords}
+          disabled={settingPasswords}
+          style={{
+            padding: '8px 16px',
+            cursor: settingPasswords ? 'not-allowed' : 'pointer',
+            border: '1px solid #ddd',
+            background: settingPasswords ? '#ccc' : '#fff',
+            borderRadius: 4,
+            fontSize: 14,
+          }}
+        >
+          {settingPasswords ? 'Setting Passwords...' : 'Set Default Passwords for All Users'}
+        </button>
+        {messages.passwords && (
+          <p style={{ marginTop: 10, color: messages.passwords.includes('Error') ? '#d32f2f' : '#2e7d32', fontSize: 14 }}>
+            {messages.passwords}
+          </p>
+        )}
+      </div>
+
+      <div style={{ marginBottom: 20, padding: 15, background: '#f9f9f9', borderRadius: 8, border: '1px solid #ddd' }}>
+        <h3 style={{ marginTop: 0, marginBottom: 10, fontSize: 16 }}>Update Specific User Password</h3>
+        <p style={{ marginBottom: 10, fontSize: 14, color: '#666' }}>
+          Update password for a specific user by email address.
+        </p>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ flex: '1 1 200px', minWidth: 200 }}>
+            <label style={{ display: 'block', marginBottom: 4, fontSize: 12, fontWeight: 500 }}>
+              Email
+            </label>
+            <input
+              type="email"
+              value={passwordEmail}
+              onChange={(e) => setPasswordEmail(e.target.value)}
+              placeholder="user@stonybrook.edu"
+              style={{
+                width: '100%',
+                padding: '6px 10px',
+                fontSize: 14,
+                border: '1px solid #ddd',
+                borderRadius: 4,
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+          <div style={{ flex: '1 1 150px', minWidth: 150 }}>
+            <label style={{ display: 'block', marginBottom: 4, fontSize: 12, fontWeight: 500 }}>
+              Password
+            </label>
+            <input
+              type="text"
+              value={passwordValue}
+              onChange={(e) => setPasswordValue(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '6px 10px',
+                fontSize: 14,
+                border: '1px solid #ddd',
+                borderRadius: 4,
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+          <button
+            onClick={handleUpdatePassword}
+            disabled={updatingPassword}
+            style={{
+              padding: '6px 16px',
+              cursor: updatingPassword ? 'not-allowed' : 'pointer',
+              border: '1px solid #ddd',
+              background: updatingPassword ? '#ccc' : '#fff',
+              borderRadius: 4,
+              fontSize: 14,
+              height: '32px',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {updatingPassword ? 'Updating...' : 'Update Password'}
+          </button>
+        </div>
+        {messages.updatePassword && (
+          <p style={{ marginTop: 10, color: messages.updatePassword.includes('Error') ? '#d32f2f' : '#2e7d32', fontSize: 14 }}>
+            {messages.updatePassword}
+          </p>
+        )}
+      </div>
+
       {renderFileInput('Import Course Catalog', 'catalog', 'api/import/catalog', '.yaml,.yml')}
       {renderFileInput('Import Class Schedule', 'schedule', 'api/import/schedule', '.pdf', terms.length > 0, true)}
       {renderFileInput('Import Academic Calendar', 'calendar', 'api/import/academic-calendar', '.yaml,.yml')}
