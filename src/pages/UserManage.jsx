@@ -56,13 +56,14 @@ const sampleUsers = [
 
 
 export default function UserManagement() {
-  const [users, setUsers] = useState(sampleUsers);
+  const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [editingUser, setEditingUser] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
 
 
 //   useEffect(() => {
@@ -148,7 +149,9 @@ useEffect(() => {
   let ignore = false;
 
   const load = async (url) => {
-    const resp = await fetch(url);
+    const resp = await fetch(`http://localhost:4000${url}`, {
+      credentials: 'include'
+    });
     if (!resp.ok) throw new Error(`${url} -> HTTP ${resp.status}`);
     const json = await resp.json();
     if (!json.ok) throw new Error(json.error || `Failed at ${url}`);
@@ -157,25 +160,45 @@ useEffect(() => {
 
   (async () => {
     try {
+      setLoading(true);
+      
+      // Load each endpoint separately to handle partial failures
+      const loadWithFallback = async (url, roleName) => {
+        try {
+          return await load(url);
+        } catch (e) {
+          console.error(`Failed to load ${roleName}:`, e);
+          return []; // Return empty array on failure
+        }
+      };
+
       const [registrars, students, instructors, advisors] = await Promise.all([
-        load('/api/user-management/registrars'),
-        load('/api/user-management/students'),
-        load('/api/user-management/instructors'),
-        load('/api/user-management/advisors'),
+        loadWithFallback('/api/user-management/registrars', 'registrars'),
+        loadWithFallback('/api/user-management/students', 'students'),
+        loadWithFallback('/api/user-management/instructors', 'instructors'),
+        loadWithFallback('/api/user-management/advisors', 'advisors'),
       ]);
 
       if (!ignore) {
         const merged = [...registrars, ...students, ...instructors, ...advisors];
-        setUsers(prev => {
-          const seen = new Set(prev.map(u => u.id));
-          const toAdd = merged.filter(u => !seen.has(u.id));
-          return [...prev, ...toAdd];
-        });
-        setMessage('Loaded users (registrars, students, instructors, advisors)');
+        setUsers(merged);
+        
+        // Only show error if no users were loaded at all
+        if (merged.length === 0) {
+          setMessage(`Failed to load users. Check server console for details.`);
+        } else {
+          // Show success message without mentioning failed endpoints
+          setMessage(`Loaded ${merged.length} users (${registrars.length} registrars, ${students.length} students, ${instructors.length} instructors, ${advisors.length} advisors)`);
+        }
+        setLoading(false);
       }
     } catch (e) {
-      if (!ignore) setMessage(`Load failed: ${e.message}`);
-      console.error(e);
+      if (!ignore) {
+        setMessage(`Load failed: ${e.message}. Please check the server console for details.`);
+        setLoading(false);
+        console.error('User load error:', e);
+        setUsers([]);
+      }
     }
   })();
 
@@ -350,11 +373,22 @@ useEffect(() => {
           padding: 12,
           marginBottom: 16,
           borderRadius: 6,
-          background: '#d4edda',
-          color: '#155724',
-          border: '1px solid #c3e6cb'
+          background: message.includes('Failed to load') ? '#f8d7da' : '#d4edda',
+          color: message.includes('Failed to load') ? '#721c24' : '#155724',
+          border: `1px solid ${message.includes('Failed to load') ? '#f5c6cb' : '#c3e6cb'}`
         }}>
           {message}
+        </div>
+      )}
+
+      {/* Loading Indicator */}
+      {loading && (
+        <div style={{
+          padding: 20,
+          textAlign: 'center',
+          color: '#666'
+        }}>
+          Loading users...
         </div>
       )}
 

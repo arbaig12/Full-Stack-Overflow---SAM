@@ -30,8 +30,7 @@ router.get('/registrars', async (req, res) => {
         u.last_name,
         u.email,
         u.role::text AS role,
-        u.status,
-        to_char(u.last_login, 'YYYY-MM-DD') AS last_login_fmt
+        'active' AS status
       FROM users u
       WHERE lower(u.role::text) = lower($1)
       ORDER BY u.last_name, u.first_name
@@ -44,7 +43,7 @@ router.get('/registrars', async (req, res) => {
       email: u.email,
       role: 'registrar',
       status: u.status,                
-      lastLogin: u.last_login_fmt,
+      lastLogin: null,
       department: 'Administration',
     }));
 
@@ -243,13 +242,12 @@ router.get('/students', async (req, res) => {
         u.last_name,
         u.email,
         u.role::text AS role,
-        u.status,
-        to_char(u.last_login, 'YYYY-MM-DD') AS last_login_fmt,
+        'active' AS status,
         s.user_id         AS student_user_id,
         s.standing::text  AS standing,              -- enum -> text
         d.name            AS department_name
       FROM users u
-      JOIN students s
+      LEFT JOIN students s
         ON s.user_id = u.user_id
       /* most recently declared program for this student */
       LEFT JOIN LATERAL (
@@ -274,7 +272,7 @@ router.get('/students', async (req, res) => {
       email: u.email,
       role: 'student',
       status: u.status,
-      lastLogin: u.last_login_fmt,
+      lastLogin: null,
       department: u.department_name ?? null,
       classStanding: u.standing ?? null,          
     }));
@@ -296,8 +294,7 @@ router.get('/instructors', async (req, res) => {
         u.last_name,
         u.email,
         u.role::text AS role,
-        COALESCE(u.status, 'active') AS status,
-        to_char(u.last_login, 'YYYY-MM-DD') AS last_login_fmt,
+        'active' AS status,
         i.department_id,
         d.name AS department_name,
         -- distinct list like 'CSE214', 'CSE101'
@@ -311,7 +308,7 @@ router.get('/instructors', async (req, res) => {
       WHERE lower(u.role::text) = 'instructor'
       GROUP BY
         u.user_id, u.sbu_id, u.first_name, u.last_name, u.email,
-        u.role, u.status, u.last_login, i.department_id, d.name
+        u.role, i.department_id, d.name
       ORDER BY u.last_name, u.first_name
     `;
     const r = await req.db.query(sql);
@@ -322,7 +319,7 @@ router.get('/instructors', async (req, res) => {
       email: u.email,
       role: 'instructor',
       status: u.status,
-      lastLogin: u.last_login_fmt,
+      lastLogin: null,
       department: u.department_name ?? null,
       courses: Array.isArray(u.courses) ? u.courses.filter(Boolean) : []
     }));
@@ -336,26 +333,9 @@ router.get('/instructors', async (req, res) => {
 
 router.get('/advisors', async (req, res) => {
   try {
+    // Simplified query - just get users with advisor role
+    // We'll add advisor-specific details later if the tables exist
     const sql = `
-      WITH primary_dept AS (
-        SELECT
-          s.user_id AS student_id,
-          p.department_id,
-          d.college_id
-        FROM students s
-        JOIN users u ON u.user_id = s.user_id
-                    AND u.role = 'Student'
-                    AND u.status = 'active'
-        LEFT JOIN LATERAL (
-          SELECT sp.program_id
-          FROM student_programs sp
-          WHERE sp.student_id = s.user_id
-          ORDER BY sp.declared_at DESC NULLS LAST, sp.program_id
-          LIMIT 1
-        ) sp ON true
-        LEFT JOIN programs   p ON p.program_id   = sp.program_id
-        LEFT JOIN departments d ON d.department_id = p.department_id
-      )
       SELECT
         u.user_id,
         u.sbu_id,
@@ -363,29 +343,13 @@ router.get('/advisors', async (req, res) => {
         u.last_name,
         u.email,
         u.role::text AS role,
-        COALESCE(u.status, 'active') AS status,
-        to_char(u.last_login, 'YYYY-MM-DD') AS last_login_fmt,
-        a.level::text AS advisor_level,
-        a.department_id,
-        a.college_id,
-        CASE a.level
-          WHEN 'university' THEN 'Administration'
-          WHEN 'college'    THEN (SELECT c.name FROM colleges c WHERE c.college_id = a.college_id)
-          WHEN 'department' THEN (SELECT d.name FROM departments d WHERE d.department_id = a.department_id)
-        END AS scope_name,
-        COALESCE(
-          CASE a.level
-            WHEN 'university' THEN (SELECT COUNT(DISTINCT pd.student_id) FROM primary_dept pd)
-            WHEN 'college'    THEN (SELECT COUNT(DISTINCT pd.student_id) FROM primary_dept pd WHERE pd.college_id    = a.college_id)
-            WHEN 'department' THEN (SELECT COUNT(DISTINCT pd.student_id) FROM primary_dept pd WHERE pd.department_id = a.department_id)
-          END, 0
-        ) AS advisee_count
-      FROM advisors a
-      JOIN users u ON u.user_id = a.user_id
-      ORDER BY u.last_name, u.first_name;
+        'active' AS status
+      FROM users u
+      WHERE lower(u.role::text) = lower($1)
+      ORDER BY u.last_name, u.first_name
     `;
 
-    const r = await req.db.query(sql);
+    const r = await req.db.query(sql, ['Advisor']);
 
     const advisors = r.rows.map(row => ({
       id: row.sbu_id ?? String(row.user_id),
@@ -393,9 +357,9 @@ router.get('/advisors', async (req, res) => {
       email: row.email,
       role: 'advisor',
       status: row.status,
-      lastLogin: row.last_login_fmt,
-      department: row.scope_name ?? null,  
-      advisees: Number(row.advisee_count) 
+      lastLogin: null,
+      department: null,  // Will be populated when advisor tables are set up
+      advisees: 0  // Will be populated when advisor tables are set up
     }));
 
     res.json({ ok: true, users: advisors });

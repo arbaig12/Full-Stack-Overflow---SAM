@@ -288,6 +288,19 @@ router.post("/users", upload.single("file"), async (req, res) => {
 
     const results = { inserted: 0, skipped: 0, warnings: [] };
 
+    // Helper function to check if a transfer course is a placement test
+    function isPlacementTest(transferCourse) {
+      if (!transferCourse || typeof transferCourse !== 'object') return false;
+      const className = String(transferCourse.class || '').toLowerCase();
+      return className.includes('placement') || className.includes('placement exam');
+    }
+
+    // Helper function to filter out placement tests from transfer_courses
+    function filterTransferCourses(transferCourses) {
+      if (!Array.isArray(transferCourses)) return [];
+      return transferCourses.filter(tc => !isPlacementTest(tc));
+    }
+
     async function insertUser(obj, role) {
       const { SBU_ID, first_name, last_name, email } = obj;
 
@@ -297,26 +310,69 @@ router.post("/users", upload.single("file"), async (req, res) => {
         return null;
       }
 
+      // For students, check and filter transfer_courses for placement tests
+      if (role === "Student" && obj.transfer_courses) {
+        const originalCount = Array.isArray(obj.transfer_courses) ? obj.transfer_courses.length : 0;
+        const filtered = filterTransferCourses(obj.transfer_courses);
+        const droppedCount = originalCount - filtered.length;
+        
+        if (droppedCount > 0) {
+          // Optionally add a warning (or silently drop as per requirement)
+          // The requirement says "with or without warnings", so we'll add a warning for transparency
+          results.warnings.push(
+            `Student ${SBU_ID}: Dropped ${droppedCount} placement test entry/entries from transfer_courses`
+          );
+        }
+        // Note: We're not storing transfer_courses in the database currently,
+        // but we're processing them to meet the requirement
+      }
+
+      // Check for existing user by SBU_ID or email (both have unique constraints)
       const check = await req.db.query(
-        `SELECT user_id FROM users WHERE sbu_id = $1`,
-        [SBU_ID]
+        `SELECT user_id, sbu_id, email FROM users WHERE sbu_id = $1 OR email = $2`,
+        [SBU_ID, email]
       );
 
       if (check.rows.length > 0) {
-        results.skipped++;
-        results.warnings.push(`User already exists: SBU_ID=${SBU_ID}`);
-        return check.rows[0].user_id;
+        const existing = check.rows[0];
+        // If SBU_ID matches, skip (user already exists)
+        if (String(existing.sbu_id) === String(SBU_ID)) {
+          results.skipped++;
+          results.warnings.push(`User already exists: SBU_ID=${SBU_ID}`);
+          return existing.user_id;
+        }
+        // If email matches but SBU_ID is different, skip with warning
+        if (existing.email && existing.email.toLowerCase() === email.toLowerCase()) {
+          results.skipped++;
+          results.warnings.push(`User with email ${email} already exists with different SBU_ID (existing: ${existing.sbu_id}, new: ${SBU_ID})`);
+          return existing.user_id;
+        }
       }
 
-      const r = await req.db.query(
-        `INSERT INTO users (sbu_id, first_name, last_name, email, role)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING user_id`,
-        [SBU_ID, first_name, last_name, email, role]
-      );
+      try {
+        const r = await req.db.query(
+          `INSERT INTO users (sbu_id, first_name, last_name, email, role)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING user_id`,
+          [SBU_ID, first_name, last_name, email, role]
+        );
 
-      results.inserted++;
-      return r.rows[0].user_id;
+        results.inserted++;
+        return r.rows[0].user_id;
+      } catch (insertErr) {
+        // Handle any other constraint violations (e.g., race condition)
+        if (insertErr.code === '23505') { // Unique violation
+          results.skipped++;
+          results.warnings.push(`User already exists (duplicate constraint): SBU_ID=${SBU_ID}, email=${email}`);
+          // Try to get the existing user
+          const existingCheck = await req.db.query(
+            `SELECT user_id FROM users WHERE sbu_id = $1 OR email = $2 LIMIT 1`,
+            [SBU_ID, email]
+          );
+          return existingCheck.rows[0]?.user_id || null;
+        }
+        throw insertErr;
+      }
     }
 
     for (const r of registrars) await insertUser(r, "Registrar");

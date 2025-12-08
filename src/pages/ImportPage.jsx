@@ -36,7 +36,11 @@ export default function ImportPage() {
       });
 
       setMessages(prev => ({ ...prev, [type]: res.data.message || 'Import successful!' }));
-      if (res.data.logs) {
+      
+      // Handle warnings from summary (for user imports) or logs (for other imports)
+      if (res.data.summary?.warnings && res.data.summary.warnings.length > 0) {
+        setLogs(prev => ({ ...prev, [type]: res.data.summary.warnings }));
+      } else if (res.data.logs) {
         setLogs(prev => ({ ...prev, [type]: res.data.logs }));
       }
     } catch (err) {
@@ -86,8 +90,8 @@ export default function ImportPage() {
     <div style={{ maxWidth: 700, margin: '0 auto', padding: 20 }}>
       <h2>Registrar Imports</h2>
 
-      {renderFileInput('Import Users', 'users', 'import/users', '.yaml,.yml')}
-      {renderFileInput('Import Course Catalog', 'catalog', 'import/catalog', '.yaml,.yml')}
+      {renderFileInput('Import Users', 'users', 'api/import/users', '.yaml,.yml')}
+      {renderFileInput('Import Course Catalog', 'catalog', 'api/import/catalog', '.yaml,.yml')}
       {renderFileInput('Import Class Schedule', 'schedule', 'api/import/schedule', '.pdf')}
       {renderFileInput('Import Academic Calendar', 'calendar', 'api/import/academic-calendar', '.yaml,.yml')}
       {renderFileInput('Import Degree Requirements', 'degreeReq', 'api/import/degree-requirements', '.yaml,.yml')}
