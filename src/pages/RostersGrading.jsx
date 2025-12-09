@@ -10,7 +10,7 @@ export default function RostersGrading() {
   const [currentTerm, setCurrentTerm] = useState(null);
   const [selectedClassId, setSelectedClassId] = useState(null);
 
-  const [editingEnrollmentId, setEditingEnrollmentId] = useState(null);
+  const [editingStudentId, setEditingStudentId] = useState(null);
   const [gradeInput, setGradeInput] = useState("");
 
   // Capacity override state (for registrars)
@@ -28,7 +28,7 @@ export default function RostersGrading() {
     "A", "A-", "B+", "B", "B-",
     "C+", "C", "C-",
     "D+", "D", "D-",
-    "F", "P", "NP",
+    "F", "P", "NP", "I", "IP",
   ];
 
   const getGradeColor = (grade) => {
@@ -171,12 +171,12 @@ export default function RostersGrading() {
       return;
     }
 
-    setEditingEnrollmentId(student.enrollmentId);
+    setEditingStudentId(student.studentId);
     setGradeInput(currentGrade || "");
   };
 
   const handleGradeCancel = () => {
-    setEditingEnrollmentId(null);
+    setEditingStudentId(null);
     setGradeInput("");
   };
 
@@ -200,7 +200,7 @@ export default function RostersGrading() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({
-            enrollmentId: student.enrollmentId,
+            studentId: student.studentId,
             newGrade: trimmed,
           }),
         }
@@ -218,7 +218,7 @@ export default function RostersGrading() {
           return {
             ...c,
             students: c.students.map((s) =>
-              s.enrollmentId === student.enrollmentId
+              s.studentId === student.studentId
                 ? { ...s, grade: trimmed }
                 : s
             ),
@@ -226,7 +226,7 @@ export default function RostersGrading() {
         })
       );
 
-      setEditingEnrollmentId(null);
+      setEditingStudentId(null);
       setGradeInput("");
       setMessage(
         `Grade updated successfully for ${student.name} to ${trimmed}.`
@@ -534,7 +534,7 @@ export default function RostersGrading() {
               onChange={(e) => {
                 const v = e.target.value;
                 setSelectedClassId(v ? Number(v) : null);
-                setEditingEnrollmentId(null);
+                setEditingStudentId(null);
                 setGradeInput("");
                 setMessage("");
               }}
@@ -685,7 +685,7 @@ export default function RostersGrading() {
                     <tbody>
                       {selectedCourse.students.map((student, idx) => {
                         const isRowEditing =
-                          editingEnrollmentId === student.enrollmentId;
+                          editingStudentId === student.studentId;
                         const currentGrade = student.grade
                           ? String(student.grade).toUpperCase()
                           : "";
@@ -696,7 +696,7 @@ export default function RostersGrading() {
 
                         return (
                           <tr
-                            key={student.enrollmentId}
+                            key={student.studentId}
                             style={{
                               background:
                                 idx % 2 === 0 ? "#fff" : "#f9f9f9",

@@ -23,6 +23,7 @@ const ALLOWED_GRADES = [
   "S",
   "U",
   "I",
+  "IP",
 ];
 
 const getUserId = (req) =>

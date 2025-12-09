@@ -29,6 +29,7 @@ import majorMinorRequestRoutes from './routes/majorMinorRequestRoutes.js';
 import waiversHoldsRoutes from './routes/waiversHoldsRoutes.js';
 import auditLogRoutes from './routes/auditLogRoutes.js';
 import currentDateRoutes from './routes/currentDateRoutes.js';
+import schedulePlanRoutes from './routes/schedulePlanRoutes.js';
 import authUser from "./middleware/authUser.js";
 
 
@@ -115,6 +116,7 @@ app.use('/api/major-minor-requests', majorMinorRequestRoutes);
 app.use('/api/waivers-holds', waiversHoldsRoutes);
 app.use('/api/audit-log', auditLogRoutes);
 app.use('/api/current-date', currentDateRoutes);
+app.use('/api/schedule-plan', schedulePlanRoutes);
 app.use("/api/auth", authRoutes);
 
 
